@@ -49,6 +49,7 @@ GIFTS = {
 FILTERS = ["Natural", "Glow ✨", "Soft", "Warm"]
 ALLOWED_IMAGE_EXT = {"jpg", "jpeg", "png", "webp"}
 MAX_UPLOAD = 8 * 1024 * 1024
+CALL_PEERS = {}  # booking/admin room -> set of Socket.IO session IDs
 
 
 def now():
@@ -789,12 +790,29 @@ def telegram_webhook():
 @socketio.on("join_call")
 def ws_join(data):
     data=data or {}
-    room=str(data.get("booking_id",""))
-    if room:
-        join_room(room)
-        if data.get("user_room"): join_room(str(data["user_room"]))
-        if data.get("host_room"): join_room(str(data["host_room"]))
+    room=str(data.get("booking_id","") or "")
+    if data.get("user_room"): join_room(str(data["user_room"]))
+    if data.get("host_room"): join_room(str(data["host_room"]))
+    if not room:
+        return
+    join_room(room)
+    peers=CALL_PEERS.setdefault(room,set())
+    peers.add(request.sid)
+    # Only the already-connected peer creates the WebRTC offer.
+    if len(peers) >= 2:
         emit("peer_joined",{"booking_id":room},room=room,include_self=False)
+        # Start the authoritative timer only after two participants are connected.
+        try:
+            bid=int(room)
+            b=conn().execute("SELECT * FROM bookings WHERE id=?",(bid,)).fetchone()
+            if b and not b["call_started_at"] and b["status"] in ("scheduled","ringing","accepted","in_call"):
+                started=now()
+                conn().execute("UPDATE bookings SET call_started_at=?,status='in_call' WHERE id=? AND call_started_at=''",(started,bid))
+                conn().commit()
+                emit("server_timer_started",{"booking_id":bid,"started_at":started,"duration":b["duration"]},room=room)
+        except (ValueError,TypeError):
+            # Admin/free calls use non-numeric rooms and have no booking timer.
+            emit("call_ready",{"room":room},room=room)
 
 
 @socketio.on("webrtc_signal")
@@ -805,13 +823,16 @@ def ws_signal(data):
 
 @socketio.on("call_started")
 def ws_started(data):
-    try: bid=int(data.get("booking_id"))
-    except: return
-    b=conn().execute("SELECT * FROM bookings WHERE id=?",(bid,)).fetchone()
-    if not b or b["status"] not in ("scheduled","accepted","in_call"): return
-    started=now()
-    conn().execute("UPDATE bookings SET call_started_at=?,status='in_call' WHERE id=? AND call_started_at=''",(started,bid)); conn().commit()
-    emit("server_timer_started",{"booking_id":bid,"started_at":started,"duration":b["duration"]},room=str(bid))
+    # Kept for backwards compatibility with older clients. The current client
+    # starts the timer from ws_join only after both participants are connected.
+    return
+
+@socketio.on("disconnect")
+def ws_disconnect():
+    for room, peers in list(CALL_PEERS.items()):
+        peers.discard(request.sid)
+        if not peers:
+            CALL_PEERS.pop(room, None)
 
 
 @socketio.on("call_ended")
