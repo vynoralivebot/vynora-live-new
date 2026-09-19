@@ -1,439 +1,436 @@
-<!doctype html>
-<html lang="hi">
+<!DOCTYPE html>
+<html lang="en" class="dark">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Vynora Live</title>
-<script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-<style>
-:root{
-  --bg:#f6f7fb;--surface:#fff;--surface2:#f8f5ff;--text:#151827;--muted:#70758a;
-  --primary:#6d28d9;--primary2:#ec4899;--accent:#8b5cf6;--green:#18a66a;--red:#e5484d;
-  --line:#ececf3;--shadow:0 12px 34px rgba(39,24,76,.08);--radius:24px;
-}
-*{box-sizing:border-box}
-html{scroll-behavior:smooth}
-body{
-  margin:0;background:
-  radial-gradient(circle at 10% 0%,rgba(139,92,246,.10),transparent 32%),
-  radial-gradient(circle at 95% 10%,rgba(236,72,153,.10),transparent 28%),
-  var(--bg);color:var(--text);
-  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
-  padding-bottom:94px
-}
-button,input,select,textarea{font:inherit}
-button{border:0;cursor:pointer}
-button:active{transform:scale(.98)}
-.top{
-  position:relative;overflow:hidden;padding:24px 20px 28px;color:#fff;
-  background:linear-gradient(135deg,#4c1d95 0%,#7c3aed 46%,#ec4899 100%);
-  border-radius:0 0 32px 32px;box-shadow:0 12px 30px rgba(109,40,217,.20)
-}
-.top:after{
-  content:"";position:absolute;width:210px;height:210px;border-radius:50%;
-  right:-70px;top:-90px;background:rgba(255,255,255,.12)
-}
-.brand{position:relative;z-index:1;font-size:29px;font-weight:950;letter-spacing:-.7px}
-.hello{position:relative;z-index:1;margin-top:5px;font-size:15px;opacity:.93}
-.wrap{max-width:980px;margin:auto;padding:14px 15px 20px}
-.card{
-  background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.8);
-  border-radius:var(--radius);padding:17px;margin:12px 0;box-shadow:var(--shadow)
-}
-.hero-card{
-  background:linear-gradient(135deg,#fff 0%,#faf7ff 100%);
-  border:1px solid #eee8ff
-}
-.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
-.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
-.stat{
-  padding:15px;border-radius:20px;background:linear-gradient(135deg,#fff,#f7f2ff);
-  border:1px solid #eee9fb
-}
-.stat span{font-size:13px;color:var(--muted);font-weight:750}
-.stat b{font-size:21px;display:block;margin-top:3px}
-.section-title{font-size:20px;font-weight:950;letter-spacing:-.3px;margin-bottom:12px}
-.section-sub{color:var(--muted);font-size:13px;margin-top:-7px;margin-bottom:12px}
-.muted{color:var(--muted)}
-.btn{
-  background:linear-gradient(135deg,var(--primary),var(--primary2));color:white;
-  padding:12px 15px;border-radius:15px;font-weight:850;box-shadow:0 8px 18px rgba(109,40,217,.18)
-}
-.btn.secondary{background:#f1eff7;color:#36394b;box-shadow:none}
-.btn.green{background:linear-gradient(135deg,#16a36a,#24c98a)}
-.btn.red{background:linear-gradient(135deg,#dc2626,#f05252)}
-.btn.block{width:100%;margin-top:9px}
-.host{
-  display:grid;grid-template-columns:76px 1fr auto;gap:12px;align-items:center
-}
-.avatar{
-  width:76px;height:76px;border-radius:22px;object-fit:cover;
-  background:linear-gradient(135deg,#eee,#f7efff);border:2px solid #fff;
-  box-shadow:0 7px 18px rgba(0,0,0,.08)
-}
-.host-card{
-  padding:12px;border-radius:22px;background:#fff;border:1px solid #eeeef5;
-  box-shadow:0 8px 22px rgba(30,20,60,.055);margin:10px 0
-}
-.host-name{font-size:18px;font-weight:900}
-.online{color:var(--green);font-weight:850}
-.offline{color:#85899a;font-weight:750}
-.pill{
-  display:inline-flex;align-items:center;padding:6px 10px;border-radius:99px;
-  background:#f3f1f8;font-size:11px;font-weight:850;margin:2px
-}
-.online-dot{
-  display:inline-block;width:8px;height:8px;border-radius:50%;background:#20b77b;
-  box-shadow:0 0 0 4px rgba(32,183,123,.12);margin-right:5px
-}
-.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
-.section-link{color:var(--primary);font-weight:850;font-size:13px}
-.empty{
-  text-align:center;padding:22px 10px;color:var(--muted);
-  background:#fafafd;border-radius:18px;border:1px dashed #dedcea
-}
-.bottom{
-  position:fixed;z-index:30;bottom:0;left:0;right:0;
-  background:rgba(255,255,255,.94);backdrop-filter:blur(18px);
-  border-top:1px solid rgba(220,220,232,.85);padding:9px 9px calc(9px + env(safe-area-inset-bottom));
-  display:grid;grid-template-columns:repeat(4,1fr);gap:7px
-}
-.nav{
-  padding:10px 4px;border-radius:16px;background:transparent;
-  font-weight:850;color:#70758a;font-size:12px
-}
-.nav.active{
-  color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary2));
-  box-shadow:0 7px 16px rgba(109,40,217,.22)
-}
-.hidden{display:none!important}
-.input{
-  width:100%;padding:13px 14px;border:1px solid #dedee8;border-radius:15px;
-  background:#fff;margin:6px 0 10px;outline:none
-}
-.input:focus{border-color:#a78bfa;box-shadow:0 0 0 4px rgba(139,92,246,.10)}
-.upload{
-  border:1.5px dashed #b9a4ee;padding:18px;border-radius:19px;text-align:center;
-  background:linear-gradient(135deg,#fbf9ff,#fff)
-}
-.upload input[type=file]{max-width:100%}
-.preview{max-width:180px;max-height:180px;border-radius:18px;margin-top:11px;object-fit:cover}
-.tabs{display:flex;gap:8px;overflow:auto;margin:8px 0;padding-bottom:2px}
-.tab{
-  white-space:nowrap;padding:10px 13px;border-radius:14px;background:#f2f0f7;
-  font-weight:850;color:#46495a
-}
-.tab.sel{background:#ede7ff;color:#5b21b6;box-shadow:inset 0 0 0 1px #d8caff}
-.toast{
-  position:fixed;z-index:100;left:15px;right:15px;bottom:92px;padding:14px 16px;
-  border-radius:16px;background:#171925;color:#fff;display:none;box-shadow:0 12px 30px rgba(0,0,0,.22)
-}
-.modal{position:fixed;z-index:80;inset:0;background:rgba(0,0,0,.58);display:flex;align-items:flex-end}
-.sheet{background:#fff;width:100%;max-height:92vh;overflow:auto;border-radius:28px 28px 0 0;padding:18px}
-.call{position:fixed;z-index:120;inset:0;background:#07111f;color:#fff;display:none}
-.remote{width:100%;height:100%;object-fit:cover;background:#111}
-.local{position:absolute;right:14px;top:14px;width:112px;height:158px;border-radius:18px;object-fit:cover;background:#222;border:2px solid #fff}
-.callbar{position:absolute;left:0;right:0;bottom:0;padding:22px 15px;background:linear-gradient(transparent,rgba(0,0,0,.88));text-align:center}
-.circle{width:58px;height:58px;border-radius:50%;margin:8px;background:#fff;font-size:23px}
-.end{background:#ef4444;color:#fff}
-.ring{
-  position:fixed;z-index:110;inset:0;background:linear-gradient(145deg,#24124a,#7c3aed,#ec4899);
-  color:#fff;display:none;align-items:center;justify-content:center;text-align:center;padding:25px
-}
-.ring .avatar{width:118px;height:118px;border-radius:50%;border:4px solid #fff}
-.qr{width:190px;height:190px;border-radius:18px;border:1px solid #ddd;display:block;margin:14px auto}
-.danger{color:#b91c1c}.ok{color:#15803d}
-.table{width:100%;border-collapse:collapse;font-size:13px}
-.table td,.table th{padding:9px;border-bottom:1px solid var(--line);text-align:left}
-.admin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-.admin-stat{background:linear-gradient(145deg,#171827,#2d214d);color:#fff;border-radius:19px;padding:15px}
-.admin-stat small{opacity:.75;font-weight:800}
-.admin-stat b{font-size:25px;display:block;margin-top:3px}
-.profile-hero{
-  display:flex;align-items:center;gap:14px;padding:18px;border-radius:24px;
-  background:linear-gradient(135deg,#f4edff,#fff1f8);border:1px solid #eee4ff
-}
-.profile-hero .avatar{width:84px;height:84px;border-radius:26px}
-.badge-admin{display:inline-flex;padding:6px 10px;border-radius:99px;background:#21143c;color:#e9d5ff;font-size:11px;font-weight:900}
-.feature{
-  display:flex;align-items:center;gap:12px;padding:12px;border-radius:17px;background:#fafafd;
-  border:1px solid #eeeef4;margin:7px 0
-}
-.feature-icon{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:#efe9ff;font-size:19px}
-@media(max-width:650px){
-  .grid3,.admin-grid{grid-template-columns:repeat(2,1fr)}
-  .host{grid-template-columns:62px 1fr}
-  .host .actions{grid-column:1/-1}
-  .avatar{width:62px;height:62px;border-radius:18px}
-  .brand{font-size:27px}
-}
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VYNORA LIVE - Real Connections</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.17.0.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#6366f1',
+                        darkbg: '#0f172a',
+                        cardbg: '#1e293b',
+                        cardborder: '#334155'
+                    }
+                }
+            }
+        }
+    </script>
 </head>
-<body>
-<header class="top">
-      <div class="brand">❤️ Vynora Live</div>
-      <div class="hello" id="hello">Welcome</div>
+<body class="bg-darkbg text-white font-sans min-h-screen flex flex-col antialiased selection:bg-pink-500 selection:text-white pb-20">
+
+    <!-- Top Navigation Header -->
+    <header class="bg-cardbg border-b border-cardborder p-4 flex justify-between items-center sticky top-0 z-50 shadow-md">
+        <div class="flex items-center space-x-3">
+            <div class="bg-gradient-to-tr from-pink-500 to-indigo-600 p-2.5 rounded-2xl text-white font-black text-base shadow-lg flex items-center justify-center">VL</div>
+            <div>
+                <h1 class="font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-indigo-400 tracking-wide text-base">VYNORA LIVE</h1>
+                <p id="userRoleBadge" class="text-[10px] text-slate-400 font-medium tracking-wider uppercase">Real Connections • Real Moments</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <div id="walletBadge" class="hidden bg-slate-900 border border-cardborder px-3 py-1.5 rounded-full flex items-center space-x-2 shadow-inner">
+                <i class="fa-solid fa-coins text-yellow-400 text-xs"></i>
+                <span id="tokenBalanceCount" class="font-extrabold text-xs">0</span>
+            </div>
+            <div id="userAvatarHeader" class="w-9 h-9 bg-gradient-to-tr from-pink-500 to-purple-600 rounded-full flex items-center justify-center font-bold text-sm shadow-md border border-pink-400/30">U</div>
+        </div>
     </header>
-<main class="wrap" id="app"></main>
 
-<div class="toast" id="toast"></div>
+    <!-- Main Container View -->
+    <main id="appContainer" class="flex-1 p-4 max-w-lg mx-auto w-full space-y-4">
+        <!-- Initial Loading View -->
+        <div id="loadingView" class="flex flex-col items-center justify-center py-28 space-y-4">
+            <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-pink-500"></div>
+            <p class="text-slate-400 text-xs tracking-wider animate-pulse font-medium">Loading Vynora Live Workspace...</p>
+        </div>
+    </main>
 
-<div class="ring" id="ring">
-  <div>
-    <img id="ringPhoto" class="avatar" src="" alt="">
-    <h1 id="ringTitle">Incoming Call</h1>
-    <p id="ringSub">Vynora Live 1-to-1 call</p>
-    <button class="circle" onclick="acceptCall()">🟢</button>
-    <button class="circle" onclick="declineCall()">🔴</button>
-  </div>
-</div>
+    <!-- Bottom Navigation Bar -->
+    <nav id="bottomNav" class="hidden fixed bottom-0 left-0 right-0 bg-cardbg/95 backdrop-blur-md border-t border-cardborder p-2 flex justify-around items-center z-50 max-w-lg mx-auto shadow-2xl">
+        <!-- Dynamically Rendered Navigation per Role -->
+    </nav>
 
-<div class="call" id="call">
-  <video id="remoteVideo" class="remote" autoplay playsinline></video>
-  <video id="localVideo" class="local" autoplay muted playsinline></video>
-  <div class="callbar">
-    <div id="callName">Vynora Live Call</div>
-    <div id="timer" style="font-size:28px;font-weight:900">00:00</div>
-    <button class="circle end" onclick="endCall()">☎</button>
-  </div>
-</div>
+    <!-- JavaScript Application Core Logic -->
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.expand();
 
-<nav class="bottom" id="nav">
-  <button class="nav active" onclick="showPage('home')">🏠 Home</button>
-  <button class="nav" onclick="showPage('bookings')">📅 Bookings</button>
-  <button class="nav" onclick="showPage('profile')">👤 Profile</button>
-  <button class="nav hidden" id="adminNav" onclick="showPage('admin')">👑 Admin</button>
-</nav>
+        let currentUser = null;
+        let currentRole = 'user';
+        const API_BASE = window.location.origin;
 
-<script>
-const tg=window.Telegram?.WebApp;
-tg?.ready(); tg?.expand();
-const socket=io({transports:["websocket","polling"]});
-let me=null, config=null, page="home", callState={booking:null,pc:null,stream:null,started:null,duration:0,initiator:false};
-let currentIncoming=null;
+        // Fallback initData for testing outside Telegram if needed
+        const initData = tg.initData || "query_id=AAHd-1gSAAAAANv3VBM&user=%7B%22id%22%3A7778606261%2C%22first_name%22%3A%22Rajnish%22%2C%22username%22%3A%22rajnish%22%7D&auth_date=1658145223&hash=abc";
 
-const esc=s=>String(s??"").replace(/[&<>"']/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
-function toast(x){const e=document.getElementById("toast");e.textContent=x;e.style.display="block";setTimeout(()=>e.style.display="none",2800)}
-function headers(){return {"X-Telegram-Id":String(me?.telegram_id||"")}}
-async function api(url,opt={}){opt.headers={...(opt.headers||{}),...headers()}; if(opt.body && !(opt.body instanceof FormData)) {opt.headers["Content-Type"]="application/json";opt.body=JSON.stringify(opt.body)} const r=await fetch(url,opt);const j=await r.json().catch(()=>({ok:false,error:"Server error"}));if(!r.ok||j.ok===false)throw new Error(j.error||"Request failed");return j}
-async function boot(){
- try{
-  config=await fetch("/api/config").then(r=>r.json());
-  const initData=tg?.initData||"";
-  const u=tg?.initDataUnsafe?.user;
-  const auth=await fetch("/api/auth",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({initData,telegram_id:u?.id,name:u?.first_name,username:u?.username})}).then(r=>r.json());
-  if(!auth.ok)throw new Error(auth.error||"Authentication failed");
-  me=auth.user; document.getElementById("hello").textContent=`Welcome, ${me.name||"User"}`;
-  if(me.telegram_id===7778606261||me.telegram_id===7001825467||me.role==="admin")document.getElementById("adminNav").classList.remove("hidden");
-  setupSocketRooms(); await showPage("home"); handleUrlCall();
- }catch(e){document.getElementById("app").innerHTML=`<div class="card"><h2>⚠️ Vynora Live</h2><p>${esc(e.message)}</p><button class="btn" onclick="location.reload()">Retry</button></div>`}
-}
-function setupSocketRooms(){
- socket.emit("join_call",{user_room:`user_${me.id}`,user_id:me.id});
- if(me.host) socket.emit("join_call",{host_room:`host_${me.host.id}`,host_id:me.host.id});
-}
-function handleUrlCall(){const q=new URLSearchParams(location.search); if(q.get("call")) showIncoming({booking_id:q.get("call"),host_name:"Vynora Live Host"}); if(q.get("admin_call")) showIncoming({booking_id:q.get("admin_call"),host_name:"VYNORA LIVE Admin",admin:true,room:q.get("admin_call")});}
-socket.on("incoming_call",d=>showIncoming(d));
-socket.on("admin_incoming_call",d=>showIncoming({booking_id:d.room,host_name:"VYNORA LIVE Admin",admin:true}));
-socket.on("peer_joined",async()=>{if(callState.pc&&!callState.initiator)return; if(callState.pc) await makeOffer()});
-socket.on("webrtc_signal",async d=>{
- if(!callState.pc)return;
- if(d.kind==="offer"){await callState.pc.setRemoteDescription(d.sdp);const ans=await callState.pc.createAnswer();await callState.pc.setLocalDescription(ans);socket.emit("webrtc_signal",{booking_id:callState.booking||d.booking_id,kind:"answer",sdp:callState.pc.localDescription})}
- else if(d.kind==="answer"){await callState.pc.setRemoteDescription(d.sdp)}
- else if(d.kind==="candidate"){try{await callState.pc.addIceCandidate(d.candidate)}catch(e){}}
-});
-socket.on("server_timer_started",d=>{callState.started=d.started_at;callState.duration=d.duration||callState.duration;runTimer()});
-socket.on("call_force_end",()=>endCall(false));
-socket.on("call_completed",()=>endCall(false));
+        async function apiCall(endpoint, method = 'GET', data = null, isForm = false) {
+            const headers = { 'initData': initData };
+            let options = { method, headers };
+            if (data) {
+                if (isForm) {
+                    options.body = data;
+                } else {
+                    headers['Content-Type'] = 'application/json';
+                    options.body = JSON.stringify(data);
+                }
+            }
+            try {
+                const res = await fetch(`${API_BASE}${endpoint}`, options);
+                const json = await res.json();
+                if (!res.ok) throw new Error(json.detail || 'API Error');
+                return json;
+            } catch (err) {
+                console.error(err);
+                alert(err.message);
+                return null;
+            }
+        }
 
-async function showPage(p){
- page=p; document.querySelectorAll(".nav").forEach(x=>x.classList.remove("active"));
- const idx={home:0,bookings:1,profile:2,admin:3}[p]; document.querySelectorAll(".nav")[idx]?.classList.add("active");
- try {
-   if(p==="home") await home();
-   if(p==="bookings") await bookings();
-   if(p==="profile") await profile();
-   if(p==="admin") await admin();
- } catch(e) {
-   document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">⚠️ Vynora Live</div><p>${esc(e.message||"Something went wrong")}</p><button class="btn" onclick="showPage('${p}')">Retry</button></div>`;
- }
-}
-async function home(){
- const h=await api("/api/hosts"); const b=await api("/api/bookings"); const host=me.host;
- document.getElementById("app").innerHTML=`
- <div class="hero-card card">
-   <div class="section-head">
-     <div>
-       <div class="section-title" style="margin-bottom:3px">Good to see you 👋</div>
-       <div class="muted">Book a private 1-to-1 call with an India-based host.</div>
-     </div>
-     <div style="font-size:34px">💜</div>
-   </div>
-   <div class="grid" style="margin-top:14px">
-     <div class="stat"><span>💰 Wallet</span><b>${me.wallet} Tokens</b></div>
-     <div class="stat"><span>📅 My Bookings</span><b>${b.bookings.length}</b></div>
-   </div>
-   <div class="grid" style="margin-top:10px">
-     <button class="btn" onclick="recharge()">💰 Recharge</button>
-     <button class="btn secondary" onclick="notifications()">🔔 Notifications</button>
-   </div>
- </div>
+        async function initApp() {
+            const res = await apiCall('/api/auth/verify', 'POST', { initData });
+            if (!res) return;
+            currentUser = res;
+            currentRole = res.role;
 
- <div class="card">
-   <div class="section-head">
-     <div><div class="section-title" style="margin-bottom:2px">🇮🇳 Real Hosts</div><div class="section-sub">Approved India-based hosts</div></div>
-     <span class="pill">${h.real_hosts.length} available</span>
-   </div>
-   <div id="real"></div>
- </div>
+            document.getElementById('walletBadge').classList.remove('hidden');
+            document.getElementById('tokenBalanceCount').innerText = res.tokens || 0;
+            document.getElementById('userRoleBadge').innerText = currentRole.toUpperCase() + ' DASHBOARD';
+            document.getElementById('userAvatarHeader').innerText = (res.name || 'U').charAt(0).toUpperCase();
 
- <div class="card">
-   <div class="section-head">
-     <div><div class="section-title" style="margin-bottom:2px">🌎 Demo Hosts</div><div class="section-sub">For display/testing only</div></div>
-     <span class="pill">BOOKING OFF</span>
-   </div>
-   <div id="dummy"></div>
- </div>
+            renderNavigation();
+            if (currentRole === 'admin') {
+                loadAdminDashboard();
+            } else if (currentRole === 'host') {
+                loadHostDashboard();
+            } else {
+                loadUserDashboard();
+            }
+        }
 
- ${host ? `
- <div class="card">
-   <div class="section-head">
-     <div><div class="section-title" style="margin-bottom:2px">🎙️ Host Mode</div><div class="section-sub">Manage your availability and calls</div></div>
-     <span class="badge-admin" style="background:${host.online?'#e7fff4':'#f1f1f5'};color:${host.online?'#087443':'#646879'}">${host.online?'● ONLINE':'● OFFLINE'}</span>
-   </div>
-   <button class="btn ${host.online?'red':'green'} block" onclick="hostOnline(${!host.online})">${host.online?'Go Offline':'Go Online'}</button>
-   <button class="btn secondary block" onclick="hostPanel()">🎙️ Open Host Dashboard</button>
- </div>` : `
- <div class="card hero-card">
-   <div class="feature"><div class="feature-icon">🎙️</div><div><b>Become a Vynora Host</b><div class="muted">India-based hosts can apply with a direct photo upload.</div></div></div>
-   <button class="btn block" onclick="hostApply()">Apply as Host</button>
- </div>`}`;
- document.getElementById("real").innerHTML=h.real_hosts.length?h.real_hosts.map(hostCard).join():"<div class='empty'>🫶 No approved real hosts yet.<br><small>Approved hosts will appear here.</small></div>";
- document.getElementById("dummy").innerHTML=h.dummy_hosts.length?h.dummy_hosts.map(x=>hostCard(x,true)).join():"<div class='empty'>🌎 Demo hosts are for display/testing only.<br><small>Booking is disabled.</small></div>";
-}
+        function renderNavigation() {
+            const nav = document.getElementById('bottomNav');
+            nav.classList.remove('hidden');
+            if (currentRole === 'admin') {
+                nav.innerHTML = `
+                    <button onclick="loadAdminDashboard()" class="flex flex-col items-center text-pink-500"><i class="fa-solid fa-chart-pie text-base"></i><span class="text-[10px] mt-1 font-semibold">Dashboard</span></button>
+                    <button onclick="alert('Use Telegram Group 1 or Bot Commands for Recharges')" class="flex flex-col items-center text-slate-400 hover:text-white"><i class="fa-solid fa-wallet text-base"></i><span class="text-[10px] mt-1 font-semibold">Recharges</span></button>
+                    <button onclick="alert('Super Admin Panel active')" class="flex flex-col items-center text-slate-400 hover:text-white"><i class="fa-solid fa-user-shield text-base"></i><span class="text-[10px] mt-1 font-semibold">Hosts</span></button>
+                `;
+            } else if (currentRole === 'host') {
+                nav.innerHTML = `
+                    <button onclick="loadHostDashboard()" class="flex flex-col items-center text-pink-500"><i class="fa-solid fa-house text-base"></i><span class="text-[10px] mt-1 font-semibold">Home</span></button>
+                    <button onclick="loadHostBookings()" class="flex flex-col items-center text-slate-400 hover:text-white"><i class="fa-solid fa-calendar text-base"></i><span class="text-[10px] mt-1 font-semibold">Bookings</span></button>
+                    <button onclick="loadHostWallet()" class="flex flex-col items-center text-slate-400 hover:text-white"><i class="fa-solid fa-wallet text-base"></i><span class="text-[10px] mt-1 font-semibold">Wallet</span></button>
+                `;
+            } else {
+                nav.innerHTML = `
+                    <button onclick="loadUserDashboard()" class="flex flex-col items-center text-pink-500"><i class="fa-solid fa-house text-base"></i><span class="text-[10px] mt-1 font-semibold">Home</span></button>
+                    <button onclick="loadUserBookings()" class="flex flex-col items-center text-slate-400 hover:text-white"><i class="fa-solid fa-calendar-check text-base"></i><span class="text-[10px] mt-1 font-semibold">Bookings</span></button>
+                    <button onclick="loadWalletView()" class="flex flex-col items-center text-slate-400 hover:text-white"><i class="fa-solid fa-wallet text-base"></i><span class="text-[10px] mt-1 font-semibold">Recharge</span></button>
+                `;
+            }
+        }
 
-function hostCard(h,dummy=false){
- return `<div class="host-card">
-   <div class="host">
-     <img class="avatar" src="${esc(h.photo_url||'')}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2276%22 height=%2276%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 rx=%2220%22 fill=%22%23eee8ff%22/%3E%3Ctext x=%2250%25%22 y=%2258%25%22 text-anchor=%22middle%22 font-size=%2230%22%3E👤%3C/text%3E%3C/svg%3E'">
-     <div>
-       <div class="host-name">${esc(h.name)}</div>
-       <div class="${h.online?'online':'offline'}">${h.online?'<span class="online-dot"></span>Online':'⚪ Offline'} · 🇮🇳 ${esc(h.country)}</div>
-       <div style="margin-top:5px">⭐ ${h.rating||5} <span class="pill">${dummy?'DEMO':'1-to-1 CALL'}</span></div>
-     </div>
-     <div class="actions">${dummy?`<span class="pill">BOOKING DISABLED</span>`:`<button class="btn" onclick="book(${h.id},'${esc(h.name)}')">📅 Book Slot</button>`}</div>
-   </div>
- </div>`;
-}
+        // --- USER DASHBOARD ---
+        async function loadUserDashboard() {
+            const container = document.getElementById('appContainer');
+            container.innerHTML = `<div class="text-center py-20"><div class="animate-spin h-8 w-8 border-2 border-pink-500 rounded-full mx-auto"></div></div>`;
+            const res = await apiCall('/api/hosts', 'GET', null);
+            if (!res) return;
 
-function recharge(){
- document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">💰 Recharge Wallet</div><p class="muted">₹1 baseline = 1 Token. Bonus plans admin setting से नियंत्रित किए जा सकते हैं।</p>
- <div class="tabs">${Object.entries(config.recharge_plans).map(([a,t])=>`<button class="tab" onclick="pickAmount(${a})">₹${a} → ${t}</button>`).join("")}</div>
- <label>Selected Amount</label><input class="input" id="ramount" readonly>
- <label>UTR / Transaction ID *</label><input class="input" id="utr" placeholder="UTR number">
- <label>Payment Screenshot *</label><div class="upload"><input id="rechargeFile" type="file" accept="image/*" onchange="previewFile(this,'rprev')"><div>📷 Direct photo/screenshot upload</div><img id="rprev" class="preview hidden"></div>
- <img class="qr" id="qr" src="/api/upi-qr" alt="UPI QR">
- <div class="card"><b>UPI ID:</b> vynoralive@slc<br><b>UPI Name:</b> Rajnish Kumar</div>
- <button class="btn block" onclick="submitRecharge()">✅ Submit Recharge</button></div>`;
-}
-function pickAmount(a){document.getElementById("ramount").value=a}
-function previewFile(input,id){const f=input.files?.[0];if(!f)return;const img=document.getElementById(id);img.src=URL.createObjectURL(f);img.classList.remove("hidden")}
-async function submitRecharge(){const amount=document.getElementById("ramount").value,utr=document.getElementById("utr").value,file=document.getElementById("rechargeFile").files[0];if(!amount||!utr||!file)return toast("Amount, UTR और screenshot जरूरी है");const fd=new FormData();fd.append("amount",amount);fd.append("utr",utr);fd.append("screenshot",file);try{await api("/api/recharge",{method:"POST",body:fd});toast("Recharge submitted");home()}catch(e){toast(e.message)}}
+            let hostsHtml = '';
+            res.hosts.forEach(host => {
+                const isIndia = host.country.toLowerCase() === 'india';
+                hostsHtml += `
+                    <div class="bg-cardbg border border-cardborder rounded-2xl p-3 flex flex-col justify-between shadow-lg relative overflow-hidden group">
+                        <div class="relative rounded-xl overflow-hidden bg-slate-800 h-44 flex items-center justify-center">
+                            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80 z-10"></div>
+                            <div class="text-4xl font-extrabold text-slate-600">${host.name.charAt(0)}</div>
+                            <div class="absolute top-2 left-2 z-20 bg-emerald-500/90 backdrop-blur text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center space-x-1">
+                                <span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+                                <span>Online</span>
+                            </div>
+                            <div class="absolute bottom-2 left-2 z-20">
+                                <h4 class="font-bold text-sm text-white">${host.name} <i class="fa-solid fa-circle-check text-blue-400 text-xs"></i></h4>
+                                <p class="text-[10px] text-slate-300"><i class="fa-solid fa-location-dot text-pink-400"></i> ${host.country}</p>
+                            </div>
+                        </div>
+                        <div class="mt-3 flex items-center justify-between">
+                            <span class="text-xs font-bold text-pink-400">₹${host.call_rate || 20}/min</span>
+                            <button onclick="bookHost('${host.user_id}', '${host.name}', ${host.call_rate || 20}, '${host.country}')" class="bg-gradient-to-r from-pink-500 to-indigo-600 px-3 py-1.5 rounded-xl text-xs font-bold shadow hover:opacity-90 transition">Book Now</button>
+                        </div>
+                    </div>
+                `;
+            });
 
-function book(hid,name){document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">📅 Book ${esc(name)}</div><p class="muted">Host busy हो तो request queue में रहेगी। Actual timer दोनों connect होने पर ही शुरू होगा।</p><div class="tabs">${Object.entries(config.durations).map(([d,t])=>`<button class="tab" onclick="selectDuration(${d},${t},this)">${d} min · ${t}</button>`).join("")}</div><input id="duration" type="hidden"><label>Date</label><input class="input" id="bdate" type="date"><label>Time</label><input class="input" id="btime" type="time"><button class="btn block" onclick="submitBooking(${hid},'${esc(name)}')">Confirm Booking</button></div>`}
-function selectDuration(d,t,el){document.getElementById("duration").value=d;document.querySelectorAll(".tab").forEach(x=>x.classList.remove("sel"));el.classList.add("sel")}
-async function submitBooking(hid,name){const d=document.getElementById("duration").value,date=document.getElementById("bdate").value,time=document.getElementById("btime").value;if(!d||!date||!time)return toast("Duration, date और time चुनें");try{await api("/api/bookings",{method:"POST",body:{host_id:hid,duration:d,date,time}});toast("Booking submitted");showPage("bookings")}catch(e){toast(e.message)}}
+            container.innerHTML = `
+                <!-- Token & Banner Card -->
+                <div class="bg-gradient-to-r from-slate-900 to-indigo-950 border border-cardborder rounded-2xl p-4 flex justify-between items-center shadow-xl">
+                    <div>
+                        <p class="text-xs text-slate-400 font-medium">Your Token Balance</p>
+                        <div class="flex items-center space-x-2 mt-1">
+                            <i class="fa-solid fa-coins text-yellow-400 text-lg"></i>
+                            <span class="text-2xl font-black">${currentUser.tokens || 0}</span>
+                        </div>
+                    </div>
+                    <button onclick="loadWalletView()" class="bg-gradient-to-r from-pink-500 to-primary px-4 py-2.5 rounded-xl font-bold text-xs shadow-lg flex items-center space-x-2">
+                        <i class="fa-solid fa-plus"></i>
+                        <span>Recharge</span>
+                    </button>
+                </div>
 
-async function bookings(){const j=await api("/api/bookings");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">📅 My Bookings</div>${j.bookings.length?j.bookings.map(b=>`<div class="card"><b>#${b.id} · ${esc(b.host_name)}</b><div>${b.duration} min · ${b.tokens} tokens</div><div>📅 ${b.booking_date} ${b.booking_time}</div><span class="pill">${esc(b.status)}</span>${b.status==='scheduled'?`<button class="btn block" onclick="location.href='/?call=${b.id}'">📞 Open Scheduled Call</button>`:''}</div>`).join(""):"<p class='muted'>No bookings.</p>"}</div>`}
+                <!-- Announcement Banner -->
+                <div class="bg-cardbg border border-pink-500/30 rounded-2xl p-3 flex items-center space-x-3 shadow-md">
+                    <div class="bg-pink-500/20 p-2.5 rounded-xl text-pink-400"><i class="fa-solid fa-bullhorn"></i></div>
+                    <div class="flex-1">
+                        <h4 class="text-xs font-bold text-pink-400">Announcement</h4>
+                        <p class="text-[11px] text-slate-300">Special Offer: Get 20% Extra Tokens on every recharge today!</p>
+                    </div>
+                </div>
 
-async function notifications(){const j=await api("/api/notifications");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">🔔 Notifications</div>${j.notifications.map(x=>`<div class="card"><b>${esc(x.event_type)}</b><div>${esc(x.message)}</div><small>${esc(x.created_at)}</small></div>`).join("")}</div>`}
+                <!-- Quick Actions Grid -->
+                <div class="grid grid-cols-3 gap-2.5">
+                    <button onclick="loadUserBookings()" class="bg-cardbg border border-cardborder p-3 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-pink-500/50 transition">
+                        <div class="bg-indigo-500/20 text-indigo-400 p-2.5 rounded-xl"><i class="fa-solid fa-calendar-check text-sm"></i></div>
+                        <span class="text-[11px] font-semibold text-slate-300">Bookings</span>
+                    </button>
+                    <button onclick="loadWalletView()" class="bg-cardbg border border-cardborder p-3 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-pink-500/50 transition">
+                        <div class="bg-emerald-500/20 text-emerald-400 p-2.5 rounded-xl"><i class="fa-solid fa-wallet text-sm"></i></div>
+                        <span class="text-[11px] font-semibold text-slate-300">Wallet</span>
+                    </button>
+                    <button onclick="alert('Gift system active during video calls!')" class="bg-cardbg border border-cardborder p-3 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-pink-500/50 transition">
+                        <div class="bg-pink-500/20 text-pink-400 p-2.5 rounded-xl"><i class="fa-solid fa-gift text-sm"></i></div>
+                        <span class="text-[11px] font-semibold text-slate-300">Gifts</span>
+                    </button>
+                </div>
 
-async function profile(){
- const photo=me.photo_url||"";
- document.getElementById("app").innerHTML=`
- <div class="profile-hero">
-   <img class="avatar" src="${esc(photo)}" onerror="this.style.visibility='hidden'">
-   <div>
-     <div style="font-size:22px;font-weight:950">${esc(me.name||"Vynora User")}</div>
-     <div class="muted">@${esc(me.username||"telegram_user")}</div>
-     <div style="margin-top:6px"><span class="pill">🇮🇳 ${esc(me.country||"India")}</span><span class="pill">💰 ${me.wallet} Tokens</span></div>
-   </div>
- </div>
- <div class="card">
-   <div class="section-title">👤 Profile Settings</div>
-   <label>Name</label><input class="input" id="pname" value="${esc(me.name)}">
-   <label>Country</label><input class="input" id="pcountry" value="${esc(me.country||'India')}">
-   <div class="upload">
-     <input type="file" id="pfile" accept="image/*" onchange="previewFile(this,'pprev')">
-     <div style="font-weight:850">📷 Upload Profile Photo</div>
-     <div class="muted" style="font-size:12px;margin-top:4px">Choose directly from your phone gallery or camera.</div>
-     <img id="pprev" class="preview ${photo?'':'hidden'}" src="${esc(photo)}">
-   </div>
-   <button class="btn block" onclick="saveProfile()">Save Profile</button>
- </div>
- <div class="card">
-   <div class="section-title">🛡️ Account</div>
-   <div class="feature"><div class="feature-icon">🆔</div><div><b>Telegram ID</b><div class="muted">${me.telegram_id}</div></div></div>
-   <div class="feature"><div class="feature-icon">💰</div><div><b>Wallet Balance</b><div class="muted">${me.wallet} Tokens</div></div></div>
-   <div class="feature"><div class="feature-icon">🔒</div><div><b>Account Status</b><div class="ok">Active</div></div></div>
- </div>`;
-}
+                <!-- Available Hosts Section -->
+                <div>
+                    <h3 class="font-extrabold text-sm mb-3 flex items-center justify-between">
+                        <span>Top India-Based Hosts</span>
+                        <span class="text-xs text-pink-400 cursor-pointer">View All</span>
+                    </h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        ${hostsHtml}
+                    </div>
+                </div>
+            `;
+        }
 
-async function saveProfile(){const fd=new FormData();fd.append("name",document.getElementById("pname").value);fd.append("country",document.getElementById("pcountry").value);const f=document.getElementById("pfile").files[0];if(f)fd.append("photo",f);try{await api("/api/profile",{method:"POST",body:fd});me=(await api("/api/me")).user;toast("Profile saved");profile()}catch(e){toast(e.message)}}
+        function bookHost(hostId, hostName, rate, country) {
+            if (country.toLowerCase() !== 'india') {
+                alert("⚠️ यह Host book नहीं किया जा सकता। यह दूसरे country का Host है। अभी केवल India-based Hosts available हैं।");
+                return;
+            }
+            const container = document.getElementById('appContainer');
+            container.innerHTML = `
+                <div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-2xl space-y-4">
+                    <h2 class="text-base font-bold text-pink-400">Book Video Call with ${hostName}</h2>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-xs text-slate-400 font-medium">Duration (Minutes)</label>
+                            <select id="durationSelect" class="w-full bg-slate-900 border border-cardborder rounded-xl p-3 mt-1 text-xs font-semibold focus:outline-none focus:border-pink-500">
+                                <option value="1">1 Minute (20 Tokens)</option>
+                                <option value="5" selected>5 Minutes (100 Tokens)</option>
+                                <option value="10">10 Minutes (200 Tokens)</option>
+                                <option value="15">15 Minutes (300 Tokens)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-medium">Date</label>
+                            <input type="date" id="bookingDate" value="2026-09-20" class="w-full bg-slate-900 border border-cardborder rounded-xl p-3 mt-1 text-xs font-semibold">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-medium">Time</label>
+                            <input type="time" id="bookingTime" value="21:30" class="w-full bg-slate-900 border border-cardborder rounded-xl p-3 mt-1 text-xs font-semibold">
+                        </div>
+                        <button onclick="submitBooking('${hostId}')" class="w-full bg-gradient-to-r from-pink-500 to-indigo-600 py-3 rounded-xl font-bold text-xs shadow-lg mt-2">CONFIRM & BOOK</button>
+                        <button onclick="loadUserDashboard()" class="w-full bg-slate-800 py-2.5 rounded-xl font-bold text-xs text-slate-400">Cancel</button>
+                    </div>
+                </div>
+            `;
+        }
 
-function hostApply(){document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">🎙️ Host Application</div><input class="input" id="hname" placeholder="Host Name"><input class="input" id="hcountry" value="India"><textarea class="input" id="hbio" placeholder="Bio"></textarea><div class="upload"><input type="file" id="hfile" accept="image/*" onchange="previewFile(this,'hprev')"><div>📷 Direct Host Photo Upload</div><img id="hprev" class="preview hidden"></div><button class="btn block" onclick="submitHostApply()">Submit Application</button></div>`}
-async function submitHostApply(){const fd=new FormData();fd.append("name",document.getElementById("hname").value);fd.append("country",document.getElementById("hcountry").value);fd.append("bio",document.getElementById("hbio").value);fd.append("photo",document.getElementById("hfile").files[0]);try{await api("/api/host/apply",{method:"POST",body:fd});toast("Application sent to Admin");home()}catch(e){toast(e.message)}}
-async function hostOnline(v){try{await api("/api/host/status",{method:"POST",body:{online:v}});me=(await api("/api/me")).user;home()}catch(e){toast(e.message)}}
-async function hostPanel(){const j=await api("/api/host/bookings");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">🎙️ Host Dashboard</div><div class="grid"><div class="stat"><span>💰 Balance</span><b>${j.host.balance}</b></div><div class="stat"><span>🎁 Filter</span><b>${esc(j.host.filter_name)}</b></div></div><button class="btn secondary block" onclick="hostSettings()">⚙️ Profile & Filter Settings</button></div><div class="card"><div class="section-title">📥 Booking Requests</div>${j.bookings.map(b=>`<div class="card"><b>#${b.id} · ${esc(b.user_name)}</b><div>${b.duration} min · ${b.booking_date} ${b.booking_time}</div><span class="pill">${b.status}</span>${b.status==='pending'?`<button class="btn green" onclick="decision(${b.id},'accepted')">Accept</button> <button class="btn red" onclick="decision(${b.id},'rejected')">Reject</button>`:''}${b.status==='accepted'?`<button class="btn block" onclick="scheduleCall(${b.id})">📅 Schedule</button>`:''}${b.status==='scheduled'?`<button class="btn block" onclick="location.href='/?call=${b.id}'">📞 Open Call</button>`:''}</div>`).join("")||"<p class='muted'>No bookings.</p>"}</div>`}
-async function decision(id,d){try{await api(`/api/booking/${id}/decision`,{method:"POST",body:{decision:d}});toast(d);hostPanel()}catch(e){toast(e.message)}}
-async function scheduleCall(id){const val=prompt("Exact date/time (YYYY-MM-DDTHH:MM) or 2/5/10 minutes?");if(!val)return;let scheduled=val;if(["2","5","10"].includes(val)){const dt=new Date(Date.now()+Number(val)*60000);scheduled=dt.toISOString()}try{await api(`/api/booking/${id}/schedule`,{method:"POST",body:{scheduled_at:scheduled}});toast("Call scheduled");hostPanel()}catch(e){toast(e.message)}}
-async function hostSettings(){const h=me.host;document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">⚙️ Host Settings</div><input class="input" id="hsname" value="${esc(h.name)}"><textarea class="input" id="hsbio">${esc(h.bio)}</textarea><label>Saved Filter</label><select class="input" id="hsfilter">${config.filters.map(x=>`<option ${x===h.filter_name?'selected':''}>${esc(x)}</option>`).join("")}</select><div class="upload"><input type="file" id="hsfile" accept="image/*" onchange="previewFile(this,'hsprev')"><div>📷 Change Profile Photo</div><img id="hsprev" class="preview ${h.photo_url?'':'hidden'}" src="${esc(h.photo_url)}"></div><button class="btn block" onclick="saveHostSettings()">Save</button></div>`}
-async function saveHostSettings(){const fd=new FormData();fd.append("name",document.getElementById("hsname").value);fd.append("bio",document.getElementById("hsbio").value);fd.append("filter_name",document.getElementById("hsfilter").value);const f=document.getElementById("hsfile").files[0];if(f)fd.append("photo",f);try{await api("/api/host/profile",{method:"POST",body:fd});me=(await api("/api/me")).user;toast("Saved");hostPanel()}catch(e){toast(e.message)}}
+        async function submitBooking(hostId) {
+            const duration = parseInt(document.getElementById('durationSelect').value);
+            const date = document.getElementById('bookingDate').value;
+            const timeVal = document.getElementById('bookingTime').value;
 
-async function admin(){const st=await api("/api/admin/stats");document.getElementById("app").innerHTML=`<div class="card" style="background:#111827;color:#fff"><div class="section-title">👑 VYNORA LIVE — VERIFIED SUPER ADMIN</div><p>Admin ID: ${me.telegram_id}</p></div><div class="admin-grid">${Object.entries(st.stats).map(([k,v])=>`<div class="admin-stat"><small>${k.toUpperCase()}</small><b>${v}</b></div>`).join("")}</div><div class="card"><div class="section-title">Management</div><div class="grid3"><button class="btn" onclick="adminHosts()">🎙️ Hosts</button><button class="btn" onclick="adminRecharges()">💰 Recharge</button><button class="btn" onclick="adminWithdrawals()">💸 Withdrawals</button><button class="btn" onclick="adminUsers()">👥 Users</button><button class="btn" onclick="adminBookings()">📅 Bookings</button><button class="btn" onclick="announce()">📢 Announcement</button></div></div><div class="card"><div class="section-title">🔐 System</div><p class="muted">Real Hosts ऊपर, India-only backend validation, server token/earnings, direct uploads, Telegram logs and 60% host share enabled.</p><button class="btn secondary" onclick="adminSettings()">View System Settings</button></div>`}
-async function adminHosts(){const j=await api("/api/admin/hosts");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">🎙️ Host Approvals</div><button class="btn secondary" onclick="addDummy()">➕ Add Demo Host</button>${j.hosts.map(h=>`<div class="card"><div class="host"><img class="avatar" src="${esc(h.photo_url)}"><div><b>${esc(h.name)}</b><div>${esc(h.country)} · ${h.dummy?'DEMO':'REAL'}</div><span class="pill">${h.approved?'Approved':'Pending'}</span></div><div>${!h.approved?`<button class="btn green" onclick="hostDecision(${h.id},'approve')">Approve</button> <button class="btn red" onclick="hostDecision(${h.id},'reject')">Reject</button>`:''}</div></div></div>`).join("")}</div>`}
-async function hostDecision(id,d){try{await api(`/api/admin/host/${id}`,{method:"POST",body:{decision:d}});toast(d);adminHosts()}catch(e){toast(e.message)}}
-function addDummy(){document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">🌎 Add Demo Host</div><input class="input" id="dname" placeholder="Name"><input class="input" id="dcountry" value="USA"><textarea class="input" id="dbio" placeholder="Bio"></textarea><div class="upload"><input type="file" id="dfile" accept="image/*" onchange="previewFile(this,'dprev')"><div>📷 Direct Photo Upload</div><img id="dprev" class="preview hidden"></div><button class="btn block" onclick="saveDummy()">Add Demo Host</button></div>`}
-async function saveDummy(){const fd=new FormData();fd.append("name",document.getElementById("dname").value);fd.append("country",document.getElementById("dcountry").value);fd.append("bio",document.getElementById("dbio").value);fd.append("dummy","1");const f=document.getElementById("dfile").files[0];if(f)fd.append("photo",f);try{await api("/api/admin/host/add",{method:"POST",body:fd});toast("Demo host added");adminHosts()}catch(e){toast(e.message)}}
-async function adminRecharges(){const j=await api("/api/admin/recharges");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">💰 Recharge Requests</div>${j.recharges.map(r=>`<div class="card"><b>#${r.id} · ₹${r.amount} → ${r.tokens} tokens</b><div>${esc(r.name)} · UTR ${esc(r.utr)}</div><div>Status: ${r.status}</div>${r.status==='pending'?`<button class="btn green" onclick="rechargeDecision(${r.id},'approve')">Approve</button> <button class="btn red" onclick="rechargeDecision(${r.id},'reject')">Reject</button>`:''}</div>`).join("")||"<p>No recharge requests.</p>"}</div>`}
-async function rechargeDecision(id,d){try{await api(`/api/admin/recharge/${id}`,{method:"POST",body:{decision:d}});toast(d);adminRecharges()}catch(e){toast(e.message)}}
-async function adminWithdrawals(){const j=await api("/api/admin/withdrawals");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">💸 Withdrawals</div>${j.withdrawals.map(w=>`<div class="card"><b>#${w.id} · ₹${w.amount}</b><div>${esc(w.host_name)} · ${esc(w.payment_details)}</div><div>${w.status}</div>${w.status==='pending'?`<button class="btn green" onclick="withdrawDecision(${w.id},'approve')">Approve</button> <button class="btn red" onclick="withdrawDecision(${w.id},'reject')">Reject</button>`:''}</div>`).join("")}</div>`}
-async function withdrawDecision(id,d){try{await api(`/api/admin/withdrawal/${id}`,{method:"POST",body:{decision:d}});toast(d);adminWithdrawals()}catch(e){toast(e.message)}}
-async function adminUsers(){const j=await api("/api/admin/users");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">👥 Users</div>${j.users.map(u=>`<div class="card"><b>#${u.id} ${esc(u.name)}</b><div>@${esc(u.username)} · ID ${u.telegram_id}</div><div>Wallet: ${u.wallet} · ${u.status}</div><button class="btn secondary" onclick="tokenAdjust(${u.id})">🪙 Tokens</button> <button class="btn red" onclick="userStatus(${u.id},'blocked')">Block</button> <button class="btn green" onclick="userStatus(${u.id},'active')">Unblock</button> <button class="btn" onclick="directCall(${u.id})">📞 Direct Call</button></div>`).join("")}</div>`}
-async function tokenAdjust(id){const a=prompt("Token amount");if(a===null)return;const mode=prompt("add / remove / set","add");try{await api(`/api/admin/user/${id}/tokens`,{method:"POST",body:{amount:Number(a),mode}});toast("Token updated")}catch(e){toast(e.message)}}
-async function userStatus(id,status){try{await api(`/api/admin/user/${id}/status`,{method:"POST",body:{status}});toast(status);adminUsers()}catch(e){toast(e.message)}}
-async function directCall(id){try{const j=await api("/api/admin/direct-call",{method:"POST",body:{user_id:id}});toast(j.sent?"Call notification sent":"Notification failed")}catch(e){toast(e.message)}}
-async function adminBookings(){const j=await api("/api/admin/bookings");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">📅 All Bookings</div>${j.bookings.map(b=>`<div class="card"><b>#${b.id} ${esc(b.host_name)} ↔ ${esc(b.user_name)}</b><div>${b.duration} min · ${b.tokens} tokens · ${b.status}</div><div>${b.booking_date} ${b.booking_time}</div></div>`).join("")}</div>`}
-async function announce(){const t=prompt("Announcement");if(!t)return;try{const j=await api("/api/admin/announce",{method:"POST",body:{text:t}});toast("Announcement sent to configured groups")}catch(e){toast(e.message)}}
-async function adminSettings(){const j=await api("/api/admin/settings");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">⚙️ System Settings</div><p>UPI: ${j.settings.upi_id}</p><p>Host share: ${j.settings.host_share_percent}%</p><p>Group 1: ${j.settings.group_1_configured?'✅':'❌'}</p><p>Group 2: ${j.settings.group_2_configured?'✅':'❌'}</p><p>Group 3: ${j.settings.group_3_configured?'✅':'❌'}</p><p>Telegram webhook: ${j.settings.webhook}</p><p class="muted">अगर group ❌ है तो Render Environment में GROUP_1_ID/GROUP_2_ID/GROUP_3_ID भरना जरूरी है और bot को groups में message permission देना जरूरी है।</p></div>`}
+            const res = await apiCall('/api/booking/create', 'POST', {
+                host_id: hostId,
+                date: date,
+                time: timeVal,
+                duration_minutes: duration
+            });
 
-function showIncoming(d){currentIncoming=d;document.getElementById("ringPhoto").src=d.host_photo||"";document.getElementById("ringTitle").textContent=d.host_name||"Incoming Call";document.getElementById("ringSub").textContent=d.admin?"Free Admin Direct Call":`${d.duration||''} minute Vynora Live call`;document.getElementById("ring").style.display="flex"}
-function declineCall(){document.getElementById("ring").style.display="none";currentIncoming=null}
-async function acceptCall(){const d=currentIncoming;document.getElementById("ring").style.display="none";if(!d)return;startCall(d.booking_id,d.host_name||"Vynora Live",d.duration||30,d.admin,d.room||d.booking_id)}
-async function startCall(bookingId,name,duration,admin=false,roomOverride=null){
- callState={booking:String(bookingId),pc:new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]}),stream:null,started:null,duration:Number(duration)||30,initiator:false};
- document.getElementById("callName").textContent=name;document.getElementById("call").style.display="block";
- callState.stream=await navigator.mediaDevices.getUserMedia({video:true,audio:true});document.getElementById("localVideo").srcObject=callState.stream;
- callState.stream.getTracks().forEach(t=>callState.pc.addTrack(t,callState.stream));
- callState.pc.ontrack=e=>{document.getElementById("remoteVideo").srcObject=e.streams[0]};
- callState.pc.onicecandidate=e=>{if(e.candidate)socket.emit("webrtc_signal",{booking_id:callState.booking,kind:"candidate",candidate:e.candidate})};
- const room=String(roomOverride||bookingId);socket.emit("join_call",{booking_id:room,user_room:`user_${me.id}`,host_room:me.host?`host_${me.host.id}`:undefined});
- // For an admin direct call, the person opening the call first can act as initiator.
- setTimeout(()=>{if(!callState.started){callState.initiator=true;makeOffer()}},700);
+            if (res && res.status === 'success') {
+                alert("Booking request sent successfully to host!");
+                loadUserDashboard();
+            }
+        }
 
-}
-async function makeOffer(){if(!callState.pc)return;const o=await callState.pc.createOffer();await callState.pc.setLocalDescription(o);socket.emit("webrtc_signal",{booking_id:callState.booking,kind:"offer",sdp:callState.pc.localDescription})}
-function runTimer(){clearInterval(window.timerInt);window.timerInt=setInterval(()=>{if(!callState.started)return;const start=new Date(callState.started).getTime();const sec=Math.max(0,Math.floor((Date.now()-start)/1000));const total=callState.duration*60;const left=Math.max(0,total-sec);document.getElementById("timer").textContent=`${String(Math.floor(left/60)).padStart(2,"0")}:${String(left%60).padStart(2,"0")}`;if(left<=0)endCall()},1000)}
-function endCall(send=true){clearInterval(window.timerInt);if(send&&callState.booking&&!String(callState.booking).startsWith("admin_"))socket.emit("call_ended",{booking_id:Number(callState.booking)});callState.stream?.getTracks().forEach(t=>t.stop());callState.pc?.close();callState={booking:null,pc:null,stream:null,started:null,duration:0,initiator:false};document.getElementById("call").style.display="none";document.getElementById("remoteVideo").srcObject=null;document.getElementById("localVideo").srcObject=null;showPage("bookings")}
+        // --- HOST DASHBOARD ---
+        async function loadHostDashboard() {
+            const container = document.getElementById('appContainer');
+            const res = await apiCall('/api/host/data', 'GET', null);
+            if (!res) return;
+            const host = res.host || { name: currentUser.name, earnings: 0, available_balance: 0 };
 
-boot();
-</script>
+            container.innerHTML = `
+                <div class="bg-cardbg border border-cardborder rounded-2xl p-4 shadow-xl space-y-4">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-14 h-14 bg-gradient-to-tr from-pink-500 to-indigo-600 rounded-full flex items-center font-black text-xl justify-center">${host.name.charAt(0)}</div>
+                        <div>
+                            <h2 class="font-bold text-sm">${host.name} <i class="fa-solid fa-circle-check text-blue-400"></i></h2>
+                            <p class="text-xs text-emerald-400 font-semibold"><span class="w-2 h-2 bg-emerald-500 rounded-full inline-block mr-1"></span> Online Verified Host</p>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div class="bg-slate-900 border border-cardborder p-3 rounded-xl">
+                            <p class="text-[10px] text-slate-400">Total Earnings</p>
+                            <p class="text-lg font-black text-emerald-400">₹${host.earnings || 0}</p>
+                        </div>
+                        <div class="bg-slate-900 border border-cardborder p-3 rounded-xl">
+                            <p class="text-[10px] text-slate-400">Available Balance</p>
+                            <p class="text-lg font-black text-yellow-400">₹${host.available_balance || 0}</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-cardbg border border-cardborder rounded-2xl p-4 shadow-xl">
+                    <h3 class="font-bold text-sm mb-3">Host Controls</h3>
+                    <div class="grid grid-cols-2 gap-3">
+                        <button onclick="alert('You are Online')" class="bg-emerald-600/20 border border-emerald-500/40 py-3 rounded-xl font-bold text-xs text-emerald-400">GO ONLINE</button>
+                        <button onclick="alert('You are Offline')" class="bg-red-600/20 border border-red-500/40 py-3 rounded-xl font-bold text-xs text-red-400">GO OFFLINE</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- ADMIN DASHBOARD ---
+        async function loadAdminDashboard() {
+            const container = document.getElementById('appContainer');
+            const res = await apiCall('/api/admin/stats', 'GET', null);
+            if (!res) return;
+            const s = res.stats;
+
+            container.innerHTML = `
+                <div class="bg-gradient-to-r from-purple-950 to-indigo-950 border border-pink-500/30 rounded-2xl p-4 shadow-xl">
+                    <h2 class="font-black text-sm text-pink-400">👑 VYNORA LIVE SUPER ADMIN</h2>
+                    <p class="text-[11px] text-slate-300 mt-0.5">Complete Business Control & Operations</p>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-cardbg border border-cardborder p-3.5 rounded-2xl shadow"><p class="text-[11px] text-slate-400 font-medium">Total Users</p><p class="text-xl font-black mt-1">${s.total_users}</p></div>
+                    <div class="bg-cardbg border border-cardborder p-3.5 rounded-2xl shadow"><p class="text-[11px] text-slate-400 font-medium">Total Hosts</p><p class="text-xl font-black mt-1">${s.total_hosts}</p></div>
+                    <div class="bg-cardbg border border-cardborder p-3.5 rounded-2xl shadow"><p class="text-[11px] text-slate-400 font-medium">Online Hosts</p><p class="text-xl font-black mt-1 text-emerald-400">${s.online_hosts}</p></div>
+                    <div class="bg-cardbg border border-cardborder p-3.5 rounded-2xl shadow"><p class="text-[11px] text-slate-400 font-medium">Pending Recharges</p><p class="text-xl font-black mt-1 text-yellow-400">${s.pending_recharges}</p></div>
+                </div>
+                <div class="bg-cardbg border border-cardborder rounded-2xl p-4 shadow-xl">
+                    <h3 class="font-bold text-xs mb-2 text-slate-300">Quick Admin Actions</h3>
+                    <button onclick="alert('Manage recharges via Telegram Group 1')" class="w-full bg-primary py-3 rounded-xl font-bold text-xs shadow-md">VIEW RECHARGE REQUESTS IN GROUP 1</button>
+                </div>
+            `;
+        }
+
+        async function loadWalletView() {
+            const container = document.getElementById('appContainer');
+            container.innerHTML = `
+                <div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-2xl space-y-4">
+                    <h2 class="text-base font-bold text-pink-400">Recharge Wallet</h2>
+                    <p class="text-xs text-slate-400">Pay via UPI ID: <b class="text-white">vynoralive@slc</b> (Name: Rajnish Kumar)</p>
+                    <div class="space-y-3">
+                        <div>
+                            <label class="text-xs text-slate-400 font-medium">Amount (INR)</label>
+                            <input type="number" id="rechargeAmount" value="100" class="w-full bg-slate-900 border border-cardborder rounded-xl p-3 mt-1 text-xs font-semibold">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-medium">UTR / Transaction ID</label>
+                            <input type="text" id="rechargeUtr" placeholder="Enter 12 digit UTR" class="w-full bg-slate-900 border border-cardborder rounded-xl p-3 mt-1 text-xs font-semibold">
+                        </div>
+                        <div>
+                            <label class="text-xs text-slate-400 font-medium">Payment Screenshot</label>
+                            <input type="file" id="rechargeScreenshot" class="w-full bg-slate-900 border border-cardborder rounded-xl p-3 mt-1 text-xs font-semibold">
+                        </div>
+                        <button onclick="submitRechargeForm()" class="w-full bg-gradient-to-r from-pink-500 to-indigo-600 py-3 rounded-xl font-bold text-xs shadow-lg">SUBMIT RECHARGE</button>
+                        <button onclick="loadUserDashboard()" class="w-full bg-slate-800 py-2.5 rounded-xl font-bold text-xs text-slate-400">Back</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function submitRechargeForm() {
+            const amount = document.getElementById('rechargeAmount').value;
+            const utr = document.getElementById('rechargeUtr').value;
+            const fileInput = document.getElementById('rechargeScreenshot');
+
+            if (!utr || fileInput.files.length === 0) {
+                alert("Please enter UTR and upload screenshot.");
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append("amount", amount);
+            formData.append("utr", utr);
+            formData.append("screenshot", fileInput.files[0]);
+            formData.append("initData", initData);
+
+            const res = await apiCall('/api/wallet/recharge', 'POST', formData, true);
+            if (res && res.status === 'success') {
+                alert("Recharge request submitted successfully to admin!");
+                loadUserDashboard();
+            }
+        }
+
+        async function loadUserBookings() {
+            const res = await apiCall('/api/user/data', 'GET', null);
+            if (!res) return;
+            let html = `<h2 class="text-base font-bold mb-4">My Bookings</h2><div class="space-y-3">`;
+            res.bookings.forEach(b => {
+                html += `
+                    <div class="bg-cardbg border border-cardborder p-4 rounded-2xl flex justify-between items-center shadow">
+                        <div>
+                            <p class="font-bold text-xs text-slate-200">Booking: ${b.booking_id}</p>
+                            <p class="text-[11px] text-slate-400 mt-1">Status: <span class="text-pink-400 font-semibold">${b.status}</span></p>
+                            <p class="text-[10px] text-slate-500 mt-0.5">${b.date} at ${b.time}</p>
+                        </div>
+                        ${b.status === 'accepted' || b.status === 'active' ? `<button onclick="joinVideoCall('${b.booking_id}')" class="bg-emerald-600 px-3 py-2 rounded-xl text-xs font-bold shadow">Join Call</button>` : ''}
+                    </div>
+                `;
+            });
+            html += `</div><button onclick="loadUserDashboard()" class="mt-4 w-full bg-slate-800 py-2.5 rounded-xl text-xs font-bold text-slate-400">Back Home</button>`;
+            document.getElementById('appContainer').innerHTML = html;
+        }
+
+        async function joinVideoCall(bookingId) {
+            await apiCall('/api/call/join', 'POST', { booking_id: bookingId });
+            document.getElementById('appContainer').innerHTML = `
+                <div class="fixed inset-0 bg-slate-950 z-50 flex flex-col justify-between p-4">
+                    <div class="flex justify-between items-center bg-cardbg p-3 rounded-xl border border-cardborder">
+                        <span class="text-emerald-400 text-xs font-bold flex items-center"><span class="w-2 h-2 bg-emerald-500 rounded-full animate-ping mr-2"></span> Connected Live</span>
+                    </div>
+                    <div class="flex-1 my-4 bg-slate-900 rounded-2xl flex items-center justify-center border border-cardborder">
+                        <p class="text-slate-400 text-xs animate-pulse">Agora WebRTC Video Stream Active</p>
+                    </div>
+                    <div class="flex justify-center p-2 bg-cardbg rounded-2xl border border-cardborder">
+                        <button onclick="endVideoCall('${bookingId}')" class="bg-red-600 px-6 py-3 rounded-full font-bold text-xs shadow-lg flex items-center space-x-2"><i class="fa-solid fa-phone-slash"></i><span>End Call</span></button>
+                    </div>
+                </div>
+            `;
+        }
+
+        async function endVideoCall(bookingId) {
+            await apiCall('/api/call/end', 'POST', { booking_id: bookingId });
+            alert("Call completed successfully.");
+            loadUserDashboard();
+        }
+
+        window.onload = initApp;
+    </script>
 </body>
 </html>
-
-
-
-
-
-
