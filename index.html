@@ -8,49 +8,114 @@
 <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-:root{--bg:#080913;--card:#121527;--card2:#181c30;--line:#2b3150;--text:#fff;--muted:#9fa7c1;--pink:#ff28a8;--purple:#7b4dff;--cyan:#35d9ff;--green:#34dc91;--red:#ff596b;--gold:#ffc83d}
+:root{
+  --bg:#070812;--card:#101426;--card2:#151a2e;--line:#292f4b;
+  --text:#fff;--muted:#aab2ca;--pink:#ff24b5;--purple:#7947ff;
+  --cyan:#2ed8ff;--green:#35df92;--red:#ff5267;--gold:#ffd34d;
+}
 *{box-sizing:border-box}
-html,body{margin:0;padding:0;background:radial-gradient(circle at 50% -10%,#301346 0,#0b0c16 42%,#070811 100%);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
-button,input,select{font:inherit}
-button{border:0;border-radius:15px;padding:13px 16px;color:#fff;font-weight:800;background:linear-gradient(135deg,var(--pink),var(--purple));cursor:pointer}
-button.secondary{background:#20253a}
-button.green{background:linear-gradient(135deg,#19c77c,#1597ff)}
-button.red{background:#852638}
+html,body{margin:0;padding:0;background:
+radial-gradient(900px 420px at 50% -100px,#42144d 0,#171126 45%,#070812 100%);
+color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+body:before{content:"";position:fixed;inset:0;pointer-events:none;background:
+linear-gradient(120deg,transparent 0 42%,#ffffff03 50%,transparent 58%)}
+button,input,select,textarea{font:inherit}
+button{border:0;border-radius:14px;padding:13px 16px;color:#fff;font-weight:850;
+background:linear-gradient(135deg,var(--pink),var(--purple));
+box-shadow:0 7px 22px #9b32ff22;cursor:pointer;transition:.18s transform,.18s filter}
+button:active{transform:scale(.98)}button:hover{filter:brightness(1.08)}
+button.secondary{background:#181d31;border:1px solid #303753;box-shadow:none}
+button.green{background:linear-gradient(135deg,#15c77b,#168ff2)}
+button.red{background:linear-gradient(135deg,#e52d4d,#9b203a)}
 button:disabled{opacity:.5}
 .hidden{display:none!important}
-.wrap{width:min(920px,100%);margin:auto;padding:12px 14px 100px}
-.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+
+.wrap{width:min(980px,100%);margin:auto;padding:14px 14px 112px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}
+.brandBox{display:flex;align-items:center;gap:10px}
+.brandLogo{width:42px;height:42px;border-radius:13px;display:flex;align-items:center;justify-content:center;
+background:linear-gradient(135deg,#ff20b0,#6e4cff);box-shadow:0 0 28px #d42cff40;font-size:22px}
 .brand{font-size:24px;font-weight:950;letter-spacing:.2px}
-.subtitle{font-size:13px;color:var(--muted);margin-top:2px}
-.coinpill{display:flex;align-items:center;gap:6px;padding:9px 13px;border:1px solid #353a58;background:#171a2a;border-radius:999px;font-weight:900}
-.hero{background:linear-gradient(135deg,#1a1733,#101527);border:1px solid #34395a;border-radius:24px;padding:20px;margin-bottom:15px;box-shadow:0 15px 40px #0004}
-.welcome{color:var(--muted);font-size:14px}.name{font-size:25px;font-weight:900;margin:4px 0 8px}.balance{font-size:34px;font-weight:950}.muted{color:var(--muted)}.small{font-size:12px}
+.subtitle{font-size:12px;color:var(--muted);margin-top:2px}
+.coinpill{display:flex;align-items:center;gap:7px;padding:10px 13px;border:1px solid #393f60;
+background:#12162a;border-radius:999px;font-weight:900;box-shadow:0 8px 28px #0005}
+
+.hero{position:relative;overflow:hidden;background:
+linear-gradient(135deg,#17182f 0,#101528 55%,#17102a 100%);
+border:1px solid #343b5d;border-radius:25px;padding:20px;margin-bottom:15px;
+box-shadow:0 18px 55px #0008}
+.hero:after{content:"";position:absolute;width:170px;height:170px;border-radius:50%;
+right:-55px;top:-70px;background:#ff21b526;filter:blur(8px)}
+.welcome{color:var(--muted);font-size:13px}.name{font-size:25px;font-weight:950;margin:4px 0 8px}
+.balance{font-size:34px;font-weight:950;line-height:1.05}.muted{color:var(--muted)}.small{font-size:12px}
 .actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.actions button{flex:1;min-width:130px}
-.sectionHead{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 11px}.sectionHead h2{margin:0;font-size:20px}
-.badge{padding:6px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#252a40;color:#cbd1e5}
+.sectionHead{display:flex;align-items:center;justify-content:space-between;margin:23px 2px 11px}
+.sectionHead h2{margin:0;font-size:20px}.sectionHead h3{margin:0}
+.badge{padding:6px 10px;border-radius:999px;font-size:11px;font-weight:900;background:#20263b;color:#cbd2e8;border:1px solid #303752}
+
 .grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
-.card{background:rgba(18,21,39,.96);border:1px solid var(--line);border-radius:19px;padding:15px}
-.host{display:flex;gap:12px;align-items:center}.avatar{width:66px;height:66px;border-radius:50%;object-fit:cover;background:#252a40;border:2px solid #353b5c;flex:none}
-.avatarFallback{width:66px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#35225a,#172448);font-size:24px;font-weight:900;border:2px solid #353b5c}
-.host h3{margin:0 0 4px;font-size:17px}.status{font-size:12px;font-weight:900}.online{color:var(--green)}.offline{color:#858da7}
-.planGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.plan{border:1px solid #303650;border-radius:15px;padding:13px;background:#111528;cursor:pointer}.plan.selected{border-color:var(--pink);background:linear-gradient(135deg,#28152d,#18142b);box-shadow:0 0 0 1px #ff28a855}.plan b{font-size:15px}.plan span{float:right;font-weight:900}
-.field{width:100%;background:#0b0e18;color:#fff;border:1px solid #343a55;border-radius:13px;padding:13px;margin:5px 0;outline:none}.field:focus{border-color:var(--pink)}
-.notice{padding:12px;border-radius:14px;background:#171c2e;border:1px solid #303752;margin:10px 0;line-height:1.5}.notice.warn{border-color:#6b5722}.notice.success{border-color:#246d51}
-.nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#0b0d17ee;backdrop-filter:blur(18px);border-top:1px solid #272c43;padding:8px}
-.navin{width:min(920px,100%);margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
-.nav button{background:#15192a;color:#9fa7bd;padding:10px 5px;font-size:11px}.nav button.active{background:linear-gradient(135deg,#2a1638,#24204b);color:#fff;border:1px solid #6c3d8f}
+.card{background:linear-gradient(145deg,#111528,#0e1220);border:1px solid var(--line);
+border-radius:20px;padding:15px;box-shadow:0 12px 35px #0004}
+.host{display:flex;gap:12px;align-items:center}.avatar{width:68px;height:68px;border-radius:50%;
+object-fit:cover;background:#252a40;border:2px solid #4a3f73;flex:none}
+.avatarFallback{width:68px;height:68px;border-radius:50%;display:flex;align-items:center;
+justify-content:center;background:linear-gradient(135deg,#3a2360,#15274d);font-size:24px;font-weight:900;border:2px solid #4a3f73}
+.host h3{margin:0 0 4px;font-size:17px}.status{font-size:12px;font-weight:900}.online{color:var(--green)}.offline{color:#8991aa}
+
+.planGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+.plan{border:1px solid #303650;border-radius:16px;padding:13px;background:#0d1120;cursor:pointer;transition:.15s}
+.plan.selected{border-color:var(--pink);background:linear-gradient(135deg,#29142e,#17152c);
+box-shadow:0 0 0 1px #ff28a855,0 8px 25px #ff1ea51c}
+.plan b{font-size:15px}.plan span{float:right;font-weight:900;color:#f8d9ff}
+
+.field{width:100%;background:#090c16;color:#fff;border:1px solid #343a55;border-radius:13px;
+padding:13px;margin:5px 0;outline:none}.field:focus{border-color:var(--pink);box-shadow:0 0 0 3px #ff24b515}
+.notice{padding:13px;border-radius:15px;background:#14192a;border:1px solid #303752;margin:10px 0;line-height:1.55}
+.notice.warn{border-color:#6b5722}.notice.success{border-color:#246d51}
+
+.empty{text-align:center;padding:30px 15px;color:var(--muted)}
+.support{display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,#102a4d,#171735);
+border:1px solid #24568e}
+
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#090c16ed;backdrop-filter:blur(20px);
+border-top:1px solid #282e47;padding:8px 9px 10px;box-shadow:0 -15px 35px #0008}
+.navin{width:min(760px,100%);margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.nav button{background:transparent;color:#8e96ae;padding:9px 4px;font-size:11px;box-shadow:none;border:1px solid transparent}
+.nav button.active{background:linear-gradient(145deg,#28143b,#1b2040);color:#fff;border-color:#6b3b8d;box-shadow:0 6px 22px #a82bff20}
+.navIcon{font-size:18px;line-height:19px}
+
 .modal{position:fixed;inset:0;z-index:80;background:#000b;display:flex;align-items:flex-end;justify-content:center}
-.sheet{width:min(720px,100%);max-height:92vh;overflow:auto;background:#101323;border:1px solid #343a55;border-radius:25px 25px 0 0;padding:18px;box-shadow:0 -20px 60px #0008}
-.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #252a40}.row:last-child{border-bottom:0}
-.toast{position:fixed;top:15px;left:50%;transform:translateX(-50%);z-index:200;background:#171b2b;border:1px solid #3b4260;border-radius:14px;padding:12px 16px;max-width:92%;box-shadow:0 10px 35px #0008}
-.qrbox{display:flex;justify-content:center;align-items:center;background:#fff;border-radius:18px;padding:15px;width:max-content;margin:12px auto}.qrbox canvas,.qrbox img{display:block}
-.upiBox{background:#171b2b;border:1px solid #303650;border-radius:15px;padding:13px;text-align:center}
+.sheet{width:min(720px,100%);max-height:92vh;overflow:auto;background:#0e1220;border:1px solid #343a55;
+border-radius:25px 25px 0 0;padding:18px;box-shadow:0 -20px 60px #0009}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #252a40}
+.row:last-child{border-bottom:0}
+.toast{position:fixed;top:15px;left:50%;transform:translateX(-50%);z-index:200;background:#171b2b;
+border:1px solid #3b4260;border-radius:14px;padding:12px 16px;max-width:92%;box-shadow:0 10px 35px #0008}
+
+.qrbox{display:flex;justify-content:center;align-items:center;background:#fff;border-radius:18px;padding:15px;width:max-content;margin:12px auto}
+.qrbox canvas,.qrbox img{display:block}.upiBox{background:#171b2b;border:1px solid #303650;border-radius:15px;padding:13px;text-align:center}
 .copyBtn{margin-top:8px;width:100%;background:#252b42}
-.call{position:fixed;inset:0;background:#05060b;z-index:100;display:flex;flex-direction:column}.video{position:relative;flex:1;background:#090b12}.remote{position:absolute;inset:0}.local{position:absolute;right:12px;top:12px;width:31%;height:28%;border-radius:17px;overflow:hidden;border:2px solid #fff;z-index:2;background:#141827}.video video{width:100%;height:100%;object-fit:cover}.photoFallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#151927}.photoFallback img{width:100%;height:100%;object-fit:cover}.callbar{padding:12px;background:#0d101a;display:flex;gap:8px;align-items:center;justify-content:center}.timer{font-size:20px;font-weight:950}.dangerText{color:#ff7d88}
-.empty{text-align:center;padding:26px 15px;color:var(--muted)}
-.support{display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,#10284a,#171735);border:1px solid #234e83}
-@media(max-width:650px){.grid{grid-template-columns:1fr}.wrap{padding-bottom:96px}.brand{font-size:22px}.planGrid{grid-template-columns:repeat(2,1fr)}.actions button{min-width:0}.support{align-items:flex-start;flex-direction:column}.support button{width:100%}}
-</style>
+
+.call{position:fixed;inset:0;background:#05060b;z-index:100;display:flex;flex-direction:column}
+.video{position:relative;flex:1;background:#090b12}.remote{position:absolute;inset:0}
+.local{position:absolute;right:12px;top:12px;width:31%;height:28%;border-radius:17px;overflow:hidden;border:2px solid #fff;z-index:2;background:#141827}
+.video video{width:100%;height:100%;object-fit:cover}.photoFallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#151927}
+.photoFallback img{width:100%;height:100%;object-fit:cover}.callbar{padding:12px;background:#0d101a;display:flex;gap:8px;align-items:center;justify-content:center}
+.timer{font-size:20px;font-weight:950}.dangerText{color:#ff7d88}
+
+.adminGrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.statCard{padding:15px;border-radius:18px;border:1px solid #303753;background:linear-gradient(145deg,#11182a,#171329)}
+.statCard .icon{font-size:22px}.statCard b{display:block;font-size:21px;margin-top:4px}
+.menuCard{display:flex;align-items:center;gap:12px;padding:14px;border-radius:17px;border:1px solid #2b324d;background:#111526;margin-top:9px}
+.menuIcon{width:40px;height:40px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:#242946;font-size:20px}
+.menuCard .arrow{margin-left:auto;color:#858da8}
+
+@media(max-width:650px){
+  .grid{grid-template-columns:1fr}.wrap{padding-bottom:106px}.brand{font-size:21px}.brandLogo{width:39px;height:39px}
+  .planGrid{grid-template-columns:repeat(2,1fr)}.actions button{min-width:0}.support{align-items:flex-start;flex-direction:column}
+  .support button{width:100%}.adminGrid{grid-template-columns:repeat(2,1fr)}
+}
+</style>>
 </head>
 <body>
 <div id="app"></div>
@@ -87,15 +152,14 @@ function render(){
   let content=state.tab==='home'?homePage():state.tab==='bookings'?bookingsPage():state.tab==='wallet'?walletPage():state.tab==='profile'?profilePage():admin&&state.tab==='admin'?adminPage():homePage();
   $('app').innerHTML=`<div class="wrap">
     <div class="top">
-      <div><div class="brand">VYNORA LIVE</div><div class="subtitle">1-to-1 Slot Booking & Video Call</div></div>
+      <div class="brandBox"><div class="brandLogo">📹</div><div><div class="brand">VYNORA LIVE</div><div class="subtitle">1-to-1 Slot Booking</div></div></div>
       <div class="coinpill">🪙 ${Number(state.user?.tokens||0)}</div>
     </div>${content}</div>
     <div class="nav"><div class="navin">
-      <button class="${state.tab==='home'?'active':''}" onclick="go('home')">🏠<br>Home</button>
-      <button class="${state.tab==='bookings'?'active':''}" onclick="go('bookings')">📅<br>Bookings</button>
-      <button class="${state.tab==='wallet'?'active':''}" onclick="go('wallet')">🪙<br>Wallet</button>
-      <button class="${state.tab==='profile'?'active':''}" onclick="go('profile')">👤<br>Profile</button>
-      ${admin?`<button class="${state.tab==='admin'?'active':''}" onclick="go('admin')">👑<br>Admin</button>`:''}
+      <button class="${state.tab==='home'?'active':''}" onclick="go('home')"><span class="navIcon">⌂</span><br>Home</button>
+      <button class="${state.tab==='bookings'?'active':''}" onclick="go('bookings')"><span class="navIcon">▣</span><br>Bookings</button>
+      <button class="${state.tab==='wallet'?'active':''}" onclick="go('wallet')"><span class="navIcon">🪙</span><br>Wallet</button>
+      <button class="${state.tab==='profile'?'active':''}" onclick="go('profile')"><span class="navIcon">●</span><br>Profile</button>
     </div></div>`;
 }
 function homePage(){
@@ -154,9 +218,21 @@ function profilePage(){
   <div class="card" style="margin-top:12px"><h3>💬 Support</h3><div class="muted small">Account, recharge या booking की समस्या के लिए support से संपर्क करें.</div><button style="width:100%;margin-top:10px" onclick="window.open(config.support_url,'_blank')">Open Support</button></div>`;
 }
 function adminPage(){
-  return `<div class="hero"><div class="welcome">Administrator</div><div class="name">👑 VYNORA SUPER ADMIN</div><div class="muted">Only booking management and account controls.</div></div>
-  <div class="sectionHead"><h2>Approved Hosts</h2></div><div class="grid">${state.hosts.map(x=>`<div class="card"><div class="host">${avatar(x.photo_url,x.name)}<div><b>${esc(x.name)}</b><div class="status ${x.online?'online':'offline'}">${x.online?'Online':'Offline'}</div></div></div></div>`).join('')||`<div class="card empty">No approved hosts.</div>`}</div>
-  <div class="card" style="margin-top:14px"><b>Admin Controls</b><div class="muted small" style="margin-top:7px">Token, host approval, user block/unblock, recharge approval और announcements Telegram admin commands से manage होंगे.</div></div>`;
+  return `<div class="hero"><div class="welcome">Administrator Panel</div><div class="name">👑 VYNORA SUPER ADMIN</div><div class="muted">Complete control of users, hosts, bookings, payments and announcements.</div></div>
+  <div class="adminGrid">
+    <div class="statCard"><span class="icon">👥</span><span class="muted small">Users</span><b>${state.hosts.length?'-':'—'}</b></div>
+    <div class="statCard"><span class="icon">🎙️</span><span class="muted small">Approved Hosts</span><b>${state.hosts.length}</b></div>
+    <div class="statCard"><span class="icon">📅</span><span class="muted small">Bookings</span><b>${state.bookings.length}</b></div>
+    <div class="statCard"><span class="icon">🪙</span><span class="muted small">Your Wallet</span><b>${Number(state.user?.tokens||0)}</b></div>
+  </div>
+  <div class="sectionHead"><h2>Admin Controls</h2></div>
+  <div class="menuCard"><div class="menuIcon">💳</div><div><b>Recharge Requests</b><div class="muted small">Approve or reject payments</div></div><div class="arrow">›</div></div>
+  <div class="menuCard"><div class="menuIcon">🎙️</div><div><b>Host Approval</b><div class="muted small">Approve / reject host applications</div></div><div class="arrow">›</div></div>
+  <div class="menuCard"><div class="menuIcon">📢</div><div><b>Announcements</b><div class="muted small">Send notifications to users and groups</div></div><div class="arrow">›</div></div>
+  <div class="menuCard"><div class="menuIcon">📞</div><div><b>Direct Admin Call</b><div class="muted small">Call any user or host — free, no charge or time limit</div></div><div class="arrow">›</div></div>
+  <div class="menuCard"><div class="menuIcon">⚙️</div><div><b>Telegram Commands</b><div class="muted small">Admin commands remain available in Telegram</div></div><div class="arrow">›</div></div>
+  <div class="sectionHead"><h2>Approved Hosts</h2></div>
+  <div class="grid">${state.hosts.map(x=>`<div class="card"><div class="host">${avatar(x.photo_url,x.name)}<div><b>${esc(x.name)}</b><div class="status ${x.online?'online':'offline'}">${x.online?'🟢 Online':'⚫ Offline'}</div></div></div></div>`).join('')||`<div class="card empty">No approved hosts.</div>`}</div>`;
 }
 function modal(html){$('modalRoot').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="sheet">${html}</div></div>`}
 function closeModal(){$('modalRoot').innerHTML=''}
