@@ -1,9 +1,3 @@
-fastapi
-uvicorn
-pymongo
-requests
-pydantic
-python-multipart
-agora-token-builder
-httpx
-python-dotenv
+Flask==3.1.2
+Flask-SocketIO==5.5.1
+requests==2.32.5
