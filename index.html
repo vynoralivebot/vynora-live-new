@@ -1,95 +1,244 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Vynora Live 1v1</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Vynora Live 1-to-1</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <style>
-:root{--bg:#090a12;--card:#121522;--card2:#191c2b;--text:#fff;--muted:#9aa1b5;--pink:#ff3fa4;--cyan:#4de6ff;--green:#4ee59a;--red:#ff5f6d;--gold:#ffc857}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at 20% 0,#21112a 0,#090a12 42%);color:var(--text);font-family:Inter,Arial,sans-serif}button,input,select,textarea{font:inherit}button{border:0;border-radius:14px;padding:12px 15px;color:white;background:linear-gradient(135deg,#ff3fa4,#8b5cff);font-weight:800}button.secondary{background:#222638}button.green{background:linear-gradient(135deg,#19c77b,#20a0ff)}button.red{background:#8d2633}button:disabled{opacity:.5}.wrap{max-width:900px;margin:auto;padding:14px 14px 90px}.top{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:14px}.brand{font-size:22px;font-weight:900}.pill{padding:7px 10px;border-radius:999px;background:#202437;color:var(--muted);font-size:12px}.hero{background:linear-gradient(135deg,#1a1630,#111725);border:1px solid #2c3150;border-radius:22px;padding:18px;margin-bottom:14px}.balance{font-size:30px;font-weight:900}.muted{color:var(--muted)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.card{background:rgba(18,21,34,.95);border:1px solid #282d43;border-radius:18px;padding:14px}.host{display:flex;gap:12px;align-items:center}.avatar{width:64px;height:64px;border-radius:50%;object-fit:cover;background:#24283a;flex:none}.host h3{margin:0 0 4px}.status{font-size:12px;font-weight:800}.online{color:var(--green)}.offline{color:#9aa1b5}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}.actions button{flex:1;min-width:110px}.section-title{margin:20px 0 10px;font-size:18px}.nav{position:fixed;bottom:0;left:0;right:0;background:#0d0f19dd;backdrop-filter:blur(15px);border-top:1px solid #272c42;padding:8px;display:flex;justify-content:center;z-index:20}.navin{width:min(900px,100%);display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.nav button{padding:10px 6px;background:#171a27;color:#cdd2e2;font-size:12px}.nav button.active{background:#2a1d3e;color:white}.modal{position:fixed;inset:0;background:#000b;display:flex;align-items:flex-end;justify-content:center;z-index:50}.sheet{width:min(700px,100%);max-height:92vh;overflow:auto;background:#111522;border-radius:24px 24px 0 0;padding:18px;border:1px solid #30364e}.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #24293c}.plan{padding:12px;border:1px solid #2d3349;border-radius:14px;margin:8px 0;cursor:pointer}.plan.selected{border-color:var(--pink);background:#25162a}.field{width:100%;background:#0b0d15;color:#fff;border:1px solid #30364e;border-radius:12px;padding:12px;margin:6px 0}.notice{padding:12px;border-radius:14px;background:#1a2032;border:1px solid #30384f;margin:10px 0}.success{border-color:#267d5c}.warn{border-color:#80651c}.danger{border-color:#79323c}.hidden{display:none!important}.call{position:fixed;inset:0;background:#05060b;z-index:100;display:flex;flex-direction:column}.video{position:relative;flex:1;min-height:0;background:#090b12}.remote{position:absolute;inset:0}.local{position:absolute;right:12px;top:12px;width:32%;height:30%;border-radius:18px;overflow:hidden;border:2px solid #fff;z-index:2;background:#141827}.video video{width:100%;height:100%;object-fit:cover}.photoFallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#151927}.photoFallback img{width:100%;height:100%;object-fit:cover}.callbar{padding:12px;background:#0d101a;display:flex;gap:8px;align-items:center;justify-content:center}.timer{font-size:20px;font-weight:900;color:#fff}.toast{position:fixed;top:15px;left:50%;transform:translateX(-50%);z-index:200;background:#1b2030;border:1px solid #3b435e;border-radius:14px;padding:12px 16px;max-width:90%;box-shadow:0 10px 40px #0008}.tabs{display:flex;gap:8px;overflow:auto;margin-bottom:12px}.tabs button{white-space:nowrap;background:#1a1e2d}.tabs button.active{background:#ff3fa4}.small{font-size:12px}.mono{font-family:monospace}.dangerText{color:#ff7c87}
-@media(max-width:600px){.grid{grid-template-columns:1fr}.wrap{padding-bottom:92px}.actions button{min-width:90px}.avatar{width:56px;height:56px}}
+:root{--bg:#080913;--card:#121527;--card2:#181c30;--line:#2b3150;--text:#fff;--muted:#9fa7c1;--pink:#ff28a8;--purple:#7b4dff;--cyan:#35d9ff;--green:#34dc91;--red:#ff596b;--gold:#ffc83d}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:radial-gradient(circle at 50% -10%,#301346 0,#0b0c16 42%,#070811 100%);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+button,input,select{font:inherit}
+button{border:0;border-radius:15px;padding:13px 16px;color:#fff;font-weight:800;background:linear-gradient(135deg,var(--pink),var(--purple));cursor:pointer}
+button.secondary{background:#20253a}
+button.green{background:linear-gradient(135deg,#19c77c,#1597ff)}
+button.red{background:#852638}
+button:disabled{opacity:.5}
+.hidden{display:none!important}
+.wrap{width:min(920px,100%);margin:auto;padding:12px 14px 100px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.brand{font-size:24px;font-weight:950;letter-spacing:.2px}
+.subtitle{font-size:13px;color:var(--muted);margin-top:2px}
+.coinpill{display:flex;align-items:center;gap:6px;padding:9px 13px;border:1px solid #353a58;background:#171a2a;border-radius:999px;font-weight:900}
+.hero{background:linear-gradient(135deg,#1a1733,#101527);border:1px solid #34395a;border-radius:24px;padding:20px;margin-bottom:15px;box-shadow:0 15px 40px #0004}
+.welcome{color:var(--muted);font-size:14px}.name{font-size:25px;font-weight:900;margin:4px 0 8px}.balance{font-size:34px;font-weight:950}.muted{color:var(--muted)}.small{font-size:12px}
+.actions{display:flex;gap:9px;flex-wrap:wrap;margin-top:14px}.actions button{flex:1;min-width:130px}
+.sectionHead{display:flex;align-items:center;justify-content:space-between;margin:22px 2px 11px}.sectionHead h2{margin:0;font-size:20px}
+.badge{padding:6px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#252a40;color:#cbd1e5}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.card{background:rgba(18,21,39,.96);border:1px solid var(--line);border-radius:19px;padding:15px}
+.host{display:flex;gap:12px;align-items:center}.avatar{width:66px;height:66px;border-radius:50%;object-fit:cover;background:#252a40;border:2px solid #353b5c;flex:none}
+.avatarFallback{width:66px;height:66px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#35225a,#172448);font-size:24px;font-weight:900;border:2px solid #353b5c}
+.host h3{margin:0 0 4px;font-size:17px}.status{font-size:12px;font-weight:900}.online{color:var(--green)}.offline{color:#858da7}
+.planGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.plan{border:1px solid #303650;border-radius:15px;padding:13px;background:#111528;cursor:pointer}.plan.selected{border-color:var(--pink);background:linear-gradient(135deg,#28152d,#18142b);box-shadow:0 0 0 1px #ff28a855}.plan b{font-size:15px}.plan span{float:right;font-weight:900}
+.field{width:100%;background:#0b0e18;color:#fff;border:1px solid #343a55;border-radius:13px;padding:13px;margin:5px 0;outline:none}.field:focus{border-color:var(--pink)}
+.notice{padding:12px;border-radius:14px;background:#171c2e;border:1px solid #303752;margin:10px 0;line-height:1.5}.notice.warn{border-color:#6b5722}.notice.success{border-color:#246d51}
+.nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:#0b0d17ee;backdrop-filter:blur(18px);border-top:1px solid #272c43;padding:8px}
+.navin{width:min(920px,100%);margin:auto;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}
+.nav button{background:#15192a;color:#9fa7bd;padding:10px 5px;font-size:11px}.nav button.active{background:linear-gradient(135deg,#2a1638,#24204b);color:#fff;border:1px solid #6c3d8f}
+.modal{position:fixed;inset:0;z-index:80;background:#000b;display:flex;align-items:flex-end;justify-content:center}
+.sheet{width:min(720px,100%);max-height:92vh;overflow:auto;background:#101323;border:1px solid #343a55;border-radius:25px 25px 0 0;padding:18px;box-shadow:0 -20px 60px #0008}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #252a40}.row:last-child{border-bottom:0}
+.toast{position:fixed;top:15px;left:50%;transform:translateX(-50%);z-index:200;background:#171b2b;border:1px solid #3b4260;border-radius:14px;padding:12px 16px;max-width:92%;box-shadow:0 10px 35px #0008}
+.qrbox{display:flex;justify-content:center;align-items:center;background:#fff;border-radius:18px;padding:15px;width:max-content;margin:12px auto}.qrbox canvas,.qrbox img{display:block}
+.upiBox{background:#171b2b;border:1px solid #303650;border-radius:15px;padding:13px;text-align:center}
+.copyBtn{margin-top:8px;width:100%;background:#252b42}
+.call{position:fixed;inset:0;background:#05060b;z-index:100;display:flex;flex-direction:column}.video{position:relative;flex:1;background:#090b12}.remote{position:absolute;inset:0}.local{position:absolute;right:12px;top:12px;width:31%;height:28%;border-radius:17px;overflow:hidden;border:2px solid #fff;z-index:2;background:#141827}.video video{width:100%;height:100%;object-fit:cover}.photoFallback{width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#151927}.photoFallback img{width:100%;height:100%;object-fit:cover}.callbar{padding:12px;background:#0d101a;display:flex;gap:8px;align-items:center;justify-content:center}.timer{font-size:20px;font-weight:950}.dangerText{color:#ff7d88}
+.empty{text-align:center;padding:26px 15px;color:var(--muted)}
+.support{display:flex;align-items:center;justify-content:space-between;gap:10px;background:linear-gradient(135deg,#10284a,#171735);border:1px solid #234e83}
+@media(max-width:650px){.grid{grid-template-columns:1fr}.wrap{padding-bottom:96px}.brand{font-size:22px}.planGrid{grid-template-columns:repeat(2,1fr)}.actions button{min-width:0}.support{align-items:flex-start;flex-direction:column}.support button{width:100%}}
 </style>
 </head>
 <body>
-<div id="app"></div><div id="toast" class="toast hidden"></div><div id="modalRoot"></div>
+<div id="app"></div>
+<div id="toast" class="toast hidden"></div>
+<div id="modalRoot"></div>
+
 <script>
 const tg=window.Telegram?.WebApp; tg?.ready(); tg?.expand();
 const tgUser=tg?.initDataUnsafe?.user||{};
 const userId=Math.abs(Number(tgUser.id||7001825467));
-let state={user:null,host:null,hosts:[],bookings:[],notifications:[],tab:'home',selectedHost:null,selectedPlan:null,agora:null,localTracks:[],callBooking:null,callMode:null,timer:null};
 const ADMIN_IDS=[7778606261,7001825467];
+let state={user:null,host:null,hosts:[],bookings:[],notifications:[],tab:'home',selectedHost:null,selectedPlan:null,recharge:null,agora:null,localTracks:[],callBooking:null,timer:null};
+let config={booking_plans:[],recharge_plans:[],upi_id:'vynoralive@slc',upi_name:'Rajnish Kumar',support_url:'https://t.me/VynoraSupport'};
 const $=id=>document.getElementById(id);
-function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
+function money(n){return '₹'+Number(n||0).toFixed(2)}
+function toast(s){$('toast').textContent=s;$('toast').classList.remove('hidden');clearTimeout(window.__toast);window.__toast=setTimeout(()=>$('toast').classList.add('hidden'),3500)}
 async function api(path,opt={}){const r=await fetch(path,{headers:{'Content-Type':'application/json',...(opt.headers||{})},...opt});const d=await r.json().catch(()=>({message:'Server error'}));if(!r.ok)throw new Error(d.detail||d.message||'Request failed');return d}
-function toast(s){$('toast').textContent=s;$('toast').classList.remove('hidden');setTimeout(()=>$('toast').classList.add('hidden'),3500)}
-function img(url,name){return url?`<img class="avatar" src="${esc(url)}" onerror="this.style.display='none'">`:`<div class="avatar" style="display:flex;align-items:center;justify-content:center;font-size:24px">${esc((name||'U')[0])}</div>`}
-function money(n){return `₹${Number(n||0).toFixed(2)}`}
+function avatar(url,name){if(url)return `<img class="avatar" src="${esc(url)}" onerror="this.outerHTML='<div class=avatarFallback>${esc((name||'U')[0])}</div>'">`;return `<div class="avatarFallback">${esc((name||'U')[0])}</div>`}
 async function boot(){
-  try{await api('/api/start',{method:'POST',body:JSON.stringify({user_id:userId,name:[tgUser.first_name,tgUser.last_name].filter(Boolean).join(' '),username:tgUser.username||'',})});}catch(e){toast(e.message)}
-  await refresh(); render();
+  try{const c=await api('/api/config');config={...config,...c}}catch(e){}
+  try{await api('/api/start',{method:'POST',body:JSON.stringify({user_id:userId,name:[tgUser.first_name,tgUser.last_name].filter(Boolean).join(' ')||'User',username:tgUser.username||''})})}catch(e){toast(e.message)}
+  await refresh();render();
+  setInterval(async()=>{try{await refresh();if(state.tab==='home'||state.tab==='bookings')render()}catch(e){}},15000);
 }
 async function refresh(){
-  try{const d=await api(`/api/user/${userId}`);state.user=d.user;state.host=d.host;}catch(e){toast(e.message);return}
-  try{state.hosts=await api('/api/hosts')}catch(e){}
-  try{state.bookings=await api(`/api/bookings?user_id=${userId}&role=${state.host?'host':'user'}`)}catch(e){}
-  try{state.notifications=await api(`/api/notifications/${userId}`)}catch(e){state.notifications=[]}
+  const d=await api(`/api/user/${userId}`);state.user=d.user;state.host=d.host;
+  try{state.hosts=await api('/api/hosts')}catch(e){state.hosts=[]}
+  try{state.bookings=await api(`/api/bookings?user_id=${userId}&role=${state.host?'host':'user'}`)}catch(e){state.bookings=[]}
 }
+function go(tab){state.tab=tab;render();if(tab==='bookings')refresh().then(render)}
 function render(){
-  const admin=ADMIN_IDS.includes(userId);let html=`<div class="wrap"><div class="top"><div><div class="brand">VYNORA LIVE</div><div class="muted small">1-to-1 Video Calling</div></div><div class="pill">🪙 ${state.user?.tokens||0}</div></div>`;
-  if(state.tab==='home') html+=home();
-  if(state.tab==='bookings') html+=bookingPage();
-  if(state.tab==='wallet') html+=walletPage();
-  if(state.tab==='profile') html+=profilePage();
-  if(admin&&state.tab==='admin') html+=adminPage();
-  html+=`</div><div class="nav"><div class="navin"><button class="${state.tab==='home'?'active':''}" onclick="go('home')">🏠 Home</button><button class="${state.tab==='bookings'?'active':''}" onclick="go('bookings')">📅 Bookings</button><button class="${state.tab==='wallet'?'active':''}" onclick="go('wallet')">🪙 Wallet</button><button class="${state.tab==='profile'?'active':''}" onclick="go('profile')">👤 Profile</button>${admin?`<button class="${state.tab==='admin'?'active':''}" onclick="go('admin')">👑 Admin</button>`:''}</div></div>`;
-  $('app').innerHTML=html;
+  const admin=ADMIN_IDS.includes(userId);
+  let content=state.tab==='home'?homePage():state.tab==='bookings'?bookingsPage():state.tab==='wallet'?walletPage():state.tab==='profile'?profilePage():admin&&state.tab==='admin'?adminPage():homePage();
+  $('app').innerHTML=`<div class="wrap">
+    <div class="top">
+      <div><div class="brand">VYNORA LIVE</div><div class="subtitle">1-to-1 Slot Booking & Video Call</div></div>
+      <div class="coinpill">🪙 ${Number(state.user?.tokens||0)}</div>
+    </div>${content}</div>
+    <div class="nav"><div class="navin">
+      <button class="${state.tab==='home'?'active':''}" onclick="go('home')">🏠<br>Home</button>
+      <button class="${state.tab==='bookings'?'active':''}" onclick="go('bookings')">📅<br>Bookings</button>
+      <button class="${state.tab==='wallet'?'active':''}" onclick="go('wallet')">🪙<br>Wallet</button>
+      <button class="${state.tab==='profile'?'active':''}" onclick="go('profile')">👤<br>Profile</button>
+      ${admin?`<button class="${state.tab==='admin'?'active':''}" onclick="go('admin')">👑<br>Admin</button>`:''}
+    </div></div>`;
 }
-function go(t){state.tab=t;render();if(t==='bookings')refresh().then(render)}
-function home(){let h=`<div class="hero"><div class="muted">Welcome</div><h2 style="margin:4px 0">${esc(state.user?.name||'User')} 👋</h2><div class="balance">${state.user?.tokens||0} 🪙</div><div class="muted">1 Token = ₹1</div><div class="actions"><button onclick="openRecharge()">💳 Recharge</button><button class="secondary" onclick="go('bookings')">📅 My Bookings</button></div></div><div class="section-title">Available Hosts</div><div class="grid">`;
-  if(!state.hosts.length)h+=`<div class="card"><div class="muted">No approved hosts available yet.</div></div>`;
-  state.hosts.forEach(x=>{h+=`<div class="card"><div class="host">${img(x.photo_url,x.name)}<div style="min-width:0"><h3>${esc(x.name)}</h3><div class="status ${x.online?'online':'offline'}">${x.online?'🟢 Online':'⚫ Offline'}</div><div class="muted small">🪙 ${x.total_tokens||0} earned</div></div></div><div class="actions"><button onclick="openBook(${x.user_id})">📅 Book Slot</button></div></div>`});
-  return h+'</div>';
+function homePage(){
+  let h=`<div class="hero">
+    <div class="welcome">Welcome back 👋</div>
+    <div class="name">${esc(state.user?.name||'User')}</div>
+    <div class="balance">${Number(state.user?.tokens||0)} 🪙</div>
+    <div class="muted">1 Token = ₹1</div>
+    <div class="actions"><button onclick="openRecharge()">💳 Recharge</button><button class="secondary" onclick="go('bookings')">📅 My Bookings</button></div>
+  </div>
+  <div class="notice success">🔐 <b>Only 1-to-1 Slot Booking</b><br><span class="small">Host select करें → slot book करें → host confirmation → call schedule → दोनों join करेंगे → timer तभी शुरू होगा जब दोनों connect होंगे.</span></div>
+  <div class="sectionHead"><h2>Available Hosts</h2><span class="badge">${state.hosts.length} Hosts</span></div><div class="grid">`;
+  if(!state.hosts.length)h+=`<div class="card empty">कोई approved host अभी available नहीं है.<br><br>Host approval के बाद यहां profile दिखाई देगी.</div>`;
+  state.hosts.forEach(x=>h+=`<div class="card"><div class="host">${avatar(x.photo_url,x.name)}<div style="min-width:0"><h3>${esc(x.name)}</h3><div class="status ${x.online?'online':'offline'}">${x.online?'🟢 Online':'⚫ Offline'}</div><div class="muted small">Host earnings: ${Number(x.total_tokens||0).toFixed(0)} coins</div></div></div><div class="actions"><button onclick="openBook(${x.user_id})">📅 Book Slot</button></div></div>`);
+  h+=`</div><div class="sectionHead"><h2>How it works</h2></div><div class="grid">
+    <div class="card"><b>1️⃣ Select Host</b><div class="muted small" style="margin-top:5px">Profile देखकर host चुनें.</div></div>
+    <div class="card"><b>2️⃣ Book Slot</b><div class="muted small" style="margin-top:5px">Duration और date/time चुनें.</div></div>
+    <div class="card"><b>3️⃣ Confirmation</b><div class="muted small" style="margin-top:5px">Host request accept करके time schedule करेगी.</div></div>
+    <div class="card"><b>4️⃣ 1-to-1 Call</b><div class="muted small" style="margin-top:5px">दोनों connect होने के बाद timer शुरू होगा.</div></div>
+  </div><div class="card support" style="margin-top:15px"><div><b>Need Help?</b><div class="muted small">Recharge या booking में मदद चाहिए?</div></div><button onclick="window.open(config.support_url,'_blank')">💬 Support</button></div>`;
+  return h;
 }
-function bookingPage(){let mine=state.host?state.bookings:state.bookings;let h='<div class="section-title">📅 Bookings</div>';if(state.host)h+=hostBookings();else{h+=`<div class="tabs"><button class="active">My Requests</button></div>`;if(!mine.length)h+='<div class="card muted">No bookings yet.</div>';mine.forEach(b=>h+=bookingCard(b,false))}return h}
-function bookingCard(b,host){const st=b.status;const start=b.scheduled_start?new Date(b.scheduled_start*1000).toLocaleString():'Not scheduled';return `<div class="card" style="margin-bottom:10px"><div class="row"><b>${host?'User':'Host'}</b><span>${host?esc(b.user_id):esc(b.host_id)}</span></div><div class="row"><b>Duration</b><span>${b.minutes} min</span></div><div class="row"><b>Coins</b><span>${b.tokens} 🪙</span></div><div class="row"><b>Status</b><span>${esc(st)}</span></div><div class="row"><b>Time</b><span>${esc(start)}</span></div>${st==='scheduled'&&!host?`<div class="actions"><button class="green" onclick="maybeJoin('${b.booking_id}')">📞 Join Call</button></div>`:''}${st==='calling'?`<div class="actions"><button class="green" onclick="joinBooking('${b.booking_id}')">📞 Rejoin Call</button></div>`:''}</div>`}
-function hostBookings(){let pending=state.bookings.filter(b=>b.status==='pending'||b.status==='accepted'||b.status==='scheduled'||b.status==='calling');let h='';if(!pending.length)return '<div class="card muted">No active booking requests.</div>';pending.forEach(b=>{h+=`<div class="card" style="margin-bottom:10px"><b>📩 User ${b.user_id}</b><div class="muted">${b.minutes} min • ${b.tokens} Coins</div><div class="muted small">Requested: ${new Date(b.requested_start*1000).toLocaleString()}</div><div class="actions">${b.status==='pending'?`<button class="green" onclick="acceptBooking('${b.booking_id}')">✅ Accept</button><button class="red" onclick="rejectBooking('${b.booking_id}')">❌ Reject</button>`:''}${b.status==='accepted'?`<button onclick="openSchedule('${b.booking_id}',${b.minutes})">⏰ Schedule Call</button>`:''}${b.status==='scheduled'?`<button class="green" onclick="maybeJoin('${b.booking_id}')">📞 Join</button>`:''}</div></div>`});return h}
-function walletPage(){return `<div class="hero"><div class="muted">Your Token Balance</div><div class="balance">${state.user?.tokens||0} 🪙</div><div class="muted">1 Token = ₹1</div><div class="actions"><button onclick="openRecharge()">💳 Recharge</button></div></div><div class="section-title">Recharge Plans</div><div class="grid">${[50,100,200,300,500,1000,1500,2000].map((r,i)=>{let t=[50,105,210,320,550,1150,1750,2400][i];return `<div class="card"><b>₹${r}</b><div class="muted">${t} Coins</div><button style="margin-top:8px;width:100%" onclick="openRecharge(${r},${t})">Select</button></div>`}).join('')}</div>`}
-function profilePage(){const h=state.host;return `<div class="card"><div class="host">${img(state.user?.photo_url,state.user?.name)}<div><h2 style="margin:0">${esc(state.user?.name||'User')}</h2><div class="muted">@${esc(state.user?.username||'-')}</div><div class="muted">ID: ${userId}</div></div></div></div>${h?`<div class="card" style="margin-top:12px"><h3>🎙️ Host Dashboard</h3><div class="row"><span>Status</span><b>${h.status}</b></div><div class="row"><span>Online</span><b>${h.online?'Yes':'No'}</b></div><div class="row"><span>Total earned</span><b>${h.total_tokens||0} 🪙</b></div><div class="row"><span>Available withdrawal</span><b>${money(h.available_earnings)}</b></div><div class="actions"><button class="green" onclick="hostOnline(true)">${h.online?'🟢 Online':'🟢 Go Online'}</button><button class="secondary" onclick="hostOnline(false)">⚫ Offline</button><button onclick="withdraw()">💸 Withdraw</button></div></div>`:''}${!h?`<div class="card" style="margin-top:12px"><h3>🎙️ Become a Host</h3><p class="muted">Host banne ke liye application submit karein. Admin approval ke baad booking requests milengi.</p><button style="width:100%" onclick="openHostApply()">Apply as Host</button></div>`:''}<div class="card" style="margin-top:12px"><h3>❓ Help</h3><p class="muted">Booking → Host approval → Schedule → Join Call. Call timer starts only after both sides connect.</p><button onclick="location.href='${esc('https://t.me/VynoraSupport')}'">Support</button></div>`}
-function adminPage(){return `<div class="hero"><h2>👑 VYNORA SUPER ADMIN</h2><div class="muted">Direct Host Call • Token • Host/User controls • Announcements</div></div><div class="section-title">Hosts</div><div class="grid">${state.hosts.map(x=>`<div class="card"><div class="host">${img(x.photo_url,x.name)}<div><b>${esc(x.name)}</b><div class="status ${x.online?'online':'offline'}">${x.online?'Online':'Offline'}</div></div></div><button style="width:100%;margin-top:10px" onclick="adminCall(${x.user_id})">📞 Direct Call — Free</button></div>`).join('')}</div><div class="section-title">Admin Tools</div><div class="card"><div class="actions"><button onclick="adminAnnouncement()">📢 Announcement</button><button onclick="adminTokens()">🪙 Token Add/Remove/Set</button></div><div class="muted small" style="margin-top:10px">Telegram commands: /addtoken /removetoken /settoken /approvehost /rejecthost /ban /unban /block /unblock /announce /callhost /stats</div></div>`}
-function openBook(hostId){state.selectedHost=hostId;state.selectedPlan=null;modal(`<h2>📅 Book a Slot</h2><div class="muted">Host: ${esc(state.hosts.find(x=>x.user_id===hostId)?.name||'Host')}</div><div id="plans">${[[1,20],[3,50],[6,100],[10,160],[15,240],[20,320],[30,450]].map(([m,t])=>`<div class="plan" onclick="selectPlan(${m},${t},this)"><b>${m} Minute</b><span style="float:right">${t} 🪙</span></div>`).join('')}</div><label class="muted small">Requested date & time</label><input id="bookTime" class="field" type="datetime-local"><div class="notice">Agar Host us time busy hui to request reject nahi hogi; Host free time par schedule karegi.</div><div class="actions"><button onclick="submitBooking()">Confirm Booking</button><button class="secondary" onclick="closeModal()">Cancel</button></div>`)}
+function bookingsPage(){
+  let h=`<div class="sectionHead"><h2>📅 ${state.host?'Host Bookings':'My Bookings'}</h2><span class="badge">${state.bookings.length}</span></div>`;
+  if(!state.bookings.length)return h+`<div class="card empty">अभी कोई booking नहीं है.</div>`;
+  return h+state.bookings.map(b=>bookingCard(b,state.host)).join('');
+}
+function bookingCard(b,isHost){
+  const status=b.status||'pending';
+  const time=b.scheduled_start?new Date(b.scheduled_start*1000).toLocaleString():'Not scheduled';
+  let actions='';
+  if(isHost&&status==='pending')actions=`<div class="actions"><button class="green" onclick="acceptBooking('${b.booking_id}')">✅ Accept</button><button class="red" onclick="rejectBooking('${b.booking_id}')">❌ Reject</button></div>`;
+  if(isHost&&status==='accepted')actions=`<div class="actions"><button onclick="openSchedule('${b.booking_id}',${b.minutes})">⏰ Schedule Call</button></div>`;
+  if(status==='scheduled')actions=`<div class="actions"><button class="green" onclick="maybeJoin('${b.booking_id}')">📞 Join Call</button></div>`;
+  if(status==='calling')actions=`<div class="actions"><button class="green" onclick="joinBooking('${b.booking_id}')">📞 Join Now</button></div>`;
+  return `<div class="card" style="margin-bottom:11px">
+    <div class="row"><b>${isHost?'User':'Host'}</b><span>${isHost?esc(b.user_id):esc(b.host_id)}</span></div>
+    <div class="row"><b>Duration</b><span>${b.minutes} min</span></div>
+    <div class="row"><b>Charge</b><span>${b.tokens} 🪙</span></div>
+    <div class="row"><b>Status</b><span>${esc(status)}</span></div>
+    <div class="row"><b>Time</b><span class="small">${esc(time)}</span></div>${actions}
+  </div>`;
+}
+function walletPage(){
+  const plans=config.recharge_plans?.length?config.recharge_plans:[[50,50],[100,105],[200,210],[300,320],[500,550],[1000,1150],[1500,1750],[2000,2400]].map(x=>({rupees:x[0],tokens:x[1]}));
+  return `<div class="hero"><div class="welcome">Wallet Balance</div><div class="balance">${Number(state.user?.tokens||0)} 🪙</div><div class="muted">1 Token = ₹1</div><div class="actions"><button onclick="openRecharge()">💳 Recharge Now</button></div></div>
+  <div class="sectionHead"><h2>Recharge Plans</h2><span class="badge">UPI / QR</span></div>
+  <div class="grid">${plans.map(p=>`<div class="card"><b>₹${p.rupees}</b><div class="muted" style="margin-top:4px">${p.tokens} Coins</div><button style="width:100%;margin-top:10px" onclick="openRecharge(${p.rupees},${p.tokens})">Pay & Recharge</button></div>`).join('')}</div>
+  <div class="notice" style="margin-top:15px">💡 Payment करने के बाद <b>UTR / Transaction ID</b> डालकर request submit करें. Admin approval के बाद coins wallet में add होंगे.</div>`;
+}
+function profilePage(){
+  const h=state.host;
+  return `<div class="hero"><div class="welcome">My Profile</div><div class="host" style="margin-top:10px">${avatar(state.user?.photo_url,state.user?.name)}<div><div class="name" style="font-size:20px">${esc(state.user?.name||'User')}</div><div class="muted">@${esc(state.user?.username||'-')}</div></div></div></div>
+  ${h?`<div class="card"><div class="row"><b>Host Status</b><span>${esc(h.status||'approved')}</span></div><div class="row"><b>Online</b><span>${h.online?'🟢 Online':'⚫ Offline'}</span></div><div class="row"><b>Total Earned</b><span>${Number(h.total_tokens||0).toFixed(0)} 🪙</span></div><div class="row"><b>Available Earnings</b><span>${money(h.available_earnings||0)}</span></div><div class="actions"><button onclick="setHostOnline(true)">🟢 Online</button><button class="secondary" onclick="setHostOnline(false)">⚫ Offline</button></div></div>`:
+  `<div class="card"><h3>🎙️ Become a Host</h3><div class="muted small">Host application submit करें. Admin approval के बाद आपको booking requests मिलेंगी.</div><button style="width:100%;margin-top:12px" onclick="openHostApply()">Apply as Host</button></div>`}
+  <div class="card" style="margin-top:12px"><h3>💬 Support</h3><div class="muted small">Account, recharge या booking की समस्या के लिए support से संपर्क करें.</div><button style="width:100%;margin-top:10px" onclick="window.open(config.support_url,'_blank')">Open Support</button></div>`;
+}
+function adminPage(){
+  return `<div class="hero"><div class="welcome">Administrator</div><div class="name">👑 VYNORA SUPER ADMIN</div><div class="muted">Only booking management and account controls.</div></div>
+  <div class="sectionHead"><h2>Approved Hosts</h2></div><div class="grid">${state.hosts.map(x=>`<div class="card"><div class="host">${avatar(x.photo_url,x.name)}<div><b>${esc(x.name)}</b><div class="status ${x.online?'online':'offline'}">${x.online?'Online':'Offline'}</div></div></div></div>`).join('')||`<div class="card empty">No approved hosts.</div>`}</div>
+  <div class="card" style="margin-top:14px"><b>Admin Controls</b><div class="muted small" style="margin-top:7px">Token, host approval, user block/unblock, recharge approval और announcements Telegram admin commands से manage होंगे.</div></div>`;
+}
+function modal(html){$('modalRoot').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="sheet">${html}</div></div>`}
+function closeModal(){$('modalRoot').innerHTML=''}
+function openBook(hostId){
+  state.selectedHost=hostId;state.selectedPlan=null;
+  const host=state.hosts.find(x=>x.user_id===hostId);
+  const plans=config.booking_plans?.length?config.booking_plans:[[1,20],[3,50],[6,100],[10,160],[15,240],[20,320],[30,450]].map(x=>({minutes:x[0],tokens:x[1]}));
+  modal(`<h2 style="margin-top:0">📅 Book a Slot</h2><div class="muted">Host: <b>${esc(host?.name||'Host')}</b></div>
+  <div class="sectionHead"><h3>Choose Duration</h3></div><div class="planGrid">${plans.map(p=>`<div class="plan" onclick="selectPlan(${p.minutes},${p.tokens},this)"><b>${p.minutes} Minute</b><span>${p.tokens} 🪙</span></div>`).join('')}</div>
+  <div class="sectionHead"><h3>Choose Date & Time</h3></div><input id="bookTime" class="field" type="datetime-local">
+  <div class="notice">Host पहले booking request accept करेगी. उसके बाद host call का exact time schedule करेगी. आपका balance booking request पर reserve होगा; reject होने पर coins वापस मिलेंगे.</div>
+  <div class="actions"><button onclick="submitBooking()">Confirm Booking</button><button class="secondary" onclick="closeModal()">Cancel</button></div>`);
+}
 function selectPlan(m,t,el){document.querySelectorAll('.plan').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');state.selectedPlan={minutes:m,tokens:t}}
-async function submitBooking(){if(!state.selectedPlan)return toast('Duration select karein');const v=$('bookTime').value;if(!v)return toast('Date/time select karein');const ts=Math.floor(new Date(v).getTime()/1000);try{const d=await api('/api/book-slot',{method:'POST',body:JSON.stringify({user_id:userId,host_id:state.selectedHost,minutes:state.selectedPlan.minutes,requested_start:ts})});closeModal();toast(d.busy?'⚠️ Host us time busy hai. Request save ho gayi; update ka wait karein.':'✅ Booking successfully submitted. Host confirmation ka wait karein.');await refresh();render()}catch(e){toast(e.message)}}
+async function submitBooking(){
+  if(!state.selectedPlan)return toast('Duration select करें');
+  const v=$('bookTime')?.value;if(!v)return toast('Date/time select करें');
+  const ts=Math.floor(new Date(v).getTime()/1000);
+  try{const d=await api('/api/book-slot',{method:'POST',body:JSON.stringify({user_id:userId,host_id:state.selectedHost,minutes:state.selectedPlan.minutes,requested_start:ts})});closeModal();toast(d.busy?'⚠️ Host उस time busy है. Request save हो गई.':'✅ Booking request sent. Host confirmation का wait करें.');await refresh();render()}catch(e){toast(e.message)}
+}
+function openRecharge(rupees=50,tokens=50){
+  state.recharge={rupees,tokens};
+  const plans=config.recharge_plans?.length?config.recharge_plans:[[50,50],[100,105],[200,210],[300,320],[500,550],[1000,1150],[1500,1750],[2000,2400]].map(x=>({rupees:x[0],tokens:x[1]}));
+  modal(`<h2 style="margin-top:0">💳 Recharge Wallet</h2>
+  <div class="planGrid">${plans.map(p=>`<div class="plan ${p.rupees===rupees?'selected':''}" onclick="pickRecharge(${p.rupees},${p.tokens},this)"><b>₹${p.rupees}</b><span>${p.tokens} 🪙</span></div>`).join('')}</div>
+  <div class="sectionHead"><h3>Pay with UPI</h3></div>
+  <div class="upiBox"><div class="muted small">UPI ID</div><div style="font-size:18px;font-weight:950;margin:4px 0">${esc(config.upi_id)}</div><div class="muted small">${esc(config.upi_name)}</div><button class="copyBtn" onclick="copyUPI()">📋 Copy UPI ID</button></div>
+  <div class="qrbox" id="qr"></div>
+  <div class="notice">📱 QR scan करें या UPI ID पर payment करें. Selected amount: <b>₹<span id="payAmount">${rupees}</span></b></div>
+  <input id="utr" class="field" placeholder="UTR / Transaction ID *">
+  <input id="receipt" class="field" placeholder="Payment screenshot URL (optional)">
+  <div class="notice warn">⚠️ Payment पहले करें, फिर UTR डालकर request submit करें. Coins admin approval के बाद add होंगे.</div>
+  <div class="actions"><button onclick="submitRecharge()">✅ Submit Recharge Request</button><button class="secondary" onclick="closeModal()">Cancel</button></div>`);
+  setTimeout(renderQR,50);
+}
+function pickRecharge(r,t,el){state.recharge={rupees:r,tokens:t};document.querySelectorAll('.plan').forEach(x=>x.classList.remove('selected'));el.classList.add('selected');$('payAmount').textContent=r;renderQR()}
+function upiLink(){const r=state.recharge?.rupees||50;return `upi://pay?pa=${encodeURIComponent(config.upi_id)}&pn=${encodeURIComponent(config.upi_name)}&am=${encodeURIComponent(r)}&cu=INR&tn=${encodeURIComponent('Vynora Live Recharge')}`}
+function renderQR(){const box=$('qr');if(!box)return;box.innerHTML='';if(window.QRCode)new QRCode(box,{text:upiLink(),width:220,height:220,colorDark:'#000000',colorLight:'#ffffff',correctLevel:QRCode.CORRECT_LEVEL.H})}
+function copyUPI(){navigator.clipboard?.writeText(config.upi_id).then(()=>toast('✅ UPI ID copied')).catch(()=>toast(config.upi_id))}
+async function submitRecharge(){
+  const r=state.recharge||{rupees:50,tokens:50};const utr=$('utr')?.value.trim();
+  if(!utr)return toast('UTR / Transaction ID डालें');
+  try{const d=await api('/api/recharge',{method:'POST',body:JSON.stringify({user_id:userId,rupees:r.rupees,tokens:r.tokens,utr,screenshot_url:$('receipt')?.value.trim()||''})});closeModal();toast('✅ Recharge request submitted. Admin approval का wait करें.');await refresh();render()}catch(e){toast(e.message)}
+}
+function openHostApply(){modal(`<h2 style="margin-top:0">🎙️ Host Application</h2><input id="hn" class="field" placeholder="Full Name"><input id="hp" class="field" placeholder="Phone Number"><input id="ha" class="field" type="number" placeholder="Age"><textarea id="hb" class="field" placeholder="Short Bio" rows="3"></textarea><button style="width:100%;margin-top:8px" onclick="submitHostApply()">Submit Application</button>`)}
+async function submitHostApply(){const name=$('hn')?.value.trim();if(!name)return toast('Name डालें');try{await api('/api/host/apply',{method:'POST',body:JSON.stringify({user_id:userId,name,username:tgUser.username||'',phone:$('hp')?.value.trim()||'',age:Number($('ha')?.value||0)||null,bio:$('hb')?.value.trim()||''})});closeModal();toast('✅ Host application submitted. Admin approval का wait करें.');await refresh();render()}catch(e){toast(e.message)}}
+async function setHostOnline(v){try{await api(v?`/api/host/online?user_id=${userId}`:`/api/host/offline?user_id=${userId}`,{method:'POST'});await refresh();render();toast(v?'🟢 You are online':'⚫ You are offline')}catch(e){toast(e.message)}}
 async function acceptBooking(id){try{await api('/api/booking/action',{method:'POST',body:JSON.stringify({host_id:userId,booking_id:id,action:'accept'})});toast('✅ Booking accepted');await refresh();render()}catch(e){toast(e.message)}}
-async function rejectBooking(id){try{await api('/api/booking/action',{method:'POST',body:JSON.stringify({host_id:userId,booking_id:id,action:'reject'})});toast('❌ Rejected; tokens refunded');await refresh();render()}catch(e){toast(e.message)}}
-function openSchedule(id,min){const opts=[1,5,10].map(x=>`<button class="secondary" style="width:100%;margin:5px 0" onclick="scheduleNow('${id}',${x},${min})">⏰ ${x} minute later</button>`).join('');modal(`<h2>⏰ Schedule Call</h2><div class="muted">Choose when you are ready</div>${opts}<button class="secondary" style="width:100%" onclick="scheduleCustom('${id}',${min})">🕐 Choose exact time</button>`)}
-async function scheduleNow(id,delay,min){const ts=Math.floor(Date.now()/1000)+delay*60;try{await api('/api/booking/schedule',{method:'POST',body:JSON.stringify({host_id:userId,booking_id:id,scheduled_start:ts})});closeModal();toast(`📞 User को call time भेज दिया गया: ${delay} min later`);await refresh();render()}catch(e){toast(e.message)}}
-function scheduleCustom(id,min){modal(`<h2>🕐 Exact Schedule</h2><input id="customTime" class="field" type="datetime-local"><button style="width:100%" onclick="scheduleCustomSave('${id}')">Save Schedule</button>`)}
-async function scheduleCustomSave(id){const v=$('customTime').value;if(!v)return toast('Time select करें');const ts=Math.floor(new Date(v).getTime()/1000);try{await api('/api/booking/schedule',{method:'POST',body:JSON.stringify({host_id:userId,booking_id:id,scheduled_start:ts})});closeModal();toast('✅ Schedule sent to user');await refresh();render()}catch(e){toast(e.message)}}
-function maybeJoin(id){const b=state.bookings.find(x=>x.booking_id===id);if(!b)return;const t=Math.floor(Date.now()/1000);if(b.scheduled_start&&t<b.scheduled_start){toast(`⏰ Call ${Math.ceil((b.scheduled_start-t)/60)} minute(s) baad ready hogi.`);return}joinBooking(id)}
-async function joinBooking(id){const b=state.bookings.find(x=>x.booking_id===id);if(!b)return;try{const j=await api('/api/call/join',{method:'POST',body:JSON.stringify({user_id:userId,booking_id:id})});openCall({booking:{...b,...j.booking},channel:`booking_${id}`,title:'1v1 Call',mode:'booking',role:'publisher',joinInfo:j.booking});}catch(e){toast(e.message)}}
-async function startAgora(channel,remoteUserId,role='publisher',photo=''){if(!window.AgoraRTC)return toast('Agora SDK not loaded');const td=await api(`/api/agora-token?channelName=${encodeURIComponent(channel)}&uid=${userId}&role=${role}`);const client=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});state.agora=client;await client.join(td.appId,td.channelName,td.token,userId);client.on('user-published',async(remote,mediaType)=>{await client.subscribe(remote,mediaType);if(mediaType==='video'){const el=document.createElement('div');el.id='remoteVideo';el.style.width='100%';el.style.height='100%';$('remote').innerHTML='';$('remote').appendChild(el);remote.videoTrack.play(el)}if(mediaType==='audio')remote.audioTrack.play()});client.on('user-unpublished',()=>{});state.localTracks=await AgoraRTC.createMicrophoneAndCameraTracks();state.localTracks[1].play('local');await client.publish(state.localTracks);}
-async function openCall(o){state.callBooking=o.booking;state.callMode=o.mode;modalCall(o);try{await startAgora(o.channel,o.booking?.host_id||0);startBookingTimer(o.joinInfo||o.booking)}catch(e){toast('Call connection failed: '+e.message)}}
-function startBookingTimer(info){clearInterval(state.timer);const tick=()=>{const start=Number(info?.call_started_at||state.callBooking?.call_started_at||0);const end=Number(info?.scheduled_end||state.callBooking?.scheduled_end||0);if(!start){$('callTimer')&&($('callTimer').textContent='Waiting for both sides to connect…');return}const left=Math.max(0,end-Math.floor(Date.now()/1000));if($('callTimer'))$('callTimer').textContent=`${String(Math.floor(left/60)).padStart(2,'0')}:${String(left%60).padStart(2,'0')}`;if(left<=0){clearInterval(state.timer);endCurrentCall()}};tick();state.timer=setInterval(tick,1000)}
-function modalCall(o){const b=o.booking;document.body.insertAdjacentHTML('beforeend',`<div id="callRoot" class="call"><div class="top" style="padding:12px"><div><b>${esc(o.title)}</b><div id="callTimer" class="timer">Waiting for both users…</div></div><button class="red" onclick="endCurrentCall()">End</button></div><div class="video"><div id="remote" class="remote"><div class="photoFallback">${img(b?state.host?.photo_url:'',b?'Host':'User')}</div></div><div id="local" class="local"><div class="photoFallback">${img(state.user?.photo_url,state.user?.name)}</div></div></div><div class="callbar"><span class="muted small">Face-to-face 1v1</span><button onclick="toggleMic()">🎙️</button><button onclick="toggleCam()">📹</button></div></div>`)}
-function modalCallDirect(dc,asAdmin=false){document.body.insertAdjacentHTML('beforeend',`<div id="callRoot" class="call"><div class="top" style="padding:12px"><div><b>👑 Super Admin Direct Call</b><div class="timer">No coins • No booking</div></div><button class="red" onclick="endDirect('${dc.call_id}')">End</button></div><div class="video"><div id="remote" class="remote"><div class="photoFallback">Direct Call</div></div><div id="local" class="local"><div class="photoFallback">You</div></div></div><div class="callbar"><span class="muted">Direct Admin ↔ Host</span><button onclick="toggleMic()">🎙️</button><button onclick="toggleCam()">📹</button></div></div>`)}
-async function adminCall(hostId){try{const d=await api('/api/admin/direct-call',{method:'POST',body:JSON.stringify({admin_id:userId,host_id:hostId})});modalCallDirect(d,true);await startAgora(d.channel,hostId);toast('📞 Calling host…')}catch(e){toast(e.message)}}
-async function pollDirect(){if(!state.host)return;try{const d=await api(`/api/direct-call/pending/${userId}`);if(d.active&&!$('callRoot')){modalCallDirect(d.call,false);const td=await api(`/api/agora-token?channelName=${encodeURIComponent(d.call.channel)}&uid=${userId}&role=publisher`);await startAgora(d.call.channel,d.call.admin_id)}}catch(e){}}
-async function endDirect(id){try{await api(`/api/direct-call/end/${id}?user_id=${userId}`,{method:'POST'});}catch(e){};leaveAgora();$('callRoot')?.remove();}
-async function endCurrentCall(){clearInterval(state.timer);const id=state.callBooking?.booking_id;try{if(id)await api('/api/call/end',{method:'POST',body:JSON.stringify({user_id:userId,booking_id:id})})}catch(e){}leaveAgora();$('callRoot')?.remove();state.callBooking=null;await refresh();render()}
-async function leaveAgora(){try{for(const t of state.localTracks||[])t.stop(),t.close();if(state.agora)await state.agora.leave()}catch(e){}state.localTracks=[];state.agora=null}
-function toggleMic(){const t=state.localTracks?.[0];if(t)t.setEnabled(!t.enabled)}function toggleCam(){const t=state.localTracks?.[1];if(t)t.setEnabled(!t.enabled)}
-function openHostApply(){modal(`<h2>🎙️ Host Application</h2><input id="haName" class="field" placeholder="Full name" value="${esc(state.user?.name||'')}"><input id="haPhone" class="field" placeholder="Phone"><input id="haAge" class="field" type="number" placeholder="Age"><textarea id="haBio" class="field" placeholder="Short bio"></textarea><button style="width:100%" onclick="submitHostApply()">Submit Application</button>`)}
-async function submitHostApply(){try{await api('/api/host/apply',{method:'POST',body:JSON.stringify({user_id:userId,name:$('haName').value,username:state.user?.username||'',phone:$('haPhone').value,age:Number($('haAge').value||0)||null,bio:$('haBio').value})});closeModal();toast('✅ Host application submitted. Admin approval ka wait karein.');}catch(e){toast(e.message)}}
-function openRecharge(rupees=50,tokens=50){modal(`<h2>💳 Recharge</h2><div class="grid">${[[50,50],[100,105],[200,210],[300,320],[500,550],[1000,1150],[1500,1750],[2000,2400]].map(x=>`<div class="plan ${x[0]===rupees?'selected':''}" onclick="pickRecharge(${x[0]},${x[1]},this)"><b>₹${x[0]}</b><span style="float:right">${x[1]} 🪙</span></div>`).join('')}</div><input id="utr" class="field" placeholder="UTR / Transaction ID"><input id="receipt" class="field" placeholder="Screenshot URL (optional)"><button style="width:100%" onclick="submitRecharge()">Submit Recharge Request</button>`);window.recharge={rupees,tokens}}
-function pickRecharge(r,t,el){window.recharge={rupees:r,tokens:t};document.querySelectorAll('.plan').forEach(x=>x.classList.remove('selected'));el.classList.add('selected')}
-async function submitRecharge(){try{const d=await api('/api/recharge',{method:'POST',body:JSON.stringify({user_id:userId,rupees:window.recharge.rupees,tokens:window.recharge.tokens,utr:$('utr').value,screenshot_url:$('receipt').value})});closeModal();toast('✅ Recharge request submitted. Admin approval ka wait karein.')}catch(e){toast(e.message)}}
-async function hostOnline(on){try{await api(`/api/host/${on?'online':'offline'}?user_id=${userId}`,{method:'POST'});await refresh();render()}catch(e){toast(e.message)}}
-async function withdraw(){const a=prompt('Withdrawal amount (minimum ₹700)');if(!a)return;try{await api(`/api/withdraw?user_id=${userId}&amount=${encodeURIComponent(a)}`,{method:'POST'});toast('💸 Withdrawal request submitted');await refresh();render()}catch(e){toast(e.message)}}
-async function adminAnnouncement(){const m=prompt('Announcement message');if(!m)return;try{await api('/api/announcement',{method:'POST',body:JSON.stringify({user_id:userId,message:m})});toast('📢 Announcement sent')}catch(e){toast(e.message)}}
-async function adminTokens(){const id=prompt('User ID');if(!id)return;const amount=prompt('Amount (+ add, - remove, or exact for set?)');toast('Use Telegram commands for exact token actions: /addtoken /removetoken /settoken')}
-function modal(html){$('modalRoot').innerHTML=`<div class="modal" onclick="if(event.target===this)closeModal()"><div class="sheet">${html}</div></div>`}function closeModal(){$('modalRoot').innerHTML=''}
-setInterval(async()=>{try{await refresh();if(!$('callRoot'))render();}catch(e){};if(state.host)pollDirect();},5000);
+async function rejectBooking(id){try{await api('/api/booking/action',{method:'POST',body:JSON.stringify({host_id:userId,booking_id:id,action:'reject'})});toast('❌ Booking rejected; coins refunded');await refresh();render()}catch(e){toast(e.message)}}
+function openSchedule(id,min){modal(`<h2 style="margin-top:0">⏰ Schedule Call</h2><div class="muted">Choose when you want to start the ${min}-minute call.</div><div style="margin-top:12px">${[1,5,10].map(x=>`<button class="secondary" style="width:100%;margin:5px 0" onclick="scheduleNow('${id}',${x})">⏰ ${x} minute later</button>`).join('')}</div><button class="secondary" style="width:100%;margin-top:5px" onclick="scheduleCustom('${id}')">🕐 Choose Exact Time</button>`)}
+async function scheduleNow(id,delay){const ts=Math.floor(Date.now()/1000)+delay*60;try{await api('/api/booking/schedule',{method:'POST',body:JSON.stringify({host_id:userId,booking_id:id,scheduled_start:ts})});closeModal();toast(`📞 Call ${delay} minute बाद schedule कर दी गई.`);await refresh();render()}catch(e){toast(e.message)}}
+function scheduleCustom(id){modal(`<h2 style="margin-top:0">🕐 Exact Time</h2><input id="customTime" class="field" type="datetime-local"><button style="width:100%" onclick="saveCustomSchedule('${id}')">Save Schedule</button>`)}
+async function saveCustomSchedule(id){const v=$('customTime')?.value;if(!v)return toast('Time select करें');const ts=Math.floor(new Date(v).getTime()/1000);try{await api('/api/booking/schedule',{method:'POST',body:JSON.stringify({host_id:userId,booking_id:id,scheduled_start:ts})});closeModal();toast('✅ Call schedule sent to user');await refresh();render()}catch(e){toast(e.message)}}
+function maybeJoin(id){const b=state.bookings.find(x=>x.booking_id===id);if(!b)return;const t=Math.floor(Date.now()/1000);if(b.scheduled_start&&t<b.scheduled_start){toast(`⏰ Call ${Math.ceil((b.scheduled_start-t)/60)} minute(s) बाद ready होगी.`);return}joinBooking(id)}
+async function joinBooking(id){
+  const b=state.bookings.find(x=>x.booking_id===id);if(!b)return;
+  try{const j=await api('/api/call/join',{method:'POST',body:JSON.stringify({user_id:userId,booking_id:id})});openCall({...b,...j.booking});}catch(e){toast(e.message)}
+}
+async function openCall(b){
+  state.callBooking=b;document.body.insertAdjacentHTML('beforeend',`<div id="callRoot" class="call"><div class="top" style="padding:12px"><div><b>📞 1-to-1 Call</b><div id="callTimer" class="timer">Waiting for both users…</div></div><button class="red" onclick="endCurrentCall()">End</button></div><div class="video"><div id="remote" class="remote"><div class="photoFallback">Waiting for Host…</div></div><div id="local" class="local"><div class="photoFallback">${avatar(state.user?.photo_url,state.user?.name)}</div></div></div><div class="callbar"><span class="muted small">Timer starts after both users connect</span><button onclick="toggleMic()">🎙️</button><button onclick="toggleCam()">📹</button></div></div>`);
+  try{await startAgora(`booking_${b.booking_id}`);startTimer()}catch(e){toast('Call connection failed: '+e.message)}
+}
+async function startAgora(channel){
+  if(!window.AgoraRTC)throw new Error('Agora SDK not loaded');
+  const td=await api(`/api/agora-token?channelName=${encodeURIComponent(channel)}&uid=${userId}&role=publisher`);
+  const client=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});state.agora=client;
+  client.on('user-published',async(remote,mediaType)=>{await client.subscribe(remote,mediaType);if(mediaType==='video'){const el=document.createElement('div');el.style.width='100%';el.style.height='100%';el.id='remoteVideo';$('remote').innerHTML='';$('remote').appendChild(el);remote.videoTrack.play(el)}if(mediaType==='audio')remote.audioTrack.play()});
+  state.localTracks=await AgoraRTC.createMicrophoneAndCameraTracks();state.localTracks[1].play('local');await client.join(td.appId,td.channelName,td.token,userId);await client.publish(state.localTracks);
+}
+function startTimer(){clearInterval(state.timer);const tick=async()=>{const b=state.callBooking;try{const j=await api('/api/call/join',{method:'POST',body:JSON.stringify({user_id:userId,booking_id:b.booking_id})});state.callBooking={...b,...j.booking};}catch(e){}const start=Number(state.callBooking?.call_started_at||0),end=Number(state.callBooking?.scheduled_end||0);if(!start){if($('callTimer'))$('callTimer').textContent='Waiting for both users…';return}const left=Math.max(0,end-Math.floor(Date.now()/1000));if($('callTimer'))$('callTimer').textContent=`${String(Math.floor(left/60)).padStart(2,'0')}:${String(left%60).padStart(2,'0')}`;if(left<=0)endCurrentCall()};tick();state.timer=setInterval(tick,3000)}
+async function endCurrentCall(){clearInterval(state.timer);const id=state.callBooking?.booking_id;try{if(id)await api('/api/call/end',{method:'POST',body:JSON.stringify({user_id:userId,booking_id:id})})}catch(e){}await leaveAgora();$('callRoot')?.remove();state.callBooking=null;await refresh();render()}
+async function leaveAgora(){try{for(const t of state.localTracks||[]){t.stop();t.close()}if(state.agora)await state.agora.leave()}catch(e){}state.localTracks=[];state.agora=null}
+function toggleMic(){const t=state.localTracks?.[0];if(t)t.setEnabled(!t.enabled)}
+function toggleCam(){const t=state.localTracks?.[1];if(t)t.setEnabled(!t.enabled)}
 boot();
 </script>
-</body></html>
+</body>
+</html>
+
+
+
+
+
+
+
