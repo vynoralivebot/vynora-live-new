@@ -4,7 +4,6 @@ import hashlib
 import urllib.parse
 import json
 import time
-import threading
 from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
@@ -87,79 +86,74 @@ def send_telegram_photo(chat_id: str, photo_bytes, caption: str, reply_markup: O
     except Exception as e:
         print(f"Telegram photo send error: {e}")
 
-# --- TELEGRAM BOT BACKGROUND POLLER (Handles /start) ---
-def telegram_bot_poller():
-    offset = 0
-    print("Telegram Bot Poller started...")
-    while True:
-        try:
-            if not BOT_TOKEN or BOT_TOKEN == "YOUR_BOT_TOKEN":
-                time.sleep(10)
-                continue
-            url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates?offset={offset}&timeout=30"
-            res = requests.get(url, timeout=35)
-            data = res.json()
-            if data.get("ok"):
-                for update in data.get("result", []):
-                    offset = update["update_id"] + 1
-                    message = update.get("message", {})
-                    text = message.get("text", "")
-                    chat_id = message.get("chat", {}).get("id")
-                    user = message.get("from", {})
-                    
-                    if text.startswith("/start"):
-                        user_id = str(user.get("id"))
-                        username = user.get("username", "user_" + user_id)
-                        first_name = user.get("first_name", "User")
-                        
-                        # Register user in DB if new
-                        existing = users_col.find_one({"user_id": user_id})
-                        if not existing:
-                            users_col.insert_one({
-                                "user_id": user_id,
-                                "username": username,
-                                "name": first_name,
-                                "country": "India",
-                                "tokens": 50,
-                                "blocked": False,
-                                "banned": False,
-                                "created_at": datetime.now(timezone.utc).isoformat()
-                            })
-                            reg_text = (
-                                f"👤 <b>New User Joined</b>\n\n"
-                                f"Name: {first_name}\n"
-                                f"Username: @{username}\n"
-                                f"Telegram ID: {user_id}\n"
-                                f"Country: India\n"
-                                f"Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}\n"
-                                f"Time: {datetime.now(timezone.utc).strftime('%H:%M:%S')}"
-                            )
-                            send_telegram_message(GROUP_2_ID, reg_text)
-
-                        # Send Welcome Message with Web App Button
-                        welcome_text = (
-                            "<b>Welcome to Vynora Live</b>\n\n"
-                            "Real Connections\n"
-                            "Real Moments"
-                        )
-                        reply_markup = {
-                            "inline_keyboard": [[
-                                {
-                                    "text": "OPEN VYNORA LIVE",
-                                    "web_app": {"url": WEB_APP_URL}
-                                }
-                            ]]
-                        }
-                        send_telegram_message(str(chat_id), welcome_text, reply_markup)
-        except Exception as e:
-            print(f"Poller error: {e}")
-        time.sleep(1)
-
+# --- AUTOMATIC WEBHOOK SETUP ON STARTUP ---
 @app.on_event("startup")
 def startup_event():
-    # Start bot poller in background thread
-    t = threading.Thread(target=telegram_bot_poller, daemon=True)
-    t.start()
+    if BOT_TOKEN and BOT_TOKEN != "YOUR_BOT_TOKEN":
+        webhook_url = f"{WEB_APP_URL.rstrip('/')}/telegram-webhook"
+        url = f"https://api.telegram.org/bot{BOT_TOKEN}/setWebhook"
+        try:
+            res = requests.post(url, json={"url": webhook_url}, timeout=10)
+            print(f"Automatic Webhook Registration: {res.json()}")
+        except Exception as e:
+            print(f"Failed to set webhook automatically: {e}")
+
+# --- TELEGRAM WEBHOOK ENDPOINT ---
+@app.post("/telegram-webhook")
+def telegram_webhook(update: dict):
+    try:
+        message = update.get("message", {})
+        text = message.get("text", "")
+        chat_id = message.get("chat", {}).get("id")
+        user = message.get("from", {})
+        
+        if text.startswith("/start") and chat_id:
+            user_id = str(user.get("id"))
+            username = user.get("username", "user_" + user_id)
+            first_name = user.get("first_name", "User")
+            
+            # Register user in DB if new
+            existing = users_col.find_one({"user_id": user_id})
+            if not existing:
+                users_col.insert_one({
+                    "user_id": user_id,
+                    "username": username,
+                    "name": first_name,
+                    "country": "India",
+                    "tokens": 50,
+                    "blocked": False,
+                    "banned": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+                reg_text = (
+                    f"👤 <b>New User Joined</b>\n\n"
+                    f"Name: {first_name}\n"
+                    f"Username: @{username}\n"
+                    f"Telegram ID: {user_id}\n"
+                    f"Country: India\n"
+                    f"Date: {datetime.now(timezone.utc).strftime('%Y-%m-%d')}\n"
+                    f"Time: {datetime.now(timezone.utc).strftime('%H:%M:%S')}"
+                )
+                send_telegram_message(GROUP_2_ID, reg_text)
+
+            # Send Welcome Message with Web App Button
+            welcome_text = (
+                "<b>Welcome to Vynora Live</b>\n\n"
+                "Real Connections\n"
+                "Real Moments"
+            )
+            reply_markup = {
+                "inline_keyboard": [[
+                    {
+                        "text": "OPEN VYNORA LIVE",
+                        "web_app": {"url": WEB_APP_URL}
+                    }
+                ]]
+            }
+            send_telegram_message(str(chat_id), welcome_text, reply_markup)
+    except Exception as e:
+        print(f"Webhook processing error: {e}")
+    return {"status": "ok"}
 
 # --- PYDANTIC MODELS ---
 class BookingCreate(BaseModel):
@@ -213,7 +207,6 @@ def verify_auth(payload: dict):
 def get_hosts():
     all_hosts = list(hosts_col.find({"status": "approved"}, {"_id": 0}))
     if not all_hosts:
-        # Default demo host for testing
         all_hosts = [{
             "user_id": "9999",
             "name": "Priya",
