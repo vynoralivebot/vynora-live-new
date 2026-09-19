@@ -36,12 +36,12 @@ SUPPORT_URL = os.getenv("SUPPORT_URL", "https://t.me/VynoraSupport")
 
 BOOKING_PLANS = [
     {"minutes": 1, "tokens": 20},
-    {"minutes": 5, "tokens": 100},
-    {"minutes": 10, "tokens": 200},
-    {"minutes": 15, "tokens": 300},
-    {"minutes": 20, "tokens": 400},
-    {"minutes": 25, "tokens": 500},
-    {"minutes": 30, "tokens": 600},
+    {"minutes": 3, "tokens": 50},
+    {"minutes": 6, "tokens": 100},
+    {"minutes": 10, "tokens": 160},
+    {"minutes": 15, "tokens": 240},
+    {"minutes": 20, "tokens": 320},
+    {"minutes": 30, "tokens": 450},
 ]
 GIFT_PLANS = [
     {"id":"rose","name":"Rose","emoji":"🌹","tokens":10},
@@ -982,7 +982,7 @@ def webhook_secret():
 
 def set_telegram_webhook():
     if not BOT_TOKEN:
-        log.info("BOT_TOKEN not set; Tel
+        log.info("BOT_TOKEN not set; Teleg
 
 
 
