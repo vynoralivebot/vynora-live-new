@@ -111,9 +111,44 @@ def init_db():
     CREATE TABLE IF NOT EXISTS events(
       id INTEGER PRIMARY KEY AUTOINCREMENT, event_type TEXT NOT NULL, message TEXT NOT NULL, created_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS notifications(
+      id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL, title TEXT NOT NULL, message TEXT NOT NULL,
+      kind TEXT DEFAULT 'info', is_read INTEGER DEFAULT 0, created_at TEXT NOT NULL,
+      FOREIGN KEY(user_id) REFERENCES users(id)
+    );
+    CREATE TABLE IF NOT EXISTS settings(
+      key TEXT PRIMARY KEY, value TEXT NOT NULL DEFAULT ''
+    );
     """)
+    c.executemany("INSERT OR IGNORE INTO settings(key,value) VALUES(?,?)", [
+        ("banner_text", "❤️ Welcome to Vynora Live"),
+        ("banner_image", ""),
+        ("withdrawals_per_day", "1"),
+        ("host_share_percent", "60"),
+    ])
+    for col, ddl in [
+        ("gift_earnings", "ALTER TABLE hosts ADD COLUMN gift_earnings INTEGER DEFAULT 0"),
+        ("approved_at", "ALTER TABLE hosts ADD COLUMN approved_at TEXT DEFAULT ''"),
+    ]:
+        try: c.execute(ddl)
+        except sqlite3.OperationalError: pass
     c.commit()
     c.close()
+
+
+def setting(key, default=""):
+    row=conn().execute("SELECT value FROM settings WHERE key=?", (key,)).fetchone()
+    return row[0] if row else default
+
+def set_setting(key, value):
+    conn().execute("INSERT INTO settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value", (key,str(value)))
+    conn().commit()
+
+def notify_user(user_id, title, message, kind="info", telegram=True):
+    c=conn(); c.execute("INSERT INTO notifications(user_id,title,message,kind,created_at) VALUES(?,?,?,?,?)", (user_id,title,message,kind,now())); c.commit()
+    if telegram:
+        u=c.execute("SELECT telegram_id FROM users WHERE id=?",(user_id,)).fetchone()
+        if u: tg_send(u["telegram_id"], f"<b>{title}</b>\n{message}")
 
 
 def log_event(kind, msg):
@@ -464,7 +499,7 @@ def booking_decision(bid):
     if decision=="rejected": c.execute("UPDATE users SET wallet=wallet+? WHERE id=?",(b["tokens"],b["user_id"]))
     c.commit()
     u=c.execute("SELECT * FROM users WHERE id=?",(b["user_id"],)).fetchone()
-    if u: tg_send(u["telegram_id"],f"🎙️ Host {h['name']} ने आपकी booking #{bid} को {decision} किया।")
+    if u: notify_user(u["id"],"🎙️ Booking Update",f"Host {h['name']} ने आपकी booking #{bid} को {decision} किया.","booking")
     log_event("booking_decision",f"Booking #{bid} {decision} by host {h['name']}")
     return jsonify(ok=True)
 
@@ -479,7 +514,7 @@ def schedule(bid):
     if not b or not scheduled:return jsonify(ok=False,error="Accepted booking and time required"),400
     c=conn(); c.execute("UPDATE bookings SET scheduled_at=?,status='scheduled' WHERE id=?",(scheduled,bid)); c.commit()
     u=c.execute("SELECT * FROM users WHERE id=?",(b["user_id"],)).fetchone()
-    if u: tg_send(u["telegram_id"],f"📞 {h['name']} आपको {scheduled} पर call करेगा।")
+    if u: notify_user(u["id"],"📞 Call Scheduled",f"{h['name']} आपको {scheduled} पर call करेगा.","call")
     return jsonify(ok=True)
 
 
@@ -496,12 +531,12 @@ def gift():
     if bal<tokens:return jsonify(ok=False,error="Insufficient tokens"),400
     host_earning=int(tokens*.60)
     c.execute("UPDATE users SET wallet=wallet-? WHERE id=?",(tokens,g.user["id"]))
-    c.execute("UPDATE hosts SET balance=balance+? WHERE id=?",(host_earning,b["host_id"]))
+    c.execute("UPDATE hosts SET balance=balance+?, gift_earnings=COALESCE(gift_earnings,0)+? WHERE id=?",(host_earning,host_earning,b["host_id"]))
     c.execute("INSERT INTO gifts(booking_id,user_id,host_id,gift_key,tokens,created_at) VALUES(?,?,?,?,?,?)",(bid,g.user["id"],b["host_id"],key,tokens,now()))
     c.commit()
     h=c.execute("SELECT h.*,u.telegram_id FROM hosts h JOIN users u ON u.id=h.user_id WHERE h.id=?",(b["host_id"],)).fetchone()
     msg=f"🎁 <b>Gift Received</b>\nHost: {h['name']}\nGift: {label}\nTokens: {tokens}\nHost earning: {host_earning}\nBooking ID: {bid}"
-    tg_send(h["telegram_id"],msg); notify_group(GROUP_3_ID,msg); log_event("gift",msg)
+    tg_send(h["telegram_id"],msg); notify_user(g.user["id"],"🎁 Gift Sent",f"{label} भेजा गया. {tokens} tokens कटे.","gift"); notify_group(GROUP_3_ID,msg); log_event("gift",msg)
     return jsonify(ok=True)
 
 
@@ -521,7 +556,7 @@ def recharge():
     rid=c.execute("SELECT last_insert_rowid()").fetchone()[0]
     msg=f"💰 <b>RECHARGE REQUEST #{rid}</b>\nUser: {g.user['name']}\nID: {g.user['telegram_id']}\nAmount: ₹{amount}\nTokens: {tokens}\nUTR: {utr}"
     log_event("recharge",msg); notify_group(GROUP_1_ID,msg,path)
-    tg_send(g.user["telegram_id"],f"📤 Recharge #{rid} submitted. Admin approval का इंतजार करें।")
+    notify_user(g.user["id"],"📤 Recharge Submitted",f"Recharge #{rid} submitted. Admin approval का इंतजार करें.","recharge")
     return jsonify(ok=True,request_id=rid)
 
 
@@ -531,23 +566,57 @@ def withdraw():
     d=request.get_json(silent=True) or {}
     try: amount=int(d.get("amount",0))
     except: amount=0
-    details=str(d.get("payment_details","")).strip()
+    details=str(d.get("payment_details","" )).strip()
     h=conn().execute("SELECT * FROM hosts WHERE user_id=? AND approved=1",(g.user["id"],)).fetchone()
     if not h:return jsonify(ok=False,error="Approved host only"),403
     if amount<=0 or amount>h["balance"] or not details:return jsonify(ok=False,error="Invalid amount/payment details"),400
+    from zoneinfo import ZoneInfo
+    day=datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+    exists=conn().execute("SELECT 1 FROM withdrawals WHERE host_id=? AND substr(created_at,1,10)=?",(h["id"],day)).fetchone()
+    if exists:return jsonify(ok=False,error="आज 1 withdrawal already लगा चुके हैं. एक दिन में केवल 1 withdrawal allowed है."),400
     c=conn(); c.execute("UPDATE hosts SET balance=balance-? WHERE id=?",(amount,h["id"]))
     c.execute("INSERT INTO withdrawals(host_id,amount,payment_details,created_at) VALUES(?,?,?,?)",(h["id"],amount,details,now())); c.commit()
     wid=c.execute("SELECT last_insert_rowid()").fetchone()[0]
     msg=f"💸 <b>WITHDRAWAL #{wid}</b>\nHost: {h['name']}\nAmount: ₹{amount}\nStatus: pending"
     log_event("withdrawal",msg); notify_group(GROUP_3_ID,msg)
+    notify_user(g.user["id"],"💸 Withdrawal Submitted",f"₹{amount} withdrawal request #{wid} submitted. Admin approval का इंतजार करें.","finance")
     return jsonify(ok=True,request_id=wid)
 
 
 @app.route("/api/notifications")
 @require_user
 def notifications():
-    rows=conn().execute("SELECT * FROM events ORDER BY id DESC LIMIT 50").fetchall()
-    return jsonify(ok=True,notifications=[dict(x) for x in rows])
+    rows=conn().execute("SELECT * FROM notifications WHERE user_id=? ORDER BY id DESC LIMIT 100",(g.user["id"],)).fetchall()
+    unread=conn().execute("SELECT COUNT(*) FROM notifications WHERE user_id=? AND is_read=0",(g.user["id"],)).fetchone()[0]
+    return jsonify(ok=True,notifications=[dict(x) for x in rows],unread=unread)
+
+@app.route("/api/notifications/read", methods=["POST"])
+@require_user
+def notifications_read():
+    conn().execute("UPDATE notifications SET is_read=1 WHERE user_id=?",(g.user["id"],)); conn().commit()
+    return jsonify(ok=True)
+
+@app.route("/api/help")
+@require_user
+def help_center():
+    role="host" if conn().execute("SELECT 1 FROM hosts WHERE user_id=? AND approved=1",(g.user["id"],)).fetchone() else "user"
+    common=[
+      {"title":"📅 Booking कैसे करें?","text":"Real Hosts में host चुनें → Book → duration → date/time → Confirm Booking. Host accept करने के बाद call schedule होगा."},
+      {"title":"💰 Recharge कैसे करें?","text":"Recharge plan चुनें → UPI QR से payment करें → UTR डालें → payment screenshot सीधे phone से upload करें → Submit. Admin approval के बाद tokens wallet में आएँगे."},
+      {"title":"📞 Call कैसे join करें?","text":"Scheduled time पर incoming call आएगी. Accept दबाएँ. User और Host दोनों connect होने के बाद ही server timer शुरू होगा."},
+      {"title":"🎁 Gift कैसे भेजें?","text":"Active call में gift चुनें. Gift tokens wallet से कटेंगे और host earning में जुड़ेंगे."},
+    ]
+    host_rules=[
+      {"title":"🎙️ Host Rule","text":"केवल approved India-based host booking ले सकता है. Online/Offline status सही रखें."},
+      {"title":"💸 Withdrawal Rule","text":"एक Host एक calendar day में केवल 1 withdrawal request लगा सकता है. Pending request रहते दूसरा withdrawal भी नहीं लगाया जा सकता."},
+      {"title":"💰 Earnings","text":"Call revenue का 60% host earning में credit होगा. Gift earning अलग दिखाई जाएगी."},
+      {"title":"📷 Profile & Filters","text":"Profile photo सीधे upload करें. Natural, Glow, Soft या Warm filter save करें; अगली call में वही preference रहेगी."},
+    ]
+    return jsonify(ok=True,role=role,common=common,host_rules=host_rules if role=="host" else [])
+
+@app.route("/api/banner")
+def banner():
+    return jsonify(ok=True,text=setting("banner_text","❤️ Welcome to Vynora Live"),image=setting("banner_image",""))
 
 
 # ---------------- ADMIN ----------------
@@ -578,12 +647,49 @@ def admin_bookings():
     return jsonify(ok=True,bookings=[dict(x) for x in rows])
 
 
+@app.route("/api/admin/daily-stats")
+@require_admin
+def admin_daily_stats():
+    from zoneinfo import ZoneInfo
+    day=datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+    c=conn()
+    def n(sql,args=()): return c.execute(sql,args).fetchone()[0]
+    return jsonify(ok=True,date=day,stats={
+      "new_users_today":n("SELECT COUNT(*) FROM users WHERE substr(created_at,1,10)=?",(day,)),
+      "recharges_today":n("SELECT COUNT(*) FROM recharge_requests WHERE substr(created_at,1,10)=? AND status='approved'",(day,)),
+      "recharge_amount_today":n("SELECT COALESCE(SUM(amount),0) FROM recharge_requests WHERE substr(created_at,1,10)=? AND status='approved'",(day,)),
+      "hosts_approved_today":n("SELECT COUNT(*) FROM hosts WHERE substr(COALESCE(approved_at,created_at),1,10)=? AND approved=1 AND dummy=0",(day,)),
+      "host_earnings_today":n("SELECT COALESCE(SUM(CAST(tokens*0.60 AS INTEGER)),0) FROM bookings WHERE substr(call_ended_at,1,10)=? AND status='completed'",(day)),
+      "calls_completed_today":n("SELECT COUNT(*) FROM bookings WHERE substr(call_ended_at,1,10)=? AND status='completed'",(day)),
+      "gifts_today":n("SELECT COALESCE(SUM(tokens),0) FROM gifts WHERE substr(created_at,1,10)=?",(day)),
+      "withdrawals_today":n("SELECT COALESCE(SUM(amount),0) FROM withdrawals WHERE substr(created_at,1,10)=?",(day)),
+    })
+
+@app.route("/api/admin/banner", methods=["POST"])
+@require_admin
+def admin_banner():
+    text=request.form.get("text","").strip()
+    file=request.files.get("image")
+    if not text and not file:return jsonify(ok=False,error="Banner text or image required"),400
+    image=setting("banner_image","")
+    if file:
+        try: image,_=upload_image(file)
+        except ValueError as e:return jsonify(ok=False,error=str(e)),400
+    set_setting("banner_text",text or setting("banner_text","")); set_setting("banner_image",image)
+    msg=f"📢 <b>VYNORA LIVE BANNER</b>\n{text}" if text else "📢 <b>VYNORA LIVE BANNER UPDATED</b>"
+    notify_group(GROUP_1_ID,msg); notify_group(GROUP_2_ID,msg); notify_group(GROUP_3_ID,msg)
+    log_event("banner_update",msg)
+    return jsonify(ok=True,text=setting("banner_text"),image=image)
+
 @app.route("/api/admin/settings")
 @require_admin
 def admin_settings():
     return jsonify(ok=True,settings={
         "upi_id":"vynoralive@slc","upi_name":"Rajnish Kumar",
-        "host_share_percent":60,"group_1_configured":bool(GROUP_1_ID),
+        "host_share_percent":int(setting("host_share_percent","60")),
+        "withdrawals_per_day":int(setting("withdrawals_per_day","1")),
+        "banner_text":setting("banner_text",""),
+        "banner_image":setting("banner_image",""),"group_1_configured":bool(GROUP_1_ID),
         "group_2_configured":bool(GROUP_2_ID),"group_3_configured":bool(GROUP_3_ID),
         "webhook":"configured" if BOT_TOKEN else "missing BOT_TOKEN"
     })
@@ -594,6 +700,8 @@ def admin_settings():
 def admin_stats():
     c=conn()
     def n(sql): return c.execute(sql).fetchone()[0]
+    from zoneinfo import ZoneInfo
+    day=datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
     return jsonify(ok=True,stats={
       "users":n("SELECT COUNT(*) FROM users"),
       "hosts":n("SELECT COUNT(*) FROM hosts WHERE approved=1 AND dummy=0"),
@@ -601,7 +709,12 @@ def admin_stats():
       "bookings":n("SELECT COUNT(*) FROM bookings"),
       "recharges":n("SELECT COUNT(*) FROM recharge_requests WHERE status='pending'"),
       "withdrawals":n("SELECT COUNT(*) FROM withdrawals WHERE status='pending'"),
-      "calls":n("SELECT COUNT(*) FROM bookings WHERE status='completed'")
+      "calls":n("SELECT COUNT(*) FROM bookings WHERE status='completed'"),
+      "today_users":n("SELECT COUNT(*) FROM users WHERE substr(created_at,1,10)=?",(day,)),
+      "today_recharge_count":n("SELECT COUNT(*) FROM recharge_requests WHERE substr(created_at,1,10)=? AND status='approved'",(day,)),
+      "today_recharge_amount":n("SELECT COALESCE(SUM(amount),0) FROM recharge_requests WHERE substr(created_at,1,10)=? AND status='approved'",(day,)),
+      "today_hosts_approved":n("SELECT COUNT(*) FROM hosts WHERE substr(COALESCE(approved_at,created_at),1,10)=? AND approved=1 AND dummy=0",(day,)),
+      "today_host_earnings":n("SELECT COALESCE(SUM(CAST(tokens*0.60 AS INTEGER)),0) FROM bookings WHERE substr(call_ended_at,1,10)=? AND status='completed'",(day))
     })
 
 
@@ -620,7 +733,8 @@ def admin_host(hid):
     h=conn().execute("SELECT h.*,u.telegram_id FROM hosts h JOIN users u ON u.id=h.user_id WHERE h.id=?",(hid,)).fetchone()
     if not h:return jsonify(ok=False,error="Host not found"),404
     approved=1 if decision=="approve" else 0
-    conn().execute("UPDATE hosts SET approved=? WHERE id=?",(approved,hid)); conn().commit()
+    approved_at=now() if approved else ""
+    conn().execute("UPDATE hosts SET approved=?,approved_at=? WHERE id=?",(approved,approved_at,hid)); conn().commit()
     msg=f"🎙️ <b>HOST {'APPROVED' if approved else 'REJECTED'}</b>\nHost: {h['name']}\nHost ID: {hid}\nAdmin: {g.user['telegram_id']}"
     tg_send(h["telegram_id"],msg); notify_group(GROUP_3_ID,msg); log_event("host_approval",msg)
     return jsonify(ok=True)
@@ -648,7 +762,7 @@ def admin_recharge(rid):
         try: os.remove(path)
         except OSError: pass
     u=c.execute("SELECT * FROM users WHERE id=?",(r["user_id"],)).fetchone()
-    if u:tg_send(u["telegram_id"],f"💰 Recharge #{rid} {'approved' if decision=='approve' else 'rejected'}.\nTokens: {r['tokens'] if decision=='approve' else 0}")
+    if u: notify_user(u["id"],"💰 Recharge Approved" if decision=="approve" else "❌ Recharge Rejected",f"Recharge #{rid}. Tokens: {r['tokens'] if decision=='approve' else 0}","recharge")
     msg=f"💰 Recharge #{rid} {decision}\nAmount: ₹{r['amount']}\nTokens: {r['tokens']}"
     notify_group(GROUP_3_ID,msg); log_event("recharge_decision",msg)
     return jsonify(ok=True)
@@ -710,9 +824,18 @@ def announce():
     text=(request.get_json(silent=True) or {}).get("text","").strip()
     if not text:return jsonify(ok=False,error="Message required"),400
     results=[notify_group(x,f"📢 <b>VYNORA LIVE ANNOUNCEMENT</b>\n\n{text}") for x in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID)]
+    c=conn(); users=c.execute("SELECT id FROM users WHERE status='active'").fetchall()
+    for u in users: notify_user(u["id"],"📢 Vynora Live Announcement",text,"announcement",telegram=False)
     log_event("announcement",text)
-    return jsonify(ok=True,results=results)
+    return jsonify(ok=True,results=results,users_notified=len(users))
 
+
+@app.route("/api/admin/group-test", methods=["POST"])
+@require_admin
+def group_test():
+    text="🧪 <b>VYNORA LIVE TEST</b>\nGroup notification test successful.\nTime: "+now()
+    results={"group1":notify_group(GROUP_1_ID,text),"group2":notify_group(GROUP_2_ID,text),"group3":notify_group(GROUP_3_ID,text)}
+    return jsonify(ok=True,results=results)
 
 @app.route("/api/admin/events")
 @require_admin
@@ -781,8 +904,111 @@ def telegram_webhook():
                 "❤️ <b>Welcome to Vynora Live</b>\n\n"
                 "🇮🇳 India-based Real Hosts\n📅 Slot Booking\n📞 Scheduled 1-to-1 Calls\n🎁 Gifts\n💰 Wallet & Recharge\n\n"
                 "नीचे button से Vynora Live खोलें।",markup)
-    elif text=="/helpadmin" and tid in SUPER_ADMINS:
-        tg_send(tid,"👑 <b>VYNORA LIVE — VERIFIED SUPER ADMIN</b>\n\n/helpadmin\n/approvehost\n/rejecthost\n/addhost\n/removehost\n/ban\n/unban\n/block\n/unblock\n/user\n/addtoken\n/removetoken\n/settoken\n/approverecharge\n/rejectrecharge\n/announce\n/offer\n/stats")
+    elif tid in SUPER_ADMINS and text=="/helpadmin":
+        tg_send(tid,"👑 <b>VYNORA LIVE — VERIFIED SUPER ADMIN</b>\n\n/helpadmin\n/approvehost [host_id]\n/rejecthost [host_id]\n/addhost\n/removehost [host_id]\n/ban [user_id]\n/unban [user_id]\n/block [user_id]\n/unblock [user_id]\n/user [telegram_id]\n/addtoken [user_id] [amount]\n/removetoken [user_id] [amount]\n/settoken [user_id] [amount]\n/approverecharge [id]\n/rejectrecharge [id]\n/announce <text>\n/offer <text>\n/banner <text>\n/clearannouncement\n/callhost [user_id]\n/setcountry [user_id] [country]\n/stats\n/group_test")
+    elif tid in SUPER_ADMINS and text=="/stats":
+        c=conn(); from zoneinfo import ZoneInfo; day=datetime.now(ZoneInfo("Asia/Kolkata")).date().isoformat()
+        vals={
+          "users":c.execute("SELECT COUNT(*) FROM users").fetchone()[0],
+          "hosts":c.execute("SELECT COUNT(*) FROM hosts WHERE approved=1 AND dummy=0").fetchone()[0],
+          "today_users":c.execute("SELECT COUNT(*) FROM users WHERE substr(created_at,1,10)=?",(day,)).fetchone()[0],
+          "today_hosts":c.execute("SELECT COUNT(*) FROM hosts WHERE substr(COALESCE(approved_at,created_at),1,10)=? AND approved=1 AND dummy=0",(day,)).fetchone()[0],
+          "today_recharge":c.execute("SELECT COALESCE(SUM(amount),0) FROM recharge_requests WHERE substr(created_at,1,10)=? AND status='approved'",(day,)).fetchone()[0],
+          "today_host_earn":c.execute("SELECT COALESCE(SUM(CAST(tokens*0.60 AS INTEGER)),0) FROM bookings WHERE substr(call_ended_at,1,10)=? AND status='completed'",(day,)).fetchone()[0],
+        }
+        tg_send(tid,f"📊 <b>Vynora Live Stats — {day}</b>\nTotal users: {vals['users']}\nTotal approved hosts: {vals['hosts']}\nNew users today: {vals['today_users']}\nHosts approved today: {vals['today_hosts']}\nRecharge today: ₹{vals['today_recharge']}\nHost earnings today: {vals['today_host_earn']}")
+    elif tid in SUPER_ADMINS and text=="/group_test":
+        res=[notify_group(gid,"🧪 <b>VYNORA LIVE GROUP TEST</b>\nGroup notification system is working.") for gid in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID)]
+        tg_send(tid,f"Group test: G1={'OK' if res[0] else 'FAIL'} · G2={'OK' if res[1] else 'FAIL'} · G3={'OK' if res[2] else 'FAIL'}")
+    elif tid in SUPER_ADMINS and text.startswith("/approvehost "):
+        try: hid=int(text.split()[1])
+        except: hid=0
+        h=conn().execute("SELECT h.*,u.telegram_id FROM hosts h JOIN users u ON u.id=h.user_id WHERE h.id=?",(hid,)).fetchone()
+        if h:
+            conn().execute("UPDATE hosts SET approved=1,approved_at=? WHERE id=?",(now(),hid)); conn().commit()
+            msg=f"🎙️ <b>HOST APPROVED</b>\nHost: {h['name']}\nHost ID: {hid}\nAdmin: {tid}\nTime: {now()}"
+            tg_send(h['telegram_id'],msg); notify_group(GROUP_3_ID,msg); tg_send(tid,"✅ Host approved")
+        else: tg_send(tid,"❌ Host not found")
+    elif tid in SUPER_ADMINS and text.startswith("/rejecthost "):
+        try: hid=int(text.split()[1])
+        except: hid=0
+        h=conn().execute("SELECT h.*,u.telegram_id FROM hosts h JOIN users u ON u.id=h.user_id WHERE h.id=?",(hid,)).fetchone()
+        if h:
+            conn().execute("UPDATE hosts SET approved=0,approved_at='' WHERE id=?",(hid,)); conn().commit()
+            msg=f"❌ <b>HOST REJECTED</b>\nHost: {h['name']}\nHost ID: {hid}\nAdmin: {tid}"
+            tg_send(h['telegram_id'],msg); notify_group(GROUP_3_ID,msg); tg_send(tid,"✅ Host rejected")
+        else: tg_send(tid,"❌ Host not found")
+    elif tid in SUPER_ADMINS and text.startswith(("/ban ","/block ","/unban ","/unblock ")):
+        parts=text.split(); cmd=parts[0]; target=parts[1] if len(parts)>1 else ""
+        try: uid=int(target)
+        except: uid=0
+        status="blocked" if cmd in ("/ban","/block") else "active"
+        c=conn(); row=c.execute("SELECT * FROM users WHERE telegram_id=? OR id=?",(uid,uid)).fetchone()
+        if row:
+            c.execute("UPDATE users SET status=? WHERE id=?",(status,row['id'])); c.commit(); tg_send(tid,f"✅ {cmd} applied to user #{row['id']}")
+        else: tg_send(tid,"❌ User not found")
+    elif tid in SUPER_ADMINS and text.startswith(("/addtoken ","/removetoken ","/settoken ")):
+        parts=text.split()
+        if len(parts)<3: tg_send(tid,"Usage: /addtoken user_id amount");
+        else:
+            try: uid=int(parts[1]); amount=max(0,int(parts[2]))
+            except: uid=0; amount=0
+            mode=parts[0][1:]
+            c=conn(); row=c.execute("SELECT * FROM users WHERE telegram_id=? OR id=?",(uid,uid)).fetchone()
+            if row:
+                if mode=="addtoken": c.execute("UPDATE users SET wallet=wallet+? WHERE id=?",(amount,row['id']))
+                elif mode=="removetoken": c.execute("UPDATE users SET wallet=MAX(wallet-?,0) WHERE id=?",(amount,row['id']))
+                else: c.execute("UPDATE users SET wallet=? WHERE id=?",(amount,row['id']))
+                c.commit(); tg_send(tid,"✅ Token balance updated")
+            else: tg_send(tid,"❌ User not found")
+    elif tid in SUPER_ADMINS and text.startswith(("/approverecharge ","/rejectrecharge ")):
+        parts=text.split()
+        try: rid=int(parts[1])
+        except: rid=0
+        decision="approve" if parts[0]=="/approverecharge" else "reject"
+        c=conn(); r=c.execute("SELECT * FROM recharge_requests WHERE id=? AND status='pending'",(rid,)).fetchone()
+        if r:
+            c.execute("UPDATE recharge_requests SET status=?,screenshot_path='' WHERE id=?",(decision,rid))
+            if decision=="approve": c.execute("UPDATE users SET wallet=wallet+? WHERE id=?",(r['tokens'],r['user_id']))
+            c.commit(); path=r['screenshot_path']
+            if path and os.path.exists(path):
+                try: os.remove(path)
+                except OSError: pass
+            notify_user(r['user_id'],"💰 Recharge Approved" if decision=="approve" else "❌ Recharge Rejected",f"Recharge #{rid} processed. Tokens: {r['tokens'] if decision=='approve' else 0}","recharge")
+            notify_group(GROUP_3_ID,f"💰 Recharge #{rid} {decision}\nAmount: ₹{r['amount']}\nTokens: {r['tokens']}")
+            tg_send(tid,"✅ Recharge processed")
+        else: tg_send(tid,"❌ Recharge not found/pending")
+    elif tid in SUPER_ADMINS and text.startswith("/user "):
+        try: target=int(text.split()[1])
+        except: target=0
+        urow=conn().execute("SELECT * FROM users WHERE telegram_id=? OR id=?",(target,target)).fetchone()
+        tg_send(tid, (f"👤 <b>User</b>\nName: {urow['name']}\nUsername: @{urow['username']}\nTelegram ID: {urow['telegram_id']}\nWallet: {urow['wallet']}\nStatus: {urow['status']}" if urow else "❌ User not found"))
+    elif tid in SUPER_ADMINS and text.startswith("/setcountry "):
+        parts=text.split(maxsplit=2)
+        if len(parts)<3: tg_send(tid,"Usage: /setcountry user_id country")
+        else:
+            try: target=int(parts[1])
+            except: target=0
+            urow=conn().execute("SELECT * FROM users WHERE telegram_id=? OR id=?",(target,target)).fetchone()
+            if urow:
+                conn().execute("UPDATE users SET country=? WHERE id=?",(parts[2].strip(),urow['id'])); conn().commit(); tg_send(tid,"✅ Country updated")
+            else: tg_send(tid,"❌ User not found")
+    elif tid in SUPER_ADMINS and text.startswith("/announce "):
+        body=text[len("/announce "):].strip()
+        if body:
+            for gid in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID): notify_group(gid,f"📢 <b>VYNORA LIVE ANNOUNCEMENT</b>\n\n{body}")
+            tg_send(tid,"✅ Announcement sent to all configured groups.")
+    elif tid in SUPER_ADMINS and text.startswith("/offer "):
+        body=text[len("/offer "):].strip()
+        for gid in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID): notify_group(gid,f"🎁 <b>VYNORA LIVE OFFER</b>\n\n{body}")
+        tg_send(tid,"✅ Offer sent to all configured groups.")
+    elif tid in SUPER_ADMINS and text.startswith("/banner "):
+        body=text[len("/banner "):].strip()
+        if body:
+            set_setting("banner_text",body)
+            tg_send(tid,"✅ Home banner text updated.")
+    elif tid in SUPER_ADMINS and text=="/clearannouncement":
+        set_setting("banner_text",""); set_setting("banner_image",""); tg_send(tid,"✅ Home banner cleared.")
     return jsonify(ok=True)
 
 
@@ -873,64 +1099,6 @@ def finish_booking(booking_id, reason="duration_complete"):
             return False
         ended=now()
         earning=int(b["tokens"]*0.60)
-        c.execute("UPDATE bookings SET call_ended_at=?,status='completed' WHERE id=?", (ended, booking_id))
-        c.execute("UPDATE hosts SET balance=balance+? WHERE id=?", (earning,b["host_id"]))
-        c.commit()
-        h=c.execute("SELECT name FROM hosts WHERE id=?", (b["host_id"],)).fetchone()
-        u=c.execute("SELECT telegram_id,name FROM users WHERE id=?", (b["user_id"],)).fetchone()
-        msg=(f"📞 <b>SESSION COMPLETED</b>\nHost: {h['name'] if h else ''}\n"
-             f"User: {u['name'] if u else ''}\nBooking ID: {booking_id}\nDuration: {b['duration']} min\n"
-             f"Start: {b['call_started_at']}\nEnd: {ended}\nTokens: {b['tokens']}\n"
-             f"Host earning: {earning}\nStatus: completed")
-        log_event("call_completed", msg)
-        notify_group(GROUP_3_ID, msg)
-        if u: tg_send(u["telegram_id"], f"📞 Call completed.\nBooking #{booking_id}\nDuration: {b['duration']} min")
-        socketio.emit("call_force_end", {"booking_id":booking_id,"reason":reason}, room=str(booking_id))
-        return True
-
-
-def call_scheduler():
-    # Runs in the background and handles scheduled ringing + hard timer expiry.
-    while True:
-        try:
-            with app.app_context():
-                c=conn()
-                rows=c.execute("SELECT * FROM bookings WHERE status IN ('scheduled','ringing','in_call')").fetchall()
-                current=datetime.now(timezone.utc)
-                for b in rows:
-                    if b["status"] in ("scheduled","ringing") and b["scheduled_at"]:
-                        when=parse_schedule(b["scheduled_at"])
-                        if when and current >= when:
-                            if b["status"]=="scheduled":
-                                c.execute("UPDATE bookings SET status='ringing' WHERE id=?", (b["id"],))
-                                c.commit()
-                                h=c.execute("SELECT name,photo_url,user_id FROM hosts WHERE id=?", (b["host_id"],)).fetchone()
-                                u=c.execute("SELECT telegram_id,name FROM users WHERE id=?", (b["user_id"],)).fetchone()
-                                host_user=c.execute("SELECT telegram_id FROM users WHERE id=?", (h["user_id"],)).fetchone() if h else None
-                                payload={"booking_id":b["id"],"host_name":h["name"] if h else "Host",
-                                         "host_photo":h["photo_url"] if h else "","duration":b["duration"]}
-                                socketio.emit("incoming_call", payload, room=f"user_{b['user_id']}")
-                                socketio.emit("incoming_call", payload, room=f"host_{b['host_id']}")
-                                markup={"inline_keyboard":[[{"text":"📞 Open Call","web_app":{"url":f"{WEB_APP_URL}/?call={b['id']}"}}]]}
-                                if u: tg_send(u["telegram_id"], f"📞 <b>Incoming Vynora Live Call</b>\nHost: {h['name'] if h else 'Host'}\nPlease open the call.", markup)
-                                if host_user: tg_send(host_user["telegram_id"], f"📞 <b>Scheduled Call</b>\nUser: {u['name'] if u else 'User'}\nPlease open the call.", markup)
-                    if b["status"]=="in_call" and b["call_started_at"]:
-                        started=parse_schedule(b["call_started_at"])
-                        if started and (current-started).total_seconds() >= b["duration"]*60:
-                            finish_booking(b["id"], "duration_complete")
-        except Exception as e:
-            print("Scheduler error:", e)
-        time.sleep(5)
-
-
-if __name__=="__main__":
-    init_db()
-    set_webhook()
-    socketio.start_background_task(call_scheduler)
-    port=int(os.getenv("PORT","5000"))
-    print("❤️ VYNORA LIVE STARTED on",port)
-    socketio.run(app,host="0.0.0.0",port=port,allow_unsafe_werkzeug=True)
-
 
 
 
