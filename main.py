@@ -1,10 +1,10 @@
-import os, time, uuid, threading, logging
+import os, time, uuid, threading, logging, base64, mimetypes
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
 import requests
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -176,6 +176,12 @@ def profile_photo(user_id):
     d = user_doc(user_id) or {}
     return d.get("photo_url", "")
 
+def public_photo_url(user_id, doc=None):
+    d = doc or user_doc(user_id) or {}
+    if d.get("photo_data"):
+        return f"/api/profile/photo/{int(user_id)}?v={int(d.get('photo_updated_at', 0))}"
+    return d.get("photo_url", "")
+
 
 def require_user(user_id):
     if blocked(user_id):
@@ -247,7 +253,7 @@ class ScheduleModel(BaseModel):
 
 class DirectCallModel(BaseModel):
     admin_id: int
-    host_id: int
+    target_id: int
 
 class CallJoinModel(BaseModel):
     user_id: int
@@ -297,26 +303,68 @@ def start(data: StartModel):
 def get_user(user_id: int):
     u = require_user(user_id)
     h = host_doc(user_id)
-    return {"user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens",0), "photo_url": u.get("photo_url","")}, "host": h or None, "is_admin": is_admin(user_id)}
+    return {"user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens",0), "photo_url": public_photo_url(user_id, u)}, "host": h or None, "is_admin": is_admin(user_id)}
 
 @app.post("/api/profile/photo")
 def set_photo(data: PhotoModel):
     require_user(data.user_id)
-    col("users").update_one({"user_id": uid(data.user_id)}, {"$set": {"photo_url": data.photo_url[:1000], "updated_at": now_ts()}})
-    return {"status": "success", "photo_url": data.photo_url}
+    url = data.photo_url.strip()[:1000]
+    col("users").update_one(
+        {"user_id": uid(data.user_id)},
+        {"$set": {"photo_url": url, "photo_updated_at": now_ts(), "updated_at": now_ts()}}
+    )
+    return {"status": "success", "photo_url": url}
+
+@app.post("/api/profile/photo-upload")
+async def upload_profile_photo(user_id: int, file: UploadFile = File(...)):
+    require_user(user_id)
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(400, "Please upload an image file")
+    raw = await file.read()
+    if len(raw) > 900_000:
+        raise HTTPException(400, "Photo is too large. Please use an image below 900 KB.")
+    encoded = base64.b64encode(raw).decode("ascii")
+    data_uri = f"data:{file.content_type};base64,{encoded}"
+    col("users").update_one(
+        {"user_id": uid(user_id)},
+        {"$set": {
+            "photo_data": data_uri,
+            "photo_url": "",
+            "photo_filename": file.filename or "profile.jpg",
+            "photo_content_type": file.content_type,
+            "photo_updated_at": now_ts(),
+            "updated_at": now_ts()
+        }}
+    )
+    return {"status": "success", "photo_url": public_photo_url(user_id)}
+
+@app.get("/api/profile/photo/{user_id}")
+def get_profile_photo(user_id: int):
+    d = user_doc(user_id) or {}
+    data_uri = d.get("photo_data", "")
+    if not data_uri.startswith("data:image/"):
+        raise HTTPException(404, "Profile photo not found")
+    try:
+        header, encoded = data_uri.split(",", 1)
+        content_type = header.split(";", 1)[0].replace("data:", "") or "image/jpeg"
+        raw = base64.b64decode(encoded)
+        from fastapi.responses import Response
+        return Response(content=raw, media_type=content_type, headers={"Cache-Control": "public, max-age=300"})
+    except Exception:
+        raise HTTPException(500, "Invalid profile photo")
 
 @app.get("/api/hosts")
 def hosts():
     rows = []
     for h in col("hosts").find({"status":"approved"}).sort("updated_at", -1):
         u = user_doc(h["user_id"]) or {}
-        rows.append({"user_id": h["user_id"], "name": h.get("name") or u.get("name","Host"), "username": h.get("username") or u.get("username",""), "photo_url": u.get("photo_url", h.get("photo_url","")), "online": bool(h.get("online")), "total_tokens": int(h.get("total_tokens",0)), "available_earnings": float(h.get("available_earnings",0)), "status": h.get("status")})
+        rows.append({"user_id": h["user_id"], "name": h.get("name") or u.get("name","Host"), "username": h.get("username") or u.get("username",""), "photo_url": public_photo_url(h["user_id"], u) or h.get("photo_url",""), "online": bool(h.get("online")), "total_tokens": int(h.get("total_tokens",0)), "available_earnings": float(h.get("available_earnings",0)), "status": h.get("status")})
     return rows
 
 @app.get("/api/host/{host_id}")
 def host_profile(host_id: int):
     h = host_or_404(host_id); u = user_doc(host_id) or {}
-    return {"user_id":host_id,"name":h.get("name") or u.get("name","Host"),"username":h.get("username") or u.get("username",""),"photo_url":u.get("photo_url",h.get("photo_url","")),"online":bool(h.get("online")),"total_tokens":int(h.get("total_tokens",0)),"available_earnings":float(h.get("available_earnings",0)),"status":h.get("status")}
+    return {"user_id":host_id,"name":h.get("name") or u.get("name","Host"),"username":h.get("username") or u.get("username",""),"photo_url":public_photo_url(host_id, u) or h.get("photo_url",""),"online":bool(h.get("online")),"total_tokens":int(h.get("total_tokens",0)),"available_earnings":float(h.get("available_earnings",0)),"status":h.get("status")}
 
 @app.post("/api/host/apply")
 def host_apply(data: HostApplyModel):
@@ -464,21 +512,40 @@ def admin_block(data: BlockModel):
 
 @app.post("/api/admin/direct-call")
 def direct_call(data: DirectCallModel):
-    if not is_admin(data.admin_id): raise HTTPException(403,"Super Admin only")
-    h=host_or_404(data.host_id)
-    cid=str(uuid.uuid4()); channel=f"admin_call_{cid}"
-    d={"call_id":cid,"type":"admin_direct","admin_id":uid(data.admin_id),"host_id":uid(data.host_id),"channel":channel,"status":"ringing","created_at":now_ts()}
+    if not is_admin(data.admin_id):
+        raise HTTPException(403,"Super Admin only")
+    target = require_user(data.target_id)
+    if target.get("blocked"):
+        raise HTTPException(403, "Target user is blocked")
+    cid = str(uuid.uuid4())
+    channel = f"admin_call_{cid}"
+    d = {
+        "call_id":cid,
+        "type":"admin_direct",
+        "admin_id":uid(data.admin_id),
+        "target_id":uid(data.target_id),
+        "channel":channel,
+        "status":"ringing",
+        "created_at":now_ts()
+    }
     col("direct_calls").insert_one(d)
-    notify_user(data.host_id,f"👑 <b>VYNORA SUPER ADMIN CALL</b>\n\nA Super Admin is calling you directly.\n🟢 Please JOIN immediately to speak with Admin.",[[{"text":"📞 JOIN ADMIN CALL","callback_data":f"join_admin_call:{cid}"}]])
-    notify_full(f"👑 ADMIN DIRECT CALL\nAdmin: {data.admin_id}\nHost: {data.host_id}\nCall: <code>{cid}</code>")
-    return {"status":"success","call_id":cid,"channel":channel,"host":h.get("name","Host")}
+    notify_user(
+        data.target_id,
+        "👑 <b>VYNORA SUPER ADMIN CALL</b>\n\n"
+        "Super Admin wants to speak with you immediately.\n"
+        "This is a free Admin call — no coins and no time limit.",
+        [[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]]
+    )
+    notify_full(f"👑 ADMIN DIRECT CALL\nAdmin: {data.admin_id}\nTarget: {data.target_id}\nCall: <code>{cid}</code>\nFree: YES")
+    return {"status":"success","call_id":cid,"channel":channel,"target":target.get("name","User")}
 
-@app.get("/api/direct-call/pending/{host_id}")
-def pending_direct_call(host_id:int):
-    require_user(host_id)
-    d=col("direct_calls").find_one({"host_id":uid(host_id),"status":{"$in":["ringing","connected"]}},sort=[("created_at",-1)])
+@app.get("/api/direct-call/pending/{target_id}")
+def pending_direct_call(target_id:int):
+    require_user(target_id)
+    d=col("direct_calls").find_one({"target_id":uid(target_id),"status":{"$in":["ringing","connected"]}},sort=[("created_at",-1)])
     if not d: return {"active":False}
-    d["_id"]=str(d["_id"]); return {"active":True,"call":d}
+    d["_id"]=str(d["_id"])
+    return {"active":True,"call":d}
 
 @app.post("/api/direct-call/end/{call_id}")
 def end_direct_call(call_id:str, user_id:int):
@@ -508,7 +575,18 @@ def get_announcement():
 
 @app.post("/api/host/online")
 def host_online(user_id:int):
-    host_or_404(user_id); col("hosts").update_one({"user_id":uid(user_id)},{"$set":{"online":True,"updated_at":now_ts()}}); return {"status":"success","online":True}
+    h = host_or_404(user_id)
+    col("hosts").update_one({"user_id":uid(user_id)},{"$set":{"online":True,"updated_at":now_ts()}})
+    # Tell users who were waiting because this host was busy.
+    pending = col("bookings").find({"host_id":uid(user_id),"status":"pending","busy_at_request":True})
+    for b in pending:
+        notify_user(
+            b["user_id"],
+            f"🟢 <b>{h.get('name','Host')} is available again</b>\n\n"
+            "Your booking request is still waiting for host confirmation."
+        )
+    notify_full(f"🟢 HOST AVAILABLE\nHost: {user_id}\nName: {h.get('name','Host')}\nStatus: Online")
+    return {"status":"success","online":True}
 
 @app.post("/api/host/offline")
 def host_offline(user_id:int):
@@ -599,8 +677,13 @@ def admin_command(chat_id, from_id, text):
             msg=" ".join(args); col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":msg,"updated_at":now_ts()}},upsert=True); 
             for gid in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID): notify_group(gid,f"📢 <b>ANNOUNCEMENT</b>\n{msg}")
             tg_send(chat_id,"✅ Announcement sent")
-        elif cmd=="/callhost" and args:
-            target=int(args[0]); h=host_or_404(target); cid=str(uuid.uuid4()); channel=f"admin_call_{cid}"; col("direct_calls").insert_one({"call_id":cid,"type":"admin_direct","admin_id":from_id,"host_id":target,"channel":channel,"status":"ringing","created_at":now_ts()}); tg_send(chat_id,f"📞 Calling host <code>{target}</code>\nCall: <code>{cid}</code>"); notify_user(target,"👑 <b>VYNORA SUPER ADMIN आपको direct call कर रहे हैं</b>\n\nकृपया तुरंत JOIN करें।",[[{"text":"📞 JOIN ADMIN CALL","callback_data":f"join_admin_call:{cid}"}]]); notify_full(f"👑 ADMIN DIRECT CALL\nAdmin: {from_id}\nHost: {target}\nCall: <code>{cid}</code>")
+        elif cmd in ("/call","/calluser","/callhost") and args:
+            target=int(args[0]); target_u=ensure_user(target)[0]
+            cid=str(uuid.uuid4()); channel=f"admin_call_{cid}"
+            col("direct_calls").insert_one({"call_id":cid,"type":"admin_direct","admin_id":from_id,"target_id":target,"channel":channel,"status":"ringing","created_at":now_ts()})
+            tg_send(chat_id,f"📞 Calling <code>{target}</code>\nCall: <code>{cid}</code>\n💰 Free • No time limit")
+            notify_user(target,"👑 <b>VYNORA SUPER ADMIN CALL</b>\n\nSuper Admin wants to speak with you immediately.\n💰 Free — no coins, no time limit.",[[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+            notify_full(f"👑 ADMIN DIRECT CALL\nAdmin: {from_id}\nTarget: {target}\nCall: <code>{cid}</code>\nFree: YES")
         elif cmd=="/stats":
             tg_send(chat_id,f"📊 Users: {col('users').count_documents({})}\nHosts: {col('hosts').count_documents({'status':'approved'})}\nPending Hosts: {col('hosts').count_documents({'status':'pending'})}\nBookings: {col('bookings').count_documents({})}\nCompleted Calls: {col('bookings').count_documents({'status':'completed'})}")
         else:
@@ -638,9 +721,11 @@ def handle_update(upd):
                     col("bookings").update_one({"booking_id":key},{"$set":{"status":"accepted","updated_at":now_ts()}}); notify_user(b["user_id"],"✅ Booking accepted. Host/admin will schedule the call.")
                 tg_send(chat_id,f"Booking {action.replace('_',' ')}: <code>{key}</code>")
             elif action=="join_admin_call":
-                dc=col("direct_calls").find_one({"call_id":key});
-                if not dc or from_id!=dc["host_id"]: return
-                col("direct_calls").update_one({"call_id":key},{"$set":{"status":"connected","joined_at":now_ts()}}); notify_user(dc["admin_id"],f"📞 Host <code>{dc['host_id']}</code> joined your direct call."); tg_send(chat_id,"📞 Connected. Please stay on the call.")
+                dc=col("direct_calls").find_one({"call_id":key})
+                if not dc or from_id!=dc.get("target_id"): return
+                col("direct_calls").update_one({"call_id":key},{"$set":{"status":"connected","joined_at":now_ts()}})
+                notify_user(dc["admin_id"],f"📞 User/Host <code>{dc['target_id']}</code> joined your direct call.")
+                tg_send(chat_id,"📞 Connected. Please stay on the call.")
         except Exception as e: log.warning("callback error %s",e)
         return
     msg=upd.get("message") or {}; text=msg.get("text",""); from_user=msg.get("from") or {}; from_id=int(from_user.get("id",0)); chat_id=msg.get("chat",{}).get("id")
@@ -649,11 +734,14 @@ def handle_update(upd):
         name=(from_user.get("first_name","")+" "+from_user.get("last_name","")).strip() or "User"; username=from_user.get("username","")
         u,created=ensure_user(from_id,name,username)
         if created: notify_new_user(u)
-        tg_send(chat_id,"👋 <b>Welcome to Vynora Live</b>\n\n1v1 Host Booking और Video Call के लिए नीचे App खोलें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+        tg_send(chat_id, f"🎉 <b>VYNORA LIVE में आपका स्वागत है! 💜</b>\n\nनमस्ते {name} 👋\n\nयहाँ आप अपनी पसंद के Host के साथ\n📅 1-to-1 Video Call Slot Book कर सकते हैं।\n\n✨ Host चुनें → Slot Book करें → Confirmation पाएँ → Call करें\n\n💰 UPI/QR से Recharge करें और Coins से Slot Book करें।\n\n🔐 Secure • Private • 1-to-1 Calling\n\n👇 शुरू करने के लिए नीचे दिए बटन पर क्लिक करें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
         return
-    if text.startswith("/help"):
-        tg_send(chat_id,"Help: App में Host चुनें → Book Slot → Host confirmation → Schedule → Join Call.\nSupport: "+SUPPORT_URL); return
+    # Normal users do not have Telegram commands. They use the Mini App.
+    # Super Admin commands remain available below.
     if text.startswith("/") and admin_command(chat_id,from_id,text): return
+    if text.startswith("/"):
+        tg_send(chat_id, "👋 App खोलने के लिए नीचे <b>Open Vynora Live</b> button का इस्तेमाल करें.", [[{"text":"🚀 Open Vynora Live","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+        return
 
 
 def webhook_url():
@@ -679,7 +767,7 @@ def set_telegram_webhook():
     }
     result = tg("setWebhook", payload) or {}
     if result.get("ok"):
-        log.info("Telegram webhook set successfully: %s", url)
+        log.info("Telegram webhook mode ACTIVE: %s", url)
         return True
     log.warning("Telegram setWebhook failed: %s", result)
     return False
