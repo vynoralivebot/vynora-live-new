@@ -7,13 +7,174 @@
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
 <style>
-:root{--p:#6d28d9;--p2:#ec4899;--bg:#f5f7fb;--card:#fff;--text:#111827;--muted:#6b7280;--green:#16a34a;--red:#dc2626;--line:#e5e7eb}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding-bottom:82px}
-button,input,select,textarea{font:inherit}button{border:0;cursor:pointer}.top{padding:26px 20px 30px;background:linear-gradient(135deg,#5b21b6,#ec4899);color:#fff;border-radius:0 0 28px 28px}.brand{font-size:28px;font-weight:900}.hello{margin-top:6px;opacity:.95}.wrap{max-width:980px;margin:auto;padding:16px}.card{background:var(--card);border:1px solid rgba(0,0,0,.04);border-radius:20px;padding:16px;margin:12px 0;box-shadow:0 8px 28px rgba(17,24,39,.06)}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}.stat{padding:15px;border-radius:18px;background:linear-gradient(180deg,#fff,#f5efff)}.stat b{font-size:21px;display:block}.btn{background:linear-gradient(135deg,var(--p),var(--p2));color:white;padding:11px 15px;border-radius:13px;font-weight:800}.btn.secondary{background:#f1f3f8;color:#374151}.btn.green{background:#16a34a}.btn.red{background:#dc2626}.btn.block{width:100%;margin-top:8px}.section-title{font-size:20px;font-weight:900;margin-bottom:12px}.muted{color:var(--muted)}.host{display:grid;grid-template-columns:72px 1fr auto;gap:12px;align-items:center}.avatar{width:72px;height:72px;border-radius:18px;object-fit:cover;background:#eee}.online{color:var(--green);font-weight:800}.offline{color:var(--muted)}.pill{display:inline-flex;padding:5px 9px;border-radius:99px;background:#f3f4f6;font-size:12px;font-weight:800;margin:2px}.bottom{position:fixed;z-index:30;bottom:0;left:0;right:0;background:#fff;border-top:1px solid var(--line);padding:8px;display:grid;grid-template-columns:repeat(4,1fr);gap:7px}.nav{padding:11px 4px;border-radius:13px;background:#f3f4f6;font-weight:800;color:#374151}.nav.active{background:linear-gradient(135deg,var(--p),var(--p2));color:white}.hidden{display:none!important}.input{width:100%;padding:12px;border:1px solid #d9dce3;border-radius:13px;background:#fff;margin:6px 0 10px}.upload{border:2px dashed #c4b5fd;padding:18px;border-radius:16px;text-align:center;background:#faf8ff}.preview{max-width:180px;max-height:180px;border-radius:15px;margin-top:10px}.tabs{display:flex;gap:8px;overflow:auto;margin:8px 0}.tab{white-space:nowrap;padding:9px 12px;border-radius:99px;background:#f1f3f8;font-weight:800}.tab.sel{background:#ede9fe;color:#5b21b6}.toast{position:fixed;z-index:100;left:16px;right:16px;bottom:90px;padding:13px 15px;border-radius:14px;background:#111827;color:#fff;display:none}.modal{position:fixed;z-index:80;inset:0;background:rgba(0,0,0,.58);display:flex;align-items:flex-end}.sheet{background:#fff;width:100%;max-height:92vh;overflow:auto;border-radius:25px 25px 0 0;padding:18px}.call{position:fixed;z-index:120;inset:0;background:#07111f;color:#fff;display:none}.remote{width:100%;height:100%;object-fit:cover;background:#111}.local{position:absolute;right:14px;top:14px;width:110px;height:155px;border-radius:16px;object-fit:cover;background:#222;border:2px solid #fff}.callbar{position:absolute;left:0;right:0;bottom:0;padding:22px 15px;background:linear-gradient(transparent,rgba(0,0,0,.85));text-align:center}.circle{width:58px;height:58px;border-radius:50%;margin:8px;background:#fff;font-size:23px}.end{background:#ef4444;color:#fff}.ring{position:fixed;z-index:110;inset:0;background:linear-gradient(135deg,#24124a,#ec4899);color:#fff;display:none;align-items:center;justify-content:center;text-align:center;padding:25px}.ring .avatar{width:110px;height:110px;border-radius:50%;border:4px solid #fff}.qr{width:190px;height:190px;border-radius:15px;border:1px solid #ddd;display:block;margin:12px auto}.danger{color:#b91c1c}.ok{color:#15803d}.table{width:100%;border-collapse:collapse;font-size:13px}.table td,.table th{padding:9px;border-bottom:1px solid var(--line);text-align:left}.admin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.admin-stat{background:#111827;color:#fff;border-radius:18px;padding:14px}.admin-stat b{font-size:25px;display:block}@media(max-width:650px){.grid3,.admin-grid{grid-template-columns:repeat(2,1fr)}.host{grid-template-columns:60px 1fr}.host .actions{grid-column:1/-1}.avatar{width:60px;height:60px}}
+:root{
+  --bg:#f6f7fb;--surface:#fff;--surface2:#f8f5ff;--text:#151827;--muted:#70758a;
+  --primary:#6d28d9;--primary2:#ec4899;--accent:#8b5cf6;--green:#18a66a;--red:#e5484d;
+  --line:#ececf3;--shadow:0 12px 34px rgba(39,24,76,.08);--radius:24px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0;background:
+  radial-gradient(circle at 10% 0%,rgba(139,92,246,.10),transparent 32%),
+  radial-gradient(circle at 95% 10%,rgba(236,72,153,.10),transparent 28%),
+  var(--bg);color:var(--text);
+  font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  padding-bottom:94px
+}
+button,input,select,textarea{font:inherit}
+button{border:0;cursor:pointer}
+button:active{transform:scale(.98)}
+.top{
+  position:relative;overflow:hidden;padding:24px 20px 28px;color:#fff;
+  background:linear-gradient(135deg,#4c1d95 0%,#7c3aed 46%,#ec4899 100%);
+  border-radius:0 0 32px 32px;box-shadow:0 12px 30px rgba(109,40,217,.20)
+}
+.top:after{
+  content:"";position:absolute;width:210px;height:210px;border-radius:50%;
+  right:-70px;top:-90px;background:rgba(255,255,255,.12)
+}
+.brand{position:relative;z-index:1;font-size:29px;font-weight:950;letter-spacing:-.7px}
+.hello{position:relative;z-index:1;margin-top:5px;font-size:15px;opacity:.93}
+.wrap{max-width:980px;margin:auto;padding:14px 15px 20px}
+.card{
+  background:rgba(255,255,255,.96);border:1px solid rgba(255,255,255,.8);
+  border-radius:var(--radius);padding:17px;margin:12px 0;box-shadow:var(--shadow)
+}
+.hero-card{
+  background:linear-gradient(135deg,#fff 0%,#faf7ff 100%);
+  border:1px solid #eee8ff
+}
+.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:11px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.stat{
+  padding:15px;border-radius:20px;background:linear-gradient(135deg,#fff,#f7f2ff);
+  border:1px solid #eee9fb
+}
+.stat span{font-size:13px;color:var(--muted);font-weight:750}
+.stat b{font-size:21px;display:block;margin-top:3px}
+.section-title{font-size:20px;font-weight:950;letter-spacing:-.3px;margin-bottom:12px}
+.section-sub{color:var(--muted);font-size:13px;margin-top:-7px;margin-bottom:12px}
+.muted{color:var(--muted)}
+.btn{
+  background:linear-gradient(135deg,var(--primary),var(--primary2));color:white;
+  padding:12px 15px;border-radius:15px;font-weight:850;box-shadow:0 8px 18px rgba(109,40,217,.18)
+}
+.btn.secondary{background:#f1eff7;color:#36394b;box-shadow:none}
+.btn.green{background:linear-gradient(135deg,#16a36a,#24c98a)}
+.btn.red{background:linear-gradient(135deg,#dc2626,#f05252)}
+.btn.block{width:100%;margin-top:9px}
+.host{
+  display:grid;grid-template-columns:76px 1fr auto;gap:12px;align-items:center
+}
+.avatar{
+  width:76px;height:76px;border-radius:22px;object-fit:cover;
+  background:linear-gradient(135deg,#eee,#f7efff);border:2px solid #fff;
+  box-shadow:0 7px 18px rgba(0,0,0,.08)
+}
+.host-card{
+  padding:12px;border-radius:22px;background:#fff;border:1px solid #eeeef5;
+  box-shadow:0 8px 22px rgba(30,20,60,.055);margin:10px 0
+}
+.host-name{font-size:18px;font-weight:900}
+.online{color:var(--green);font-weight:850}
+.offline{color:#85899a;font-weight:750}
+.pill{
+  display:inline-flex;align-items:center;padding:6px 10px;border-radius:99px;
+  background:#f3f1f8;font-size:11px;font-weight:850;margin:2px
+}
+.online-dot{
+  display:inline-block;width:8px;height:8px;border-radius:50%;background:#20b77b;
+  box-shadow:0 0 0 4px rgba(32,183,123,.12);margin-right:5px
+}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.section-link{color:var(--primary);font-weight:850;font-size:13px}
+.empty{
+  text-align:center;padding:22px 10px;color:var(--muted);
+  background:#fafafd;border-radius:18px;border:1px dashed #dedcea
+}
+.bottom{
+  position:fixed;z-index:30;bottom:0;left:0;right:0;
+  background:rgba(255,255,255,.94);backdrop-filter:blur(18px);
+  border-top:1px solid rgba(220,220,232,.85);padding:9px 9px calc(9px + env(safe-area-inset-bottom));
+  display:grid;grid-template-columns:repeat(4,1fr);gap:7px
+}
+.nav{
+  padding:10px 4px;border-radius:16px;background:transparent;
+  font-weight:850;color:#70758a;font-size:12px
+}
+.nav.active{
+  color:#fff;background:linear-gradient(135deg,var(--primary),var(--primary2));
+  box-shadow:0 7px 16px rgba(109,40,217,.22)
+}
+.hidden{display:none!important}
+.input{
+  width:100%;padding:13px 14px;border:1px solid #dedee8;border-radius:15px;
+  background:#fff;margin:6px 0 10px;outline:none
+}
+.input:focus{border-color:#a78bfa;box-shadow:0 0 0 4px rgba(139,92,246,.10)}
+.upload{
+  border:1.5px dashed #b9a4ee;padding:18px;border-radius:19px;text-align:center;
+  background:linear-gradient(135deg,#fbf9ff,#fff)
+}
+.upload input[type=file]{max-width:100%}
+.preview{max-width:180px;max-height:180px;border-radius:18px;margin-top:11px;object-fit:cover}
+.tabs{display:flex;gap:8px;overflow:auto;margin:8px 0;padding-bottom:2px}
+.tab{
+  white-space:nowrap;padding:10px 13px;border-radius:14px;background:#f2f0f7;
+  font-weight:850;color:#46495a
+}
+.tab.sel{background:#ede7ff;color:#5b21b6;box-shadow:inset 0 0 0 1px #d8caff}
+.toast{
+  position:fixed;z-index:100;left:15px;right:15px;bottom:92px;padding:14px 16px;
+  border-radius:16px;background:#171925;color:#fff;display:none;box-shadow:0 12px 30px rgba(0,0,0,.22)
+}
+.modal{position:fixed;z-index:80;inset:0;background:rgba(0,0,0,.58);display:flex;align-items:flex-end}
+.sheet{background:#fff;width:100%;max-height:92vh;overflow:auto;border-radius:28px 28px 0 0;padding:18px}
+.call{position:fixed;z-index:120;inset:0;background:#07111f;color:#fff;display:none}
+.remote{width:100%;height:100%;object-fit:cover;background:#111}
+.local{position:absolute;right:14px;top:14px;width:112px;height:158px;border-radius:18px;object-fit:cover;background:#222;border:2px solid #fff}
+.callbar{position:absolute;left:0;right:0;bottom:0;padding:22px 15px;background:linear-gradient(transparent,rgba(0,0,0,.88));text-align:center}
+.circle{width:58px;height:58px;border-radius:50%;margin:8px;background:#fff;font-size:23px}
+.end{background:#ef4444;color:#fff}
+.ring{
+  position:fixed;z-index:110;inset:0;background:linear-gradient(145deg,#24124a,#7c3aed,#ec4899);
+  color:#fff;display:none;align-items:center;justify-content:center;text-align:center;padding:25px
+}
+.ring .avatar{width:118px;height:118px;border-radius:50%;border:4px solid #fff}
+.qr{width:190px;height:190px;border-radius:18px;border:1px solid #ddd;display:block;margin:14px auto}
+.danger{color:#b91c1c}.ok{color:#15803d}
+.table{width:100%;border-collapse:collapse;font-size:13px}
+.table td,.table th{padding:9px;border-bottom:1px solid var(--line);text-align:left}
+.admin-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.admin-stat{background:linear-gradient(145deg,#171827,#2d214d);color:#fff;border-radius:19px;padding:15px}
+.admin-stat small{opacity:.75;font-weight:800}
+.admin-stat b{font-size:25px;display:block;margin-top:3px}
+.profile-hero{
+  display:flex;align-items:center;gap:14px;padding:18px;border-radius:24px;
+  background:linear-gradient(135deg,#f4edff,#fff1f8);border:1px solid #eee4ff
+}
+.profile-hero .avatar{width:84px;height:84px;border-radius:26px}
+.badge-admin{display:inline-flex;padding:6px 10px;border-radius:99px;background:#21143c;color:#e9d5ff;font-size:11px;font-weight:900}
+.feature{
+  display:flex;align-items:center;gap:12px;padding:12px;border-radius:17px;background:#fafafd;
+  border:1px solid #eeeef4;margin:7px 0
+}
+.feature-icon{width:40px;height:40px;border-radius:13px;display:grid;place-items:center;background:#efe9ff;font-size:19px}
+@media(max-width:650px){
+  .grid3,.admin-grid{grid-template-columns:repeat(2,1fr)}
+  .host{grid-template-columns:62px 1fr}
+  .host .actions{grid-column:1/-1}
+  .avatar{width:62px;height:62px;border-radius:18px}
+  .brand{font-size:27px}
+}
 </style>
 </head>
 <body>
-<header class="top"><div class="brand">❤️ Vynora Live</div><div class="hello" id="hello">Welcome</div></header>
+<header class="top">
+      <div class="brand">❤️ Vynora Live</div>
+      <div class="hello" id="hello">Welcome</div>
+    </header>
 <main class="wrap" id="app"></main>
 
 <div class="toast" id="toast"></div>
@@ -65,14 +226,14 @@ async function boot(){
   if(!auth.ok)throw new Error(auth.error||"Authentication failed");
   me=auth.user; document.getElementById("hello").textContent=`Welcome, ${me.name||"User"}`;
   if(me.telegram_id===7778606261||me.telegram_id===7001825467||me.role==="admin")document.getElementById("adminNav").classList.remove("hidden");
-  setupSocketRooms(); showPage("home"); handleUrlCall();
+  setupSocketRooms(); await showPage("home"); handleUrlCall();
  }catch(e){document.getElementById("app").innerHTML=`<div class="card"><h2>⚠️ Vynora Live</h2><p>${esc(e.message)}</p><button class="btn" onclick="location.reload()">Retry</button></div>`}
 }
 function setupSocketRooms(){
  socket.emit("join_call",{user_room:`user_${me.id}`,user_id:me.id});
  if(me.host) socket.emit("join_call",{host_room:`host_${me.host.id}`,host_id:me.host.id});
 }
-function handleUrlCall(){const q=new URLSearchParams(location.search); if(q.get("call")) {showIncoming({booking_id:q.get("call"),host_name:"Vynora Live Host"});}}
+function handleUrlCall(){const q=new URLSearchParams(location.search); if(q.get("call")) showIncoming({booking_id:q.get("call"),host_name:"Vynora Live Host"}); if(q.get("admin_call")) showIncoming({booking_id:q.get("admin_call"),host_name:"VYNORA LIVE Admin",admin:true,room:q.get("admin_call")});}
 socket.on("incoming_call",d=>showIncoming(d));
 socket.on("admin_incoming_call",d=>showIncoming({booking_id:d.room,host_name:"VYNORA LIVE Admin",admin:true}));
 socket.on("peer_joined",async()=>{if(callState.pc&&!callState.initiator)return; if(callState.pc) await makeOffer()});
@@ -86,24 +247,85 @@ socket.on("server_timer_started",d=>{callState.started=d.started_at;callState.du
 socket.on("call_force_end",()=>endCall(false));
 socket.on("call_completed",()=>endCall(false));
 
-function showPage(p){
+async function showPage(p){
  page=p; document.querySelectorAll(".nav").forEach(x=>x.classList.remove("active"));
  const idx={home:0,bookings:1,profile:2,admin:3}[p]; document.querySelectorAll(".nav")[idx]?.classList.add("active");
- if(p==="home")home(); if(p==="bookings")bookings(); if(p==="profile")profile(); if(p==="admin")admin();
+ try {
+   if(p==="home") await home();
+   if(p==="bookings") await bookings();
+   if(p==="profile") await profile();
+   if(p==="admin") await admin();
+ } catch(e) {
+   document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">⚠️ Vynora Live</div><p>${esc(e.message||"Something went wrong")}</p><button class="btn" onclick="showPage('${p}')">Retry</button></div>`;
+ }
 }
 async function home(){
  const h=await api("/api/hosts"); const b=await api("/api/bookings"); const host=me.host;
  document.getElementById("app").innerHTML=`
- <div class="card"><div class="grid"><div class="stat"><span>💰 Wallet</span><b>${me.wallet} Tokens</b></div><div class="stat"><span>📅 Bookings</span><b>${b.bookings.length}</b></div></div>
- <div class="grid" style="margin-top:10px"><button class="btn" onclick="recharge()">💰 Recharge</button><button class="btn secondary" onclick="notifications()">🔔 Notifications</button></div></div>
- <div class="card"><div class="section-title">🇮🇳 REAL HOSTS</div><div id="real"></div></div>
- <div class="card"><div class="section-title">🌎 DEMO / DUMMY HOSTS</div><div id="dummy"></div></div>
- ${host?`<div class="card"><div class="section-title">🎙️ Host Mode</div><p class="muted">Status: <b class="${host.online?'online':'offline'}">${host.online?'ONLINE':'OFFLINE'}</b></p><button class="btn ${host.online?'red':'green'}" onclick="hostOnline(${!host.online})">${host.online?'Go Offline':'Go Online'}</button><button class="btn secondary block" onclick="hostPanel()">🎙️ Open Host Dashboard</button></div>`:
- `<div class="card"><div class="section-title">🎙️ Become a Host</div><p class="muted">India-based host application submit करें। Photo direct upload होगा।</p><button class="btn block" onclick="hostApply()">Apply as Host</button></div>`}`;
- document.getElementById("real").innerHTML=h.real_hosts.length?h.real_hosts.map(hostCard).join():"<p class='muted'>No approved real hosts yet.</p>";
- document.getElementById("dummy").innerHTML=h.dummy_hosts.length?h.dummy_hosts.map(x=>hostCard(x,true)).join():"<p class='muted'>Demo hosts केवल display/testing के लिए हैं। Booking allowed नहीं है।</p>";
+ <div class="hero-card card">
+   <div class="section-head">
+     <div>
+       <div class="section-title" style="margin-bottom:3px">Good to see you 👋</div>
+       <div class="muted">Book a private 1-to-1 call with an India-based host.</div>
+     </div>
+     <div style="font-size:34px">💜</div>
+   </div>
+   <div class="grid" style="margin-top:14px">
+     <div class="stat"><span>💰 Wallet</span><b>${me.wallet} Tokens</b></div>
+     <div class="stat"><span>📅 My Bookings</span><b>${b.bookings.length}</b></div>
+   </div>
+   <div class="grid" style="margin-top:10px">
+     <button class="btn" onclick="recharge()">💰 Recharge</button>
+     <button class="btn secondary" onclick="notifications()">🔔 Notifications</button>
+   </div>
+ </div>
+
+ <div class="card">
+   <div class="section-head">
+     <div><div class="section-title" style="margin-bottom:2px">🇮🇳 Real Hosts</div><div class="section-sub">Approved India-based hosts</div></div>
+     <span class="pill">${h.real_hosts.length} available</span>
+   </div>
+   <div id="real"></div>
+ </div>
+
+ <div class="card">
+   <div class="section-head">
+     <div><div class="section-title" style="margin-bottom:2px">🌎 Demo Hosts</div><div class="section-sub">For display/testing only</div></div>
+     <span class="pill">BOOKING OFF</span>
+   </div>
+   <div id="dummy"></div>
+ </div>
+
+ ${host ? `
+ <div class="card">
+   <div class="section-head">
+     <div><div class="section-title" style="margin-bottom:2px">🎙️ Host Mode</div><div class="section-sub">Manage your availability and calls</div></div>
+     <span class="badge-admin" style="background:${host.online?'#e7fff4':'#f1f1f5'};color:${host.online?'#087443':'#646879'}">${host.online?'● ONLINE':'● OFFLINE'}</span>
+   </div>
+   <button class="btn ${host.online?'red':'green'} block" onclick="hostOnline(${!host.online})">${host.online?'Go Offline':'Go Online'}</button>
+   <button class="btn secondary block" onclick="hostPanel()">🎙️ Open Host Dashboard</button>
+ </div>` : `
+ <div class="card hero-card">
+   <div class="feature"><div class="feature-icon">🎙️</div><div><b>Become a Vynora Host</b><div class="muted">India-based hosts can apply with a direct photo upload.</div></div></div>
+   <button class="btn block" onclick="hostApply()">Apply as Host</button>
+ </div>`}`;
+ document.getElementById("real").innerHTML=h.real_hosts.length?h.real_hosts.map(hostCard).join():"<div class='empty'>🫶 No approved real hosts yet.<br><small>Approved hosts will appear here.</small></div>";
+ document.getElementById("dummy").innerHTML=h.dummy_hosts.length?h.dummy_hosts.map(x=>hostCard(x,true)).join():"<div class='empty'>🌎 Demo hosts are for display/testing only.<br><small>Booking is disabled.</small></div>";
 }
-function hostCard(h,dummy=false){return `<div class="card" style="margin:10px 0;background:#fbfbff"><div class="host"><img class="avatar" src="${esc(h.photo_url||'')}" onerror="this.style.visibility='hidden'"><div><b style="font-size:18px">${esc(h.name)}</b><div>${h.online?'🟢 Online':'⚪ Offline'} · 🇮🇳 ${esc(h.country)}</div><div>⭐ ${h.rating||5} · ${dummy?'DEMO':'1-to-1 Slot'}</div></div><div class="actions">${dummy?`<span class="pill">BOOKING DISABLED</span>`:`<button class="btn" onclick="book(${h.id},'${esc(h.name)}')">📅 Book Slot</button>`}</div></div></div>`}
+
+function hostCard(h,dummy=false){
+ return `<div class="host-card">
+   <div class="host">
+     <img class="avatar" src="${esc(h.photo_url||'')}" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2276%22 height=%2276%22%3E%3Crect width=%22100%25%22 height=%22100%25%22 rx=%2220%22 fill=%22%23eee8ff%22/%3E%3Ctext x=%2250%25%22 y=%2258%25%22 text-anchor=%22middle%22 font-size=%2230%22%3E👤%3C/text%3E%3C/svg%3E'">
+     <div>
+       <div class="host-name">${esc(h.name)}</div>
+       <div class="${h.online?'online':'offline'}">${h.online?'<span class="online-dot"></span>Online':'⚪ Offline'} · 🇮🇳 ${esc(h.country)}</div>
+       <div style="margin-top:5px">⭐ ${h.rating||5} <span class="pill">${dummy?'DEMO':'1-to-1 CALL'}</span></div>
+     </div>
+     <div class="actions">${dummy?`<span class="pill">BOOKING DISABLED</span>`:`<button class="btn" onclick="book(${h.id},'${esc(h.name)}')">📅 Book Slot</button>`}</div>
+   </div>
+ </div>`;
+}
 
 function recharge(){
  document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">💰 Recharge Wallet</div><p class="muted">₹1 baseline = 1 Token. Bonus plans admin setting से नियंत्रित किए जा सकते हैं।</p>
@@ -119,15 +341,45 @@ function pickAmount(a){document.getElementById("ramount").value=a}
 function previewFile(input,id){const f=input.files?.[0];if(!f)return;const img=document.getElementById(id);img.src=URL.createObjectURL(f);img.classList.remove("hidden")}
 async function submitRecharge(){const amount=document.getElementById("ramount").value,utr=document.getElementById("utr").value,file=document.getElementById("rechargeFile").files[0];if(!amount||!utr||!file)return toast("Amount, UTR और screenshot जरूरी है");const fd=new FormData();fd.append("amount",amount);fd.append("utr",utr);fd.append("screenshot",file);try{await api("/api/recharge",{method:"POST",body:fd});toast("Recharge submitted");home()}catch(e){toast(e.message)}}
 
-function book(hid,name){document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">📅 Book ${esc(name)}</div><p class="muted">Host busy हो तो request queue में रहेगी। Actual timer दोनों connect होने पर ही शुरू होगा।</p><div class="tabs">${Object.entries(config.durations).map(([d,t])=>`<button class="tab" onclick="selectDuration(${d},${t})">${d} min · ${t}</button>`).join("")}</div><input id="duration" type="hidden"><label>Date</label><input class="input" id="bdate" type="date"><label>Time</label><input class="input" id="btime" type="time"><button class="btn block" onclick="submitBooking(${hid},'${esc(name)}')">Confirm Booking</button></div>`}
-function selectDuration(d,t){document.getElementById("duration").value=d;document.querySelectorAll(".tab").forEach(x=>x.classList.remove("sel"));event.target.classList.add("sel")}
+function book(hid,name){document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">📅 Book ${esc(name)}</div><p class="muted">Host busy हो तो request queue में रहेगी। Actual timer दोनों connect होने पर ही शुरू होगा।</p><div class="tabs">${Object.entries(config.durations).map(([d,t])=>`<button class="tab" onclick="selectDuration(${d},${t},this)">${d} min · ${t}</button>`).join("")}</div><input id="duration" type="hidden"><label>Date</label><input class="input" id="bdate" type="date"><label>Time</label><input class="input" id="btime" type="time"><button class="btn block" onclick="submitBooking(${hid},'${esc(name)}')">Confirm Booking</button></div>`}
+function selectDuration(d,t,el){document.getElementById("duration").value=d;document.querySelectorAll(".tab").forEach(x=>x.classList.remove("sel"));el.classList.add("sel")}
 async function submitBooking(hid,name){const d=document.getElementById("duration").value,date=document.getElementById("bdate").value,time=document.getElementById("btime").value;if(!d||!date||!time)return toast("Duration, date और time चुनें");try{await api("/api/bookings",{method:"POST",body:{host_id:hid,duration:d,date,time}});toast("Booking submitted");showPage("bookings")}catch(e){toast(e.message)}}
 
 async function bookings(){const j=await api("/api/bookings");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">📅 My Bookings</div>${j.bookings.length?j.bookings.map(b=>`<div class="card"><b>#${b.id} · ${esc(b.host_name)}</b><div>${b.duration} min · ${b.tokens} tokens</div><div>📅 ${b.booking_date} ${b.booking_time}</div><span class="pill">${esc(b.status)}</span>${b.status==='scheduled'?`<button class="btn block" onclick="location.href='/?call=${b.id}'">📞 Open Scheduled Call</button>`:''}</div>`).join(""):"<p class='muted'>No bookings.</p>"}</div>`}
 
 async function notifications(){const j=await api("/api/notifications");document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">🔔 Notifications</div>${j.notifications.map(x=>`<div class="card"><b>${esc(x.event_type)}</b><div>${esc(x.message)}</div><small>${esc(x.created_at)}</small></div>`).join("")}</div>`}
 
-async function profile(){document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">👤 Profile</div><label>Name</label><input class="input" id="pname" value="${esc(me.name)}"><label>Country</label><input class="input" id="pcountry" value="${esc(me.country||'India')}"><div class="upload"><input type="file" id="pfile" accept="image/*" onchange="previewFile(this,'pprev')"><div>📷 Upload Profile Photo</div><img id="pprev" class="preview ${me.photo_url?'':'hidden'}" src="${esc(me.photo_url)}"></div><button class="btn block" onclick="saveProfile()">Save Profile</button><div class="card"><b>Telegram ID:</b> ${me.telegram_id}<br><b>Wallet:</b> ${me.wallet} Tokens</div></div>`}
+async function profile(){
+ const photo=me.photo_url||"";
+ document.getElementById("app").innerHTML=`
+ <div class="profile-hero">
+   <img class="avatar" src="${esc(photo)}" onerror="this.style.visibility='hidden'">
+   <div>
+     <div style="font-size:22px;font-weight:950">${esc(me.name||"Vynora User")}</div>
+     <div class="muted">@${esc(me.username||"telegram_user")}</div>
+     <div style="margin-top:6px"><span class="pill">🇮🇳 ${esc(me.country||"India")}</span><span class="pill">💰 ${me.wallet} Tokens</span></div>
+   </div>
+ </div>
+ <div class="card">
+   <div class="section-title">👤 Profile Settings</div>
+   <label>Name</label><input class="input" id="pname" value="${esc(me.name)}">
+   <label>Country</label><input class="input" id="pcountry" value="${esc(me.country||'India')}">
+   <div class="upload">
+     <input type="file" id="pfile" accept="image/*" onchange="previewFile(this,'pprev')">
+     <div style="font-weight:850">📷 Upload Profile Photo</div>
+     <div class="muted" style="font-size:12px;margin-top:4px">Choose directly from your phone gallery or camera.</div>
+     <img id="pprev" class="preview ${photo?'':'hidden'}" src="${esc(photo)}">
+   </div>
+   <button class="btn block" onclick="saveProfile()">Save Profile</button>
+ </div>
+ <div class="card">
+   <div class="section-title">🛡️ Account</div>
+   <div class="feature"><div class="feature-icon">🆔</div><div><b>Telegram ID</b><div class="muted">${me.telegram_id}</div></div></div>
+   <div class="feature"><div class="feature-icon">💰</div><div><b>Wallet Balance</b><div class="muted">${me.wallet} Tokens</div></div></div>
+   <div class="feature"><div class="feature-icon">🔒</div><div><b>Account Status</b><div class="ok">Active</div></div></div>
+ </div>`;
+}
+
 async function saveProfile(){const fd=new FormData();fd.append("name",document.getElementById("pname").value);fd.append("country",document.getElementById("pcountry").value);const f=document.getElementById("pfile").files[0];if(f)fd.append("photo",f);try{await api("/api/profile",{method:"POST",body:fd});me=(await api("/api/me")).user;toast("Profile saved");profile()}catch(e){toast(e.message)}}
 
 function hostApply(){document.getElementById("app").innerHTML=`<div class="card"><div class="section-title">🎙️ Host Application</div><input class="input" id="hname" placeholder="Host Name"><input class="input" id="hcountry" value="India"><textarea class="input" id="hbio" placeholder="Bio"></textarea><div class="upload"><input type="file" id="hfile" accept="image/*" onchange="previewFile(this,'hprev')"><div>📷 Direct Host Photo Upload</div><img id="hprev" class="preview hidden"></div><button class="btn block" onclick="submitHostApply()">Submit Application</button></div>`}
@@ -169,7 +421,7 @@ async function startCall(bookingId,name,duration,admin=false,roomOverride=null){
  const room=String(roomOverride||bookingId);socket.emit("join_call",{booking_id:room,user_room:`user_${me.id}`,host_room:me.host?`host_${me.host.id}`:undefined});
  // For an admin direct call, the person opening the call first can act as initiator.
  setTimeout(()=>{if(!callState.started){callState.initiator=true;makeOffer()}},700);
- if(!admin)socket.emit("call_started",{booking_id:Number(bookingId)});
+
 }
 async function makeOffer(){if(!callState.pc)return;const o=await callState.pc.createOffer();await callState.pc.setLocalDescription(o);socket.emit("webrtc_signal",{booking_id:callState.booking,kind:"offer",sdp:callState.pc.localDescription})}
 function runTimer(){clearInterval(window.timerInt);window.timerInt=setInterval(()=>{if(!callState.started)return;const start=new Date(callState.started).getTime();const sec=Math.max(0,Math.floor((Date.now()-start)/1000));const total=callState.duration*60;const left=Math.max(0,total-sec);document.getElementById("timer").textContent=`${String(Math.floor(left/60)).padStart(2,"0")}:${String(left%60).padStart(2,"0")}`;if(left<=0)endCall()},1000)}
