@@ -1,0 +1,9 @@
+fastapi
+uvicorn
+pymongo
+requests
+pydantic
+python-multipart
+agora-token-builder
+httpx
+python-dotenv
