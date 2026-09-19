@@ -50,6 +50,12 @@ RECHARGE_PLANS = [
     {"rupees": 1500, "tokens": 1750}, {"rupees": 2000, "tokens": 2400},
 ]
 
+DUMMY_HOSTS = [
+    {"user_id": 910000001, "name": "Sofia", "username": "sofia_demo", "country": "US", "country_name": "USA", "photo_url": "https://randomuser.me/api/portraits/women/44.jpg", "bio": "Demo profile", "status": "approved", "online": True},
+    {"user_id": 910000002, "name": "Emma", "username": "emma_demo", "country": "GB", "country_name": "United Kingdom", "photo_url": "https://randomuser.me/api/portraits/women/68.jpg", "bio": "Demo profile", "status": "approved", "online": True},
+    {"user_id": 910000003, "name": "Olivia", "username": "olivia_demo", "country": "PH", "country_name": "Philippines", "photo_url": "https://randomuser.me/api/portraits/women/65.jpg", "bio": "Demo profile", "status": "approved", "online": False},
+]
+
 app = FastAPI(title="Vynora Live 1v1", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -84,11 +90,11 @@ def user_doc(user_id):
     return col("users").find_one({"user_id": uid(user_id)})
 
 
-def ensure_user(user_id, name="", username=""):
+def ensure_user(user_id, name="", username="", country="IN"):
     user_id = uid(user_id)
     existing = col("users").find_one({"user_id": user_id})
     if not existing:
-        d = {"user_id": user_id, "name": name or "User", "username": username or "", "tokens": 0, "blocked": False, "created_at": now_ts(), "updated_at": now_ts()}
+        d = {"user_id": user_id, "name": name or "User", "username": username or "", "tokens": 0, "blocked": False, "country": (country or "IN").upper()[:2], "created_at": now_ts(), "updated_at": now_ts()}
         col("users").insert_one(d)
         return d, True
     updates = {"updated_at": now_ts()}
@@ -202,6 +208,7 @@ class StartModel(BaseModel):
     user_id: int
     name: str = ""
     username: str = ""
+    country: str = "IN"
 
 class PhotoModel(BaseModel):
     user_id: int
@@ -294,16 +301,16 @@ def config():
 
 @app.post("/api/start")
 def start(data: StartModel):
-    u, created = ensure_user(data.user_id, data.name, data.username)
+    u, created = ensure_user(data.user_id, data.name, data.username, data.country)
     if created:
         notify_new_user(u)
-    return {"status": "success", "new_user": created, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False)}}
+    return {"status": "success", "new_user": created, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN")}}
 
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
     u = require_user(user_id)
     h = host_doc(user_id)
-    return {"user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens",0), "photo_url": public_photo_url(user_id, u)}, "host": h or None, "is_admin": is_admin(user_id)}
+    return {"user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens",0), "country": u.get("country", "IN"), "photo_url": public_photo_url(user_id, u)}, "host": h or None, "is_admin": is_admin(user_id)}
 
 @app.post("/api/profile/photo")
 def set_photo(data: PhotoModel):
@@ -358,19 +365,19 @@ def hosts():
     rows = []
     for h in col("hosts").find({"status":"approved"}).sort("updated_at", -1):
         u = user_doc(h["user_id"]) or {}
-        rows.append({"user_id": h["user_id"], "name": h.get("name") or u.get("name","Host"), "username": h.get("username") or u.get("username",""), "photo_url": public_photo_url(h["user_id"], u) or h.get("photo_url",""), "online": bool(h.get("online")), "total_tokens": int(h.get("total_tokens",0)), "available_earnings": float(h.get("available_earnings",0)), "status": h.get("status")})
+        rows.append({"user_id": h["user_id"], "name": h.get("name") or u.get("name","Host"), "username": h.get("username") or u.get("username",""), "photo_url": public_photo_url(h["user_id"], u) or h.get("photo_url",""), "online": bool(h.get("online")), "country": h.get("country", "IN"), "country_name": h.get("country_name", "India"), "demo": bool(h.get("demo", False)), "total_tokens": int(h.get("total_tokens",0)), "available_earnings": float(h.get("available_earnings",0)), "status": h.get("status")})
     return rows
 
 @app.get("/api/host/{host_id}")
 def host_profile(host_id: int):
     h = host_or_404(host_id); u = user_doc(host_id) or {}
-    return {"user_id":host_id,"name":h.get("name") or u.get("name","Host"),"username":h.get("username") or u.get("username",""),"photo_url":public_photo_url(host_id, u) or h.get("photo_url",""),"online":bool(h.get("online")),"total_tokens":int(h.get("total_tokens",0)),"available_earnings":float(h.get("available_earnings",0)),"status":h.get("status")}
+    return {"user_id":host_id,"name":h.get("name") or u.get("name","Host"),"username":h.get("username") or u.get("username",""),"photo_url":public_photo_url(host_id, u) or h.get("photo_url",""),"online":bool(h.get("online")),"country":h.get("country","IN"),"country_name":h.get("country_name","India"),"demo":bool(h.get("demo",False)),"total_tokens":int(h.get("total_tokens",0)),"available_earnings":float(h.get("available_earnings",0)),"status":h.get("status")}
 
 @app.post("/api/host/apply")
 def host_apply(data: HostApplyModel):
     require_user(data.user_id)
     existing = host_doc(data.user_id)
-    d = {"user_id":uid(data.user_id),"name":data.name,"username":data.username,"phone":data.phone,"age":data.age,"bio":data.bio,"status":"pending","online":False,"total_tokens":0,"available_earnings":0,"created_at":now_ts(),"updated_at":now_ts()}
+    d = {"user_id":uid(data.user_id),"name":data.name,"username":data.username,"phone":data.phone,"age":data.age,"bio":data.bio,"status":"pending","online":False,"country":"IN","country_name":"India","total_tokens":0,"available_earnings":0,"created_at":now_ts(),"updated_at":now_ts()}
     if existing and existing.get("status") == "approved": raise HTTPException(400,"Already an approved host")
     col("hosts").update_one({"user_id":uid(data.user_id)}, {"$set":d}, upsert=True)
     text = f"🎙️ <b>HOST APPLICATION</b>\n\nName: {data.name}\nUser ID: <code>{data.user_id}</code>\nUsername: @{data.username.lstrip('@') or '-'}\nPhone: {data.phone or '-'}\nAge: {data.age or '-'}\nBio: {data.bio or '-'}"
@@ -395,6 +402,12 @@ def book_slot(data: BookingModel):
     start=int(data.requested_start); end=start+plan["minutes"]*60
     if start < now_ts()-60: raise HTTPException(400,"Please choose a future time")
     u=user_doc(data.user_id)
+    user_country=(u.get("country") or "IN").upper()
+    host_country=(h.get("country") or "IN").upper()
+    if host_country != user_country:
+        message = f"⚠️ <b>यह Host book नहीं किया जा सकता</b>\n\nयह Host <b>{h.get('country_name', host_country)}</b> से है। अभी केवल <b>India-based Hosts</b> की booking उपलब्ध है।\n\nकृपया India Host चुनें।"
+        notify_user(data.user_id, message)
+        raise HTTPException(403, "You cannot book a Host from another country")
     if int(u.get("tokens",0)) < plan["tokens"]: raise HTTPException(400,"Insufficient tokens")
     # Reserve money immediately; refund on reject/cancel.
     col("users").update_one({"user_id":uid(data.user_id),"tokens":{"$gte":plan["tokens"]}}, {"$inc":{"tokens":-plan["tokens"]}})
@@ -630,7 +643,7 @@ def admin_command(chat_id, from_id, text):
     parts=text.strip().split(maxsplit=2); cmd=parts[0].lower(); args=parts[1:]
     try:
         if cmd in ("/helpadmin","/adminhelp"):
-            tg_send(chat_id,"👑 <b>VYNORA ADMIN COMMANDS</b>\n\n/addtoken ID AMOUNT\n/removetoken ID AMOUNT\n/settoken ID AMOUNT\n/approvehost ID\n/rejecthost ID\n/addhost ID\n/approveuser ID\n/user ID\n/ban ID [reason]\n/unban ID\n/block ID [reason]\n/unblock ID\n/approverecharge RECHARGE_ID\n/rejectrecharge RECHARGE_ID\n/approvebooking BOOKING_ID\n/rejectbooking BOOKING_ID\n/announce MESSAGE\n/offer MESSAGE\n/clearannouncement\n/callhost HOST_ID\n/stats")
+            tg_send(chat_id,"👑 <b>VYNORA ADMIN COMMANDS</b>\n\n/addtoken ID AMOUNT\n/removetoken ID AMOUNT\n/settoken ID AMOUNT\n/approvehost ID\n/rejecthost ID\n/addhost ID\n/approveuser ID\n/user ID\n/ban ID [reason]\n/unban ID\n/block ID [reason]\n/unblock ID\n/approverecharge RECHARGE_ID\n/rejectrecharge RECHARGE_ID\n/approvebooking BOOKING_ID\n/rejectbooking BOOKING_ID\n/announce MESSAGE\n/offer MESSAGE\n/clearannouncement\n/callhost HOST_ID\n/setcountry USER_ID IN\n/stats")
         elif cmd in ("/addtoken","/removetoken","/settoken") and len(args)>=2:
             target=int(args[0]); amount=int(args[1]); u=ensure_user(target)[0]
             if cmd=="/addtoken": col("users").update_one({"user_id":target},{"$inc":{"tokens":amount}})
@@ -669,6 +682,8 @@ def admin_command(chat_id, from_id, text):
             target=int(args[0]); ensure_user(target); col("users").update_one({"user_id":target},{"$set":{"blocked":False,"updated_at":now_ts()}}); tg_send(chat_id,f"✅ User approved/unblocked: <code>{target}</code>"); notify_user(target,"✅ आपका account active है।")
         elif cmd=="/user" and args:
             target=int(args[0]); u=user_doc(target) or {}; h=host_doc(target) or {}; tg_send(chat_id,f"👤 <b>USER</b>\nID: <code>{target}</code>\nName: {u.get('name','-')}\nUsername: @{u.get('username','').lstrip('@') or '-'}\nTokens: {u.get('tokens',0)}\nBlocked: {u.get('blocked',False)}\nHost status: {h.get('status','none')}")
+        elif cmd=="/setcountry" and len(args)>=2:
+            target=int(args[0]); country=args[1].upper()[:2]; ensure_user(target); col("users").update_one({"user_id":target},{"$set":{"country":country,"updated_at":now_ts()}}); col("hosts").update_one({"user_id":target},{"$set":{"country":country,"country_name":country,"updated_at":now_ts()}}); tg_send(chat_id,f"🌍 Country set for <code>{target}</code>: <b>{country}</b>")
         elif cmd=="/offer" and args:
             msg=" ".join(args); col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":msg,"updated_at":now_ts()}},upsert=True); [notify_group(g,f"🎁 <b>OFFER</b>\n{msg}") for g in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID) if g]; tg_send(chat_id,"✅ Offer sent")
         elif cmd=="/clearannouncement":
@@ -803,6 +818,17 @@ def telegram_webhook_info():
     return tg("getWebhookInfo", {}) or {"ok": False, "error": "Telegram API unavailable"}
 
 
+def seed_dummy_hosts():
+    for x in DUMMY_HOSTS:
+        ensure_user(x["user_id"], x["name"], x["username"], x["country"])
+        col("users").update_one({"user_id":x["user_id"]},{"$set":{"name":x["name"],"username":x["username"],"country":x["country"],"updated_at":now_ts()}})
+        col("hosts").update_one(
+            {"user_id":x["user_id"]},
+            {"$set":{"user_id":x["user_id"],"name":x["name"],"username":x["username"],"country":x["country"],"country_name":x["country_name"],"photo_url":x["photo_url"],"bio":x["bio"],"status":"approved","online":x["online"],"demo":True,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"created_at":now_ts()}},
+            upsert=True
+        )
+
+
 def call_watchdog():
     while True:
         try:
@@ -829,6 +855,11 @@ def startup():
             col("direct_calls").create_index("call_id", unique=True)
             col("notifications").create_index([("user_id",1),("created_at",-1)])
         except Exception as e: log.warning("index setup: %s",e)
+    if db is not None:
+        try:
+            seed_dummy_hosts()
+        except Exception as e:
+            log.warning("dummy host seed: %s", e)
     if BOT_TOKEN:
         # Webhook replaces long polling. Telegram does not allow getUpdates while
         # an outgoing webhook is configured.
