@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import requests
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
@@ -530,7 +530,7 @@ def withdraw(user_id:int, amount:float):
     notify_full(f"💸 WITHDRAWAL REQUEST\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>")
     return {"status":"success","withdrawal_id":wid}
 
-# ---------------- Telegram polling / admin commands ----------------
+# ---------------- Telegram webhook / admin commands ----------------
 
 def tg(method, payload):
     if not BOT_TOKEN: return None
@@ -649,22 +649,70 @@ def handle_update(upd):
         name=(from_user.get("first_name","")+" "+from_user.get("last_name","")).strip() or "User"; username=from_user.get("username","")
         u,created=ensure_user(from_id,name,username)
         if created: notify_new_user(u)
-        tg_send(chat_id,"👋 <b>Welcome to Vynora Live</b>\n\n1v1 Host Booking और Video Call के लिए नीचे App खोलें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":os.getenv("WEB_APP_URL","")}}]])
+        tg_send(chat_id,"👋 <b>Welcome to Vynora Live</b>\n\n1v1 Host Booking और Video Call के लिए नीचे App खोलें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
         return
     if text.startswith("/help"):
         tg_send(chat_id,"Help: App में Host चुनें → Book Slot → Host confirmation → Schedule → Join Call.\nSupport: "+SUPPORT_URL); return
     if text.startswith("/") and admin_command(chat_id,from_id,text): return
 
 
-def polling():
-    if not BOT_TOKEN: log.info("BOT_TOKEN not set; Telegram polling disabled"); return
-    tg("deleteWebhook",{"drop_pending_updates":False}); offset=0
-    while True:
-        try:
-            res=tg("getUpdates",{"offset":offset,"timeout":25}) or {}
-            for u in res.get("result",[]): offset=max(offset,int(u["update_id"])+1); handle_update(u)
-        except Exception as e: log.warning("polling error: %s",e)
-        time.sleep(1)
+def webhook_url():
+    base = os.getenv("WEB_APP_URL", "https://vynora-live-new.onrender.com").rstrip("/")
+    return base + "/api/telegram/webhook"
+
+
+def webhook_secret():
+    return os.getenv("TELEGRAM_WEBHOOK_SECRET", "vynora_webhook_2026")
+
+
+def set_telegram_webhook():
+    if not BOT_TOKEN:
+        log.info("BOT_TOKEN not set; Telegram webhook disabled")
+        return False
+    url = webhook_url()
+    payload = {
+        "url": url,
+        "allowed_updates": ["message", "callback_query"],
+        "drop_pending_updates": False,
+        "max_connections": 20,
+        "secret_token": webhook_secret(),
+    }
+    result = tg("setWebhook", payload) or {}
+    if result.get("ok"):
+        log.info("Telegram webhook set successfully: %s", url)
+        return True
+    log.warning("Telegram setWebhook failed: %s", result)
+    return False
+
+
+@app.post("/api/telegram/webhook")
+async def telegram_webhook(request: Request):
+    if not BOT_TOKEN:
+        raise HTTPException(503, "BOT_TOKEN is not configured")
+
+    expected = webhook_secret()
+    received = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+    if expected and received != expected:
+        raise HTTPException(403, "Invalid Telegram webhook secret")
+
+    try:
+        update = await request.json()
+    except Exception:
+        raise HTTPException(400, "Invalid JSON update")
+
+    try:
+        handle_update(update)
+    except Exception as e:
+        log.exception("telegram webhook update failed: %s", e)
+        # Return 200 so Telegram does not repeatedly retry a malformed/failed update.
+    return {"ok": True}
+
+
+@app.get("/api/telegram/webhook-info")
+def telegram_webhook_info():
+    if not BOT_TOKEN:
+        return {"ok": False, "error": "BOT_TOKEN is not configured"}
+    return tg("getWebhookInfo", {}) or {"ok": False, "error": "Telegram API unavailable"}
 
 
 def call_watchdog():
@@ -694,10 +742,19 @@ def startup():
             col("notifications").create_index([("user_id",1),("created_at",-1)])
         except Exception as e: log.warning("index setup: %s",e)
     if BOT_TOKEN:
-        threading.Thread(target=polling, daemon=True).start()
+        # Webhook replaces long polling. Telegram does not allow getUpdates while
+        # an outgoing webhook is configured.
+        threading.Thread(target=set_telegram_webhook, daemon=True).start()
     if db is not None:
         threading.Thread(target=call_watchdog, daemon=True).start()
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT","8000")))
+
+
+
+
+
+
+
