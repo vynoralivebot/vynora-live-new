@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from typing import Optional, List, Dict, Any
 
 from fastapi import FastAPI, HTTPException, Depends, Header, UploadFile, File, Form
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from pymongo import MongoClient
@@ -98,6 +99,14 @@ def startup_event():
         except Exception as e:
             print(f"Failed to set webhook automatically: {e}")
 
+# --- SERVE INDEX.HTML AT ROOT ---
+@app.get("/", response_class=HTMLResponse)
+def serve_home():
+    if os.path.exists("index.html"):
+        with open("index.html", "r", encoding="utf-8") as f:
+            return f.read()
+    return "<h3>Vynora Live Backend is Running. index.html not found in root directory.</h3>"
+
 # --- TELEGRAM WEBHOOK ENDPOINT ---
 @app.post("/telegram-webhook")
 def telegram_webhook(update: dict):
@@ -112,7 +121,6 @@ def telegram_webhook(update: dict):
             username = user.get("username", "user_" + user_id)
             first_name = user.get("first_name", "User")
             
-            # Register user in DB if new
             existing = users_col.find_one({"user_id": user_id})
             if not existing:
                 users_col.insert_one({
@@ -136,7 +144,6 @@ def telegram_webhook(update: dict):
                 )
                 send_telegram_message(GROUP_2_ID, reg_text)
 
-            # Send Welcome Message with Web App Button
             welcome_text = (
                 "<b>Welcome to Vynora Live</b>\n\n"
                 "Real Connections\n"
