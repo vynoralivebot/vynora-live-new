@@ -1,5 +1,9 @@
-Flask==3.1.2
-Flask-SocketIO==5.5.1
-requests==2.32.5
-qrcode==8.2
-Pillow==11.3.0
+fastapi
+uvicorn
+pymongo
+requests
+pydantic
+python-multipart
+agora-token-builder
+httpx
+python-dotenv
