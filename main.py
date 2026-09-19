@@ -283,7 +283,10 @@ def upload_image(file_storage):
 
 @app.route("/")
 def index():
-    return send_from_directory(BASE_DIR, "index.html")
+    response = send_from_directory(BASE_DIR, "index.html")
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 
 @app.route("/uploads/<name>")
@@ -1095,10 +1098,6 @@ def finish_booking(booking_id, reason="duration_complete"):
     with app.app_context():
         c=conn()
         b=c.execute("SELECT * FROM bookings WHERE id=?", (booking_id,)).fetchone()
-        if not b or not b["call_started_at"] or b["status"]=="completed":
-            return False
-        ended=now()
-        earning=int(b["tokens"]*0.60)
 
 
 
