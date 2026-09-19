@@ -6,7 +6,7 @@ from typing import Optional
 import requests
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
 
@@ -43,11 +43,19 @@ BOOKING_PLANS = [
     {"minutes": 20, "tokens": 320},
     {"minutes": 30, "tokens": 450},
 ]
+GIFT_PLANS = [
+    {"id":"rose","name":"Rose","emoji":"🌹","tokens":10},
+    {"id":"heart","name":"Heart","emoji":"❤️","tokens":20},
+    {"id":"coffee","name":"Coffee","emoji":"☕","tokens":50},
+    {"id":"diamond","name":"Diamond","emoji":"💎","tokens":100},
+    {"id":"crown","name":"Crown","emoji":"👑","tokens":250},
+    {"id":"rocket","name":"Rocket","emoji":"🚀","tokens":500},
+]
 RECHARGE_PLANS = [
     {"rupees": 50, "tokens": 50}, {"rupees": 100, "tokens": 105},
     {"rupees": 200, "tokens": 210}, {"rupees": 300, "tokens": 320},
     {"rupees": 500, "tokens": 550}, {"rupees": 1000, "tokens": 1150},
-    {"rupees": 1500, "tokens": 1750}, {"rupees": 2000, "tokens": 2400},
+    {"rupees": 1500, "tokens": 1750}, {"rupees": 2000, "tokens": 2400}, {"rupees": 3000, "tokens": 3600},
 ]
 
 DUMMY_HOSTS = [
@@ -75,6 +83,10 @@ def col(name):
 
 def now_ts():
     return int(time.time())
+
+
+def esc_html(value):
+    return str(value).replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def iso(ts):
@@ -126,14 +138,74 @@ def host_or_404(host_id):
     return h
 
 
+def tg_send_photo(chat_id, photo_bytes, filename="payment.jpg", caption="", buttons=None):
+    if not BOT_TOKEN or not chat_id or not photo_bytes:
+        return None
+    try:
+        data = {"chat_id": str(chat_id), "caption": caption[:1024], "parse_mode": "HTML"}
+        if buttons:
+            data["reply_markup"] = __import__("json").dumps({"inline_keyboard": buttons})
+        r = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto",
+            data=data,
+            files={"photo": (filename, photo_bytes, "image/jpeg")},
+            timeout=25,
+        )
+        if not r.ok:
+            log.error("Telegram sendPhoto failed chat=%s status=%s body=%s", chat_id, r.status_code, r.text[:500])
+            return None
+        body = r.json()
+        return body.get("result") or None
+    except Exception as e:
+        log.exception("Telegram sendPhoto exception chat=%s: %s", chat_id, e)
+        return None
+
+def tg_delete_message(chat_id, message_id):
+    if not BOT_TOKEN or not chat_id or not message_id:
+        return False
+    try:
+        r = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/deleteMessage",
+            json={"chat_id": str(chat_id), "message_id": int(message_id)},
+            timeout=15,
+        )
+        if not r.ok:
+            log.warning("Telegram deleteMessage failed chat=%s message=%s status=%s body=%s", chat_id, message_id, r.status_code, r.text[:500])
+        return r.ok
+    except Exception as e:
+        log.warning("Telegram deleteMessage exception chat=%s message=%s: %s", chat_id, message_id, e)
+        return False
+
+def remove_recharge_screenshot(recharge_id, delete_group_message=True):
+    r = col("recharges").find_one({"recharge_id": recharge_id})
+    if not r:
+        return False
+    # Remove the large base64 image from MongoDB after the recharge is finalized.
+    col("recharges").update_one(
+        {"recharge_id": recharge_id},
+        {"$unset": {"screenshot_data": "", "screenshot_filename": "", "screenshot_content_type": ""},
+         "$set": {"screenshot_deleted_at": now_ts()}}
+    )
+    # Also remove the payment screenshot message from Group 1 when possible.
+    if delete_group_message:
+        for mid in (r.get("telegram_screenshot_message_id"), r.get("telegram_action_message_id")):
+            if mid:
+                tg_delete_message(GROUP_1_ID, mid)
+    return True
+
 def notify_group(chat_id, text, buttons=None):
-    if not BOT_TOKEN or not chat_id:
+    if not BOT_TOKEN:
+        log.error('Telegram group notify skipped: BOT_TOKEN is missing')
+        return False
+    if not chat_id:
+        log.error('Telegram group notify skipped: group chat ID is missing')
         return False
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     if buttons:
         payload["reply_markup"] = {"inline_keyboard": buttons}
     try:
         r = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload, timeout=15)
+        if not r.ok: log.error('Telegram group notify HTTP %s: %s', r.status_code, r.text[:500])
         return r.ok
     except Exception as e:
         log.warning("telegram group notify failed: %s", e)
@@ -297,14 +369,14 @@ def health():
 
 @app.get("/api/config")
 def config():
-    return {"booking_plans": BOOKING_PLANS, "recharge_plans": RECHARGE_PLANS, "host_share": HOST_SHARE, "upi_id": UPI_ID, "upi_name": UPI_NAME, "support_url": SUPPORT_URL}
+    return {"booking_plans": BOOKING_PLANS, "recharge_plans": RECHARGE_PLANS, "gift_plans": GIFT_PLANS, "host_share": HOST_SHARE, "upi_id": UPI_ID, "upi_name": UPI_NAME, "support_url": SUPPORT_URL}
 
 @app.post("/api/start")
 def start(data: StartModel):
     u, created = ensure_user(data.user_id, data.name, data.username, data.country)
     if created:
         notify_new_user(u)
-    return {"status": "success", "new_user": created, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN")}}
+    return {"status": "success", "new_user": created, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u)}}
 
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
@@ -363,7 +435,10 @@ def get_profile_photo(user_id: int):
 @app.get("/api/hosts")
 def hosts():
     rows = []
-    for h in col("hosts").find({"status":"approved"}).sort("updated_at", -1):
+    docs = list(col("hosts").find({"status":"approved"}))
+    # Real/India hosts first; demo/foreign hosts stay visible below for UI testing.
+    docs.sort(key=lambda h: (bool(h.get("demo", False)), not bool(h.get("online", False)), -int(h.get("updated_at", 0))))
+    for h in docs:
         u = user_doc(h["user_id"]) or {}
         rows.append({"user_id": h["user_id"], "name": h.get("name") or u.get("name","Host"), "username": h.get("username") or u.get("username",""), "photo_url": public_photo_url(h["user_id"], u) or h.get("photo_url",""), "online": bool(h.get("online")), "country": h.get("country", "IN"), "country_name": h.get("country_name", "India"), "demo": bool(h.get("demo", False)), "total_tokens": int(h.get("total_tokens",0)), "available_earnings": float(h.get("available_earnings",0)), "status": h.get("status")})
     return rows
@@ -371,7 +446,7 @@ def hosts():
 @app.get("/api/host/{host_id}")
 def host_profile(host_id: int):
     h = host_or_404(host_id); u = user_doc(host_id) or {}
-    return {"user_id":host_id,"name":h.get("name") or u.get("name","Host"),"username":h.get("username") or u.get("username",""),"photo_url":public_photo_url(host_id, u) or h.get("photo_url",""),"online":bool(h.get("online")),"country":h.get("country","IN"),"country_name":h.get("country_name","India"),"demo":bool(h.get("demo",False)),"total_tokens":int(h.get("total_tokens",0)),"available_earnings":float(h.get("available_earnings",0)),"status":h.get("status")}
+    return {"user_id":host_id,"name":h.get("name") or u.get("name","Host"),"username":h.get("username") or u.get("username",""),"photo_url":public_photo_url(host_id, u) or h.get("photo_url",""),"online":bool(h.get("online")),"country":h.get("country","IN"),"country_name":h.get("country_name","India"),"demo":bool(h.get("demo",False)),"total_tokens":int(h.get("total_tokens",0)),"available_earnings":float(h.get("available_earnings",0)),"gift_tokens":float(h.get("gift_tokens",0)),"filter_name":h.get("filter_name","natural"),"status":h.get("status")}
 
 @app.post("/api/host/apply")
 def host_apply(data: HostApplyModel):
@@ -384,6 +459,71 @@ def host_apply(data: HostApplyModel):
     notify_request(text, [[{"text":"✅ Approve Host","callback_data":f"approve_host:{data.user_id}"},{"text":"❌ Reject","callback_data":f"reject_host:{data.user_id}"}]])
     notify_full(text)
     return {"status":"success","message":"Host application submitted"}
+
+class HostFilterModel(BaseModel):
+    user_id: int
+    filter_name: str = "natural"
+
+FILTERS = {
+    "natural": "none",
+    "glow": "brightness(1.08) saturate(1.18) contrast(1.04) drop-shadow(0 0 7px rgba(255,210,180,.35))",
+    "soft": "brightness(1.06) saturate(1.08) contrast(.98)",
+    "warm": "brightness(1.06) saturate(1.12) sepia(.08)",
+}
+
+@app.get("/api/host/filter/{host_id}")
+def get_host_filter(host_id: int):
+    h = host_doc(host_id) or {}
+    return {"filter_name": h.get("filter_name", "natural"), "css": FILTERS.get(h.get("filter_name", "natural"), "none")}
+
+@app.post("/api/host/filter")
+def set_host_filter(data: HostFilterModel):
+    h = host_doc(data.user_id)
+    if not h or h.get("status") != "approved":
+        raise HTTPException(403, "Approved host access required")
+    name = data.filter_name if data.filter_name in FILTERS else "natural"
+    col("hosts").update_one({"user_id": uid(data.user_id)}, {"$set": {"filter_name": name, "updated_at": now_ts()}})
+    return {"status":"success", "filter_name":name, "css":FILTERS[name]}
+
+@app.get("/api/gifts")
+def gifts():
+    return GIFT_PLANS
+
+class GiftModel(BaseModel):
+    user_id: int
+    host_id: int
+    gift_id: str
+    booking_id: str = ""
+
+@app.post("/api/gift")
+def send_gift(data: GiftModel):
+    u = require_user(data.user_id)
+    h = host_or_404(data.host_id)
+    if uid(data.user_id) == uid(data.host_id):
+        raise HTTPException(400, "You cannot gift yourself")
+    gift = next((g for g in GIFT_PLANS if g["id"] == data.gift_id), None)
+    if not gift:
+        raise HTTPException(400, "Invalid gift")
+    if (u.get("country") or "IN").upper() != (h.get("country") or "IN").upper():
+        raise HTTPException(403, "Gifts are available only for India-based host/user pairs")
+    cost = int(gift["tokens"])
+    changed = col("users").update_one({"user_id":uid(data.user_id),"tokens":{"$gte":cost}}, {"$inc":{"tokens":-cost}})
+    if changed.modified_count != 1:
+        raise HTTPException(400, "Insufficient tokens")
+    host_earned = round(cost * HOST_SHARE, 2)
+    gift_id = str(uuid.uuid4())
+    col("gifts").insert_one({
+        "gift_id":gift_id,"user_id":uid(data.user_id),"host_id":uid(data.host_id),
+        "gift_type":gift["id"],"gift_name":gift["name"],"emoji":gift["emoji"],
+        "tokens":cost,"host_earned":host_earned,"platform_earned":round(cost*(1-HOST_SHARE),2),
+        "booking_id":data.booking_id or "","created_at":now_ts()
+    })
+    col("hosts").update_one({"user_id":uid(data.host_id)}, {"$inc":{"gift_tokens":host_earned,"total_tokens":host_earned,"available_earnings":host_earned}, "$set":{"updated_at":now_ts()}})
+    sender = u.get("name", "User"); host_name = h.get("name", "Host")
+    notify_user(data.user_id, f"🎁 {gift['emoji']} <b>{gift['name']} sent!</b>\n{host_name} को {cost} Coins का gift भेजा गया।")
+    notify_user(data.host_id, f"🎁 <b>New Gift Received!</b>\n\n{sender} ने आपको {gift['emoji']} {gift['name']} भेजा।\nValue: {cost} Coins\nYour earning: {host_earned:.2f} Coins")
+    notify_full(f"🎁 GIFT SENT\nUser: {data.user_id}\nHost: {data.host_id}\nGift: {gift['emoji']} {gift['name']}\nValue: {cost} Coins\nHost earning: {host_earned:.2f}\nBooking: {data.booking_id or '-'}")
+    return {"status":"success","gift":gift,"host_earned":host_earned}
 
 @app.get("/api/bookings")
 def bookings(user_id: int, role: str = "user"):
@@ -416,6 +556,7 @@ def book_slot(data: BookingModel):
     doc={"booking_id":bid,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":plan["minutes"],"tokens":plan["tokens"],"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":busy,"created_at":now_ts(),"updated_at":now_ts(),"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False}
     col("bookings").insert_one(doc)
     notify_user(data.user_id, f"✅ <b>Booking request submitted</b>\n\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCharge: {plan['tokens']} Coins\n\nHost confirmation ka wait karein. Agar Host busy hai to aapko update milega.")
+    notify_user(data.host_id, f"📅 <b>New Slot Booking Request</b>\n\nUser: <code>{data.user_id}</code>\nDuration: {plan['minutes']} min\nRequested: {iso(start)}\n\nVynora Live में जाकर Accept या Reject करें.")
     notify_request(f"📅 <b>NEW BOOKING REQUEST</b>\n\nUser: <code>{data.user_id}</code>\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy at request: {'YES' if busy else 'NO'}", [[{"text":"✅ Accept","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
     notify_full(f"📅 NEW BOOKING\nBooking: <code>{bid}</code>\nUser: {data.user_id}\nHost: {data.host_id}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy: {busy}")
     return {"status":"success","booking_id":bid,"busy":busy,"message":"Booking submitted"}
@@ -437,7 +578,8 @@ def booking_action(data: BookingAction):
     if action=="accept":
         if b["status"]!="pending": raise HTTPException(400,"Booking already processed")
         col("bookings").update_one({"booking_id":b["booking_id"]},{"$set":{"status":"accepted","updated_at":now_ts()}})
-        notify_user(b["user_id"],"✅ Host accepted your request. Ab Host call ka time schedule karegi.")
+        notify_user(b["user_id"],"✅ <b>Host accepted your booking!</b>\n\nAb Host call ka time schedule karega. Schedule hote hi aapko exact time aur JOIN CALL option milega.")
+        notify_user(b["host_id"],"✅ Booking accepted. Ab aap call ka time 2/5/10 minutes later ya exact time par schedule kar sakte hain.")
         return {"status":"success","next":"schedule","booking_id":b["booking_id"]}
     raise HTTPException(400,"Unknown action")
 
@@ -452,7 +594,9 @@ def schedule(data: ScheduleModel):
         other=col("bookings").find_one({"booking_id":{"$ne":data.booking_id},"host_id":uid(data.host_id),"status":{"$in":["accepted","scheduled","calling"]},"scheduled_start":{"$lt":end},"scheduled_end":{"$gt":start}})
         if other: raise HTTPException(409,"Host is busy at that time")
     col("bookings").update_one({"booking_id":data.booking_id},{"$set":{"scheduled_start":start,"scheduled_end":end,"status":"scheduled","updated_at":now_ts()}})
-    notify_user(b["user_id"],f"📞 <b>Call Scheduled</b>\n\nHost: {host_doc(b['host_id']).get('name','Host')}\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par JOIN CALL button milega.")
+    host_name = host_doc(b['host_id']).get('name','Host') if host_doc(b['host_id']) else 'Host'
+    notify_user(b["user_id"],f"📞 <b>Call Scheduled</b>\n\nHost: {host_name}\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par JOIN CALL button milega. Host aapko call karega.")
+    notify_user(b["host_id"],f"📞 <b>Call Scheduled</b>\n\nUser: <code>{b['user_id']}</code>\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par Vynora Live खोलकर JOIN CALL करें.")
     notify_full(f"🕐 BOOKING SCHEDULED\nBooking: <code>{b['booking_id']}</code>\nHost: {b['host_id']}\nUser: {b['user_id']}\nStart: {iso(start)}\nDuration: {b['minutes']} min")
     return {"status":"success","scheduled_start":start,"scheduled_end":end}
 
@@ -512,6 +656,70 @@ def recharge(data: RechargeModel):
     notify_full(text)
     return {"status":"success","recharge_id":rid}
 
+@app.post("/api/recharge/submit")
+async def recharge_submit(
+    user_id: int = Form(...),
+    rupees: int = Form(...),
+    tokens: int = Form(...),
+    utr: str = Form(...),
+    screenshot: UploadFile = File(...),
+):
+    require_user(user_id)
+    plan = next((p for p in RECHARGE_PLANS if p["rupees"] == rupees and p["tokens"] == tokens), None)
+    if not plan:
+        raise HTTPException(400, "Invalid recharge plan")
+    utr = (utr or "").strip()[:100]
+    if not utr:
+        raise HTTPException(400, "UTR / Transaction ID is required")
+    if not screenshot or not (screenshot.content_type or "").startswith("image/"):
+        raise HTTPException(400, "Payment screenshot image is required")
+    photo_bytes = await screenshot.read()
+    if not photo_bytes:
+        raise HTTPException(400, "Payment screenshot is empty")
+    if len(photo_bytes) > 1200000:
+        raise HTTPException(400, "Payment screenshot is too large. Please use an image below 1.2 MB.")
+
+    rid = "RCH-" + uuid.uuid4().hex[:10].upper()
+    mime = screenshot.content_type or "image/jpeg"
+    data_uri = f"data:{mime};base64," + base64.b64encode(photo_bytes).decode("ascii")
+    col("recharges").insert_one({
+        "recharge_id": rid, "user_id": uid(user_id), "rupees": rupees, "tokens": tokens,
+        "utr": utr, "screenshot_data": data_uri,
+        "screenshot_filename": screenshot.filename or "payment.jpg",
+        "screenshot_content_type": mime, "status": "pending", "created_at": now_ts()
+    })
+    text = (f"💳 <b>RECHARGE REQUEST</b>\nID: <code>{rid}</code>\n"
+            f"User: <code>{uid(user_id)}</code>\n₹{rupees} → {tokens} Coins\n"
+            f"UTR: <code>{esc_html(utr)}</code>")
+    buttons = [[
+        {"text":"✅ Approve", "callback_data":f"approve_recharge:{rid}"},
+        {"text":"❌ Reject", "callback_data":f"reject_recharge:{rid}"}
+    ]]
+    # Group 1 gets the actual payment screenshot with the approve/reject buttons on the same message.
+    sent_photo = tg_send_photo(GROUP_1_ID, photo_bytes, screenshot.filename or "payment.jpg", text, buttons)
+    if sent_photo and sent_photo.get("message_id"):
+        col("recharges").update_one({"recharge_id": rid}, {"$set": {"telegram_screenshot_message_id": sent_photo["message_id"]}})
+    else:
+        # Keep an action-only fallback if Telegram could not attach the buttons to the photo.
+        fallback = tg_send(GROUP_1_ID, f"🧾 <b>Recharge Action</b>\nID: <code>{rid}</code>\n₹{rupees} → {tokens} Coins", buttons) or {}
+        if fallback.get("ok") and fallback.get("result", {}).get("message_id"):
+            col("recharges").update_one({"recharge_id": rid}, {"$set": {"telegram_action_message_id": fallback["result"]["message_id"]}})
+    notify_full(f"RECHARGE REQUEST\nUser: {uid(user_id)}\n₹{rupees} → {tokens} Coins\nUTR: {utr}\nID: {rid}")
+    return {"status":"success", "recharge_id":rid}
+
+@app.get("/api/recharge/screenshot/{recharge_id}")
+def get_recharge_screenshot(recharge_id: str):
+    r = col("recharges").find_one({"recharge_id": recharge_id})
+    if not r or not r.get("screenshot_data"):
+        raise HTTPException(404, "Screenshot not found")
+    raw = r["screenshot_data"]
+    try:
+        header, encoded = raw.split(",", 1)
+        mime = header[5:].split(";", 1)[0] if header.startswith("data:") else "image/jpeg"
+        return Response(base64.b64decode(encoded), media_type=mime)
+    except Exception:
+        raise HTTPException(500, "Invalid screenshot")
+
 @app.post("/api/admin/token")
 def admin_token(data: TokenModel):
     if not is_admin(data.user_id): raise HTTPException(403,"Admin only")
@@ -562,10 +770,12 @@ def pending_direct_call(target_id:int):
 
 @app.post("/api/direct-call/end/{call_id}")
 def end_direct_call(call_id:str, user_id:int):
-    if not is_admin(user_id):
-        d=col("direct_calls").find_one({"call_id":call_id})
-        if not d or d.get("host_id")!=uid(user_id): raise HTTPException(403,"Not allowed")
+    d=col("direct_calls").find_one({"call_id":call_id})
+    if not d: raise HTTPException(404,"Direct call not found")
+    if uid(user_id) not in (d.get("admin_id"), d.get("target_id")):
+        raise HTTPException(403,"Not allowed")
     col("direct_calls").update_one({"call_id":call_id},{"$set":{"status":"ended","ended_at":now_ts()}})
+    notify_full(f"📞 ADMIN DIRECT CALL ENDED\nCall: <code>{call_id}</code>\nAdmin: {d.get('admin_id')}\nTarget: {d.get('target_id')}")
     return {"status":"success"}
 
 @app.get("/api/admin/direct-calls/{admin_id}")
@@ -608,7 +818,7 @@ def host_offline(user_id:int):
 @app.get("/api/host/{host_id}/stats")
 def host_stats(host_id:int):
     h=host_or_404(host_id)
-    return {"total_tokens":h.get("total_tokens",0),"available_earnings":h.get("available_earnings",0),"total_calls":col("bookings").count_documents({"host_id":uid(host_id),"status":"completed"}),"online":bool(h.get("online"))}
+    return {"total_tokens":h.get("total_tokens",0),"gift_tokens":h.get("gift_tokens",0),"available_earnings":h.get("available_earnings",0),"total_calls":col("bookings").count_documents({"host_id":uid(host_id),"status":"completed"}),"online":bool(h.get("online")),"filter_name":h.get("filter_name","natural")}
 
 @app.post("/api/withdraw")
 def withdraw(user_id:int, amount:float):
@@ -643,7 +853,7 @@ def admin_command(chat_id, from_id, text):
     parts=text.strip().split(maxsplit=2); cmd=parts[0].lower(); args=parts[1:]
     try:
         if cmd in ("/helpadmin","/adminhelp"):
-            tg_send(chat_id,"👑 <b>VYNORA ADMIN COMMANDS</b>\n\n/addtoken ID AMOUNT\n/removetoken ID AMOUNT\n/settoken ID AMOUNT\n/approvehost ID\n/rejecthost ID\n/addhost ID\n/approveuser ID\n/user ID\n/ban ID [reason]\n/unban ID\n/block ID [reason]\n/unblock ID\n/approverecharge RECHARGE_ID\n/rejectrecharge RECHARGE_ID\n/approvebooking BOOKING_ID\n/rejectbooking BOOKING_ID\n/announce MESSAGE\n/offer MESSAGE\n/clearannouncement\n/callhost HOST_ID\n/setcountry USER_ID IN\n/stats")
+            tg_send(chat_id,"👑 <b>VYNORA ADMIN COMMANDS</b>\n\n/addtoken ID AMOUNT\n/removetoken ID AMOUNT\n/settoken ID AMOUNT\n/approvehost ID\n/rejecthost ID\n/removehost ID\n/addhost ID\n/approveuser ID\n/user ID\n/ban ID [reason]\n/unban ID\n/block ID [reason]\n/unblock ID\n/banhost ID\n/unbanhost ID\n/approverecharge RECHARGE_ID\n/rejectrecharge RECHARGE_ID\n/approvebooking BOOKING_ID\n/rejectbooking BOOKING_ID\n/announce MESSAGE\n/offer MESSAGE\n/clearannouncement\n/callhost HOST_ID\n/setcountry USER_ID IN\n/stats")
         elif cmd in ("/addtoken","/removetoken","/settoken") and len(args)>=2:
             target=int(args[0]); amount=int(args[1]); u=ensure_user(target)[0]
             if cmd=="/addtoken": col("users").update_one({"user_id":target},{"$inc":{"tokens":amount}})
@@ -652,12 +862,12 @@ def admin_command(chat_id, from_id, text):
             tg_send(chat_id,f"✅ Token updated for <code>{target}</code>")
             notify_full(f"🪙 ADMIN TOKEN ACTION\nAdmin: {from_id}\nUser: {target}\nCommand: {cmd}\nAmount: {amount}")
         elif cmd in ("/approvehost","/addhost") and args:
-            target=int(args[0]); ensure_user(target); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":"approved","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>"); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आप bookings receive कर सकते हैं।"); notify_full(f"✅ HOST APPROVED\nAdmin: {from_id}\nHost: {target}")
+            target=int(args[0]); ensure_user(target); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":"approved","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>"); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आप bookings receive कर सकते हैं।"); notify_full(f"🎙️ HOST APPROVED\nAdmin: {from_id}\nHost: {target}\nTeam Group: Host approved and ready for monitoring")
         elif cmd in ("/rejecthost","/removehost") and args:
             target=int(args[0]); col("hosts").update_one({"user_id":target},{"$set":{"status":"rejected","online":False}}); tg_send(chat_id,f"❌ Host rejected/removed: <code>{target}</code>"); notify_full(f"❌ HOST REJECTED\nAdmin: {from_id}\nHost: {target}")
-        elif cmd in ("/ban","/block") and args:
+        elif cmd in ("/ban","/block","/banhost") and args:
             target=int(args[0]); reason=args[1] if len(args)>1 else "Admin action"; col("users").update_one({"user_id":target},{"$set":{"blocked":True,"block_reason":reason,"blocked_at":now_ts()}},upsert=True); col("hosts").update_one({"user_id":target},{"$set":{"status":"blocked","online":False}}); tg_send(chat_id,f"🚫 Blocked <code>{target}</code>"); notify_user(target,"🚫 आपका account block कर दिया गया है। Support से संपर्क करें।"); notify_full(f"🚫 BLOCKED\nAdmin: {from_id}\nUser: {target}\nReason: {reason}")
-        elif cmd in ("/unban","/unblock") and args:
+        elif cmd in ("/unban","/unblock","/unbanhost") and args:
             target=int(args[0]); col("users").update_one({"user_id":target},{"$set":{"blocked":False,"updated_at":now_ts()}}); h=host_doc(target); 
             if h and h.get("status")=="blocked": col("hosts").update_one({"user_id":target},{"$set":{"status":"approved"}})
             tg_send(chat_id,f"✅ Unblocked <code>{target}</code>"); notify_user(target,"✅ आपका account unblock कर दिया गया है।"); notify_full(f"✅ UNBLOCKED\nAdmin: {from_id}\nUser: {target}")
@@ -669,7 +879,8 @@ def admin_command(chat_id, from_id, text):
             if ok:
                 col("users").update_one({"user_id":r["user_id"]},{"$inc":{"tokens":r["tokens"]}}); notify_user(r["user_id"],f"✅ Recharge approved. {r['tokens']} Coins added.")
             else: notify_user(r["user_id"],"❌ Recharge rejected. Contact support.")
-            tg_send(chat_id,f"Recharge {status}: <code>{rid}</code>"); notify_full(f"RECHARGE {status.upper()}\nUser: {r['user_id']}\n₹{r['rupees']} → {r['tokens']} Coins\nAdmin: {from_id}")
+            remove_recharge_screenshot(rid)
+            tg_send(chat_id,f"Recharge {status}: <code>{rid}</code>\n🗑️ Payment screenshot deleted"); notify_full(f"RECHARGE {status.upper()}\nUser: {r['user_id']}\n₹{r['rupees']} → {r['tokens']} Coins\nAdmin: {from_id}\nScreenshot: DELETED")
         elif cmd in ("/approvebooking","/rejectbooking") and args:
             bid=args[0]; b=col("bookings").find_one({"booking_id":bid})
             if not b: raise ValueError("Booking not found")
@@ -716,8 +927,8 @@ def handle_update(upd):
             if action in ("approve_host","reject_host") and from_id in ADMIN_IDS:
                 target=int(key); ensure_user(target)
                 status="approved" if action=="approve_host" else "rejected"
-                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0}},upsert=True)
-                tg_send(chat_id,f"✅ Host {status}: <code>{target}</code>"); notify_user(target, f"{'🎙️ Host approved' if status=='approved' else '❌ Host application rejected'}."); notify_full(f"HOST {status.upper()}\nAdmin: {from_id}\nHost: {target}")
+                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
+                tg_send(chat_id,f"✅ Host {status}: <code>{target}</code>"); notify_user(target, f"{'🎙️ Host approved' if status=='approved' else '❌ Host application rejected'}."); notify_full(f"🎙️ HOST {status.upper()}\nAdmin: {from_id}\nHost: {target}\nTeam Action: Host approval status updated")
             elif action in ("approve_recharge","reject_recharge") and from_id in ADMIN_IDS:
                 r=col("recharges").find_one({"recharge_id":key})
                 if not r: return
@@ -725,7 +936,8 @@ def handle_update(upd):
                 col("recharges").update_one({"recharge_id":key,"status":"pending"},{"$set":{"status":status,"approved_by":from_id,"approved_at":now_ts()}})
                 if status=="approved": col("users").update_one({"user_id":r["user_id"]},{"$inc":{"tokens":r["tokens"]}}); notify_user(r["user_id"],f"✅ Recharge approved. {r['tokens']} Coins added.")
                 else: notify_user(r["user_id"],"❌ Recharge rejected. Contact support.")
-                tg_send(chat_id,f"Recharge {status}: <code>{key}</code>"); notify_full(f"RECHARGE {status.upper()}\nUser: {r['user_id']}\n₹{r['rupees']} → {r['tokens']} Coins\nAdmin: {from_id}")
+                remove_recharge_screenshot(key)
+                tg_send(chat_id,f"Recharge {status}: <code>{key}</code>\n🗑️ Payment screenshot deleted"); notify_full(f"RECHARGE {status.upper()}\nUser: {r['user_id']}\n₹{r['rupees']} → {r['tokens']} Coins\nAdmin: {from_id}\nScreenshot: DELETED")
             elif action in ("accept_booking","reject_booking") and from_id in ADMIN_IDS:
                 # Admin can process a booking request too.
                 b=col("bookings").find_one({"booking_id":key});
@@ -770,107 +982,6 @@ def webhook_secret():
 
 def set_telegram_webhook():
     if not BOT_TOKEN:
-        log.info("BOT_TOKEN not set; Telegram webhook disabled")
-        return False
-    url = webhook_url()
-    payload = {
-        "url": url,
-        "allowed_updates": ["message", "callback_query"],
-        "drop_pending_updates": False,
-        "max_connections": 20,
-        "secret_token": webhook_secret(),
-    }
-    result = tg("setWebhook", payload) or {}
-    if result.get("ok"):
-        log.info("Telegram webhook mode ACTIVE: %s", url)
-        return True
-    log.warning("Telegram setWebhook failed: %s", result)
-    return False
-
-
-@app.post("/api/telegram/webhook")
-async def telegram_webhook(request: Request):
-    if not BOT_TOKEN:
-        raise HTTPException(503, "BOT_TOKEN is not configured")
-
-    expected = webhook_secret()
-    received = request.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-    if expected and received != expected:
-        raise HTTPException(403, "Invalid Telegram webhook secret")
-
-    try:
-        update = await request.json()
-    except Exception:
-        raise HTTPException(400, "Invalid JSON update")
-
-    try:
-        handle_update(update)
-    except Exception as e:
-        log.exception("telegram webhook update failed: %s", e)
-        # Return 200 so Telegram does not repeatedly retry a malformed/failed update.
-    return {"ok": True}
-
-
-@app.get("/api/telegram/webhook-info")
-def telegram_webhook_info():
-    if not BOT_TOKEN:
-        return {"ok": False, "error": "BOT_TOKEN is not configured"}
-    return tg("getWebhookInfo", {}) or {"ok": False, "error": "Telegram API unavailable"}
-
-
-def seed_dummy_hosts():
-    for x in DUMMY_HOSTS:
-        ensure_user(x["user_id"], x["name"], x["username"], x["country"])
-        col("users").update_one({"user_id":x["user_id"]},{"$set":{"name":x["name"],"username":x["username"],"country":x["country"],"updated_at":now_ts()}})
-        col("hosts").update_one(
-            {"user_id":x["user_id"]},
-            {"$set":{"user_id":x["user_id"],"name":x["name"],"username":x["username"],"country":x["country"],"country_name":x["country_name"],"photo_url":x["photo_url"],"bio":x["bio"],"status":"approved","online":x["online"],"demo":True,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"created_at":now_ts()}},
-            upsert=True
-        )
-
-
-def call_watchdog():
-    while True:
-        try:
-            t=now_ts()
-            for b in col("bookings").find({"status":"calling","scheduled_end":{"$lte":t}}):
-                col("bookings").update_one({"booking_id":b["booking_id"],"status":"calling"},{"$set":{"status":"completed","call_ended_at":t,"actual_seconds":max(0,t-int(b.get("call_started_at") or t))}})
-                # Credit once and notify through the same completion path.
-                fresh=col("bookings").find_one_and_update({"booking_id":b["booking_id"],"earnings_credited":{"$ne":True}},{"$set":{"earnings_credited":True},"$inc":{"host_earned":b["tokens"]*HOST_SHARE,"platform_earned":b["tokens"]*(1-HOST_SHARE)}},return_document=ReturnDocument.AFTER)
-                if fresh: col("hosts").update_one({"user_id":b["host_id"]},{"$inc":{"total_tokens":b["tokens"]*HOST_SHARE,"available_earnings":b["tokens"]*HOST_SHARE},"$set":{"online":False}})
-                report=f"📊 AUTO COMPLETED CALL\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nCharge: {b['tokens']} Coins\nHost 60%: {b['tokens']*HOST_SHARE:.2f}"
-                notify_request(report); notify_full(report); notify_user(b["user_id"],"🟢 आपका call पूरा हो गया। Host अब available है, आप फिर booking कर सकते हैं।")
-        except Exception as e: log.warning("watchdog error: %s",e)
-        time.sleep(5)
-
-
-@app.on_event("startup")
-def startup():
-    if db is not None:
-        try:
-            col("users").create_index("user_id", unique=True)
-            col("hosts").create_index("user_id", unique=True)
-            col("bookings").create_index("booking_id", unique=True)
-            col("recharges").create_index("recharge_id", unique=True)
-            col("direct_calls").create_index("call_id", unique=True)
-            col("notifications").create_index([("user_id",1),("created_at",-1)])
-        except Exception as e: log.warning("index setup: %s",e)
-    if db is not None:
-        try:
-            seed_dummy_hosts()
-        except Exception as e:
-            log.warning("dummy host seed: %s", e)
-    if BOT_TOKEN:
-        # Webhook replaces long polling. Telegram does not allow getUpdates while
-        # an outgoing webhook is configured.
-        threading.Thread(target=set_telegram_webhook, daemon=True).start()
-    if db is not None:
-        threading.Thread(target=call_watchdog, daemon=True).start()
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT","8000")))
-
 
 
 
