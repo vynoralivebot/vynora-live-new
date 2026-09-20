@@ -445,10 +445,47 @@ def start(data: StartModel):
 
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
+    # Only return JSON-safe fields. MongoDB's internal _id/ObjectId must never
+    # leak into API responses (it causes FastAPI jsonable_encoder failures).
     u = require_user(user_id)
     h = host_doc(user_id)
-    return {"user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens",0), "country": u.get("country", "IN"), "photo_url": public_photo_url(user_id, u),
-            "demo_used": bool(u.get("demo_used", False))}, "host": h or None, "is_admin": is_admin(user_id)}
+
+    host_data = None
+    if h:
+        # This is the authenticated user's own host record, so the host can
+        # see their private earnings in their own Mini App profile.
+        host_data = {
+            "user_id": int(h.get("user_id", user_id)),
+            "name": h.get("name") or u.get("name", "Host"),
+            "username": h.get("username") or u.get("username", ""),
+            "phone": h.get("phone", ""),
+            "age": h.get("age"),
+            "bio": h.get("bio", ""),
+            "photo_url": public_photo_url(user_id, u) or h.get("photo_url", ""),
+            "online": bool(h.get("online", False)),
+            "country": h.get("country", "IN"),
+            "country_name": h.get("country_name", "India"),
+            "status": h.get("status", "pending"),
+            "demo": bool(h.get("demo", False)),
+            "total_tokens": int(h.get("total_tokens", 0) or 0),
+            "available_earnings": float(h.get("available_earnings", 0) or 0),
+            "gift_tokens": float(h.get("gift_tokens", 0) or 0),
+            "filter_name": h.get("filter_name", "natural"),
+        }
+
+    return {
+        "user": {
+            "user_id": int(u["user_id"]),
+            "name": u.get("name"),
+            "username": u.get("username"),
+            "tokens": int(u.get("tokens", 0) or 0),
+            "country": u.get("country", "IN"),
+            "photo_url": public_photo_url(user_id, u),
+            "demo_used": bool(u.get("demo_used", False)),
+        },
+        "host": host_data,
+        "is_admin": is_admin(user_id),
+    }
 
 @app.post("/api/profile/photo")
 def set_photo(data: PhotoModel):
@@ -506,13 +543,38 @@ def hosts():
     docs.sort(key=lambda h: (bool(h.get("demo", False)), not bool(h.get("online", False)), -int(h.get("updated_at", 0))))
     for h in docs:
         u = user_doc(h["user_id"]) or {}
-        rows.append({"user_id": h["user_id"], "name": h.get("name") or u.get("name","Host"), "username": h.get("username") or u.get("username",""), "photo_url": public_photo_url(h["user_id"], u) or h.get("photo_url",""), "online": bool(h.get("online")), "country": h.get("country", "IN"), "country_name": h.get("country_name", "India"), "demo": bool(h.get("demo", False)), "total_tokens": int(h.get("total_tokens",0)), "available_earnings": float(h.get("available_earnings",0)), "status": h.get("status")})
+        # Public host list: NEVER expose host earnings/gift totals to other users.
+        rows.append({
+            "user_id": int(h["user_id"]),
+            "name": h.get("name") or u.get("name", "Host"),
+            "username": h.get("username") or u.get("username", ""),
+            "photo_url": public_photo_url(h["user_id"], u) or h.get("photo_url", ""),
+            "online": bool(h.get("online", False)),
+            "country": h.get("country", "IN"),
+            "country_name": h.get("country_name", "India"),
+            "demo": bool(h.get("demo", False)),
+            "status": h.get("status"),
+        })
     return rows
 
 @app.get("/api/host/{host_id}")
 def host_profile(host_id: int):
     h = host_or_404(host_id); u = user_doc(host_id) or {}
-    return {"user_id":host_id,"name":h.get("name") or u.get("name","Host"),"username":h.get("username") or u.get("username",""),"photo_url":public_photo_url(host_id, u) or h.get("photo_url",""),"online":bool(h.get("online")),"country":h.get("country","IN"),"country_name":h.get("country_name","India"),"demo":bool(h.get("demo",False)),"total_tokens":int(h.get("total_tokens",0)),"available_earnings":float(h.get("available_earnings",0)),"gift_tokens":float(h.get("gift_tokens",0)),"filter_name":h.get("filter_name","natural"),"status":h.get("status")}
+    # Public host profile: earnings/gifts are private and must not be exposed.
+    return {
+        "user_id": int(host_id),
+        "name": h.get("name") or u.get("name", "Host"),
+        "username": h.get("username") or u.get("username", ""),
+        "photo_url": public_photo_url(host_id, u) or h.get("photo_url", ""),
+        "online": bool(h.get("online", False)),
+        "country": h.get("country", "IN"),
+        "country_name": h.get("country_name", "India"),
+        "demo": bool(h.get("demo", False)),
+        "filter_name": h.get("filter_name", "natural"),
+        "status": h.get("status"),
+        "age": h.get("age"),
+        "bio": h.get("bio", ""),
+    }
 
 @app.post("/api/host/apply")
 def host_apply(data: HostApplyModel):
