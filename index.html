@@ -1,322 +1,220 @@
-<!DOCTYPE html>
-<html lang="en">
+<!doctype html>
+<html lang="hi">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vynora Live</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
-    <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
-    <style>
-        body { background-color: #0f172a; color: #f8fafc; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-    </style>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#120d2b">
+<title>Vynora Live</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
+<style>
+:root{--bg:#090712;--card:#151126;--card2:#1c1634;--text:#f7f4ff;--muted:#a9a2bd;--primary:#8b5cf6;--primary2:#ec4899;--green:#35d07f;--red:#ff5c75;--line:#2b2344;--gold:#f5c451;--shadow:0 16px 40px rgba(0,0,0,.28)}
+*{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh;padding-bottom:82px}button,input,select,textarea{font:inherit}button{border:0;cursor:pointer}.app{max-width:720px;margin:auto;padding:14px}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.brand{font-weight:900;font-size:22px;letter-spacing:.2px}.brand span{color:#c084fc}.balance{background:linear-gradient(135deg,#211745,#30205a);border:1px solid #4c3678;border-radius:16px;padding:8px 12px;font-weight:800}.card{background:linear-gradient(180deg,var(--card),#110d20);border:1px solid var(--line);border-radius:20px;padding:15px;margin:12px 0;box-shadow:var(--shadow)}.hero{background:linear-gradient(135deg,#27124f,#17203f 55%,#311335);border:1px solid #49316b;padding:20px;border-radius:24px}.hero h1{margin:0 0 7px;font-size:25px}.hero p{margin:0;color:#c9c1db;line-height:1.5}.row{display:flex;gap:10px;align-items:center}.between{display:flex;align-items:center;justify-content:space-between;gap:10px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.muted{color:var(--muted)}.small{font-size:12px}.title{font-size:17px;font-weight:900;margin:18px 0 10px}.btn{background:linear-gradient(135deg,var(--primary),var(--primary2));color:white;padding:12px 15px;border-radius:14px;font-weight:800;width:100%}.btn.secondary{background:#211a37;border:1px solid #3a2e59}.btn.green{background:linear-gradient(135deg,#1fa968,#2ddf91)}.btn.red{background:linear-gradient(135deg,#dc3757,#ff6a7e)}.btn.gold{background:linear-gradient(135deg,#c58b1b,#f4ca55);color:#1c1404}.btn:disabled{opacity:.45}.pill{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#241b3d;color:#d7cced;border:1px solid #3a2d59}.online{color:#62f19c}.offline{color:#9690a3}.host{display:flex;gap:12px;align-items:center}.avatar{width:58px;height:58px;border-radius:17px;object-fit:cover;background:#282039;display:grid;place-items:center;font-size:24px;flex:0 0 auto}.host-info{min-width:0;flex:1}.host-name{font-weight:900;font-size:16px}.host-user{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.actions{display:flex;gap:8px;margin-top:11px}.actions .btn{flex:1}.notice{background:#1b1430;border:1px solid #4a356d;padding:12px;border-radius:15px;margin:10px 0;line-height:1.45}.empty{text-align:center;padding:25px;color:var(--muted)}.nav{position:fixed;z-index:20;left:0;right:0;bottom:0;background:rgba(12,9,22,.95);backdrop-filter:blur(15px);border-top:1px solid var(--line);padding:8px max(8px,env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));display:flex;justify-content:center}.navin{max-width:720px;width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}.nav button{background:transparent;color:#8e879f;padding:7px 3px;border-radius:12px;font-size:11px;font-weight:800}.nav button.active{background:#21183b;color:white}.nav b{display:block;font-size:19px;margin-bottom:2px}.page{display:none}.page.active{display:block}.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:none;align-items:flex-end}.modal.show{display:flex}.sheet{width:100%;max-width:720px;margin:auto;background:#110d20;border:1px solid #33284c;border-radius:25px 25px 0 0;padding:17px;max-height:90vh;overflow:auto}.field{margin:10px 0}.field label{display:block;font-size:12px;color:#aaa2bc;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;background:#19142b;color:white;border:1px solid #3b3055;border-radius:13px;padding:12px;outline:none}.field textarea{min-height:90px;resize:vertical}.duration{padding:11px;border-radius:13px;background:#19142b;border:1px solid #34294e;color:#ddd;text-align:center;font-weight:800}.duration.sel{border-color:#a855f7;background:#2a1a4d;color:white}.toast{position:fixed;z-index:100;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);opacity:0;background:#211a32;border:1px solid #493967;padding:12px 15px;border-radius:14px;max-width:90%;transition:.2s;pointer-events:none}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.call{position:fixed;inset:0;background:#050408;z-index:80;display:none}.call.show{display:block}.remote{position:absolute;inset:0}.remote>div{width:100%;height:100%}.local{position:absolute;right:14px;top:52px;width:118px;height:165px;border-radius:16px;overflow:hidden;background:#17121f;border:1px solid #514463;z-index:3}.local>div{width:100%;height:100%}.calltop{position:absolute;z-index:4;left:15px;right:15px;top:15px;display:flex;justify-content:space-between;align-items:center}.callbadge{background:rgba(0,0,0,.45);backdrop-filter:blur(8px);padding:8px 11px;border-radius:12px}.callbottom{position:absolute;z-index:4;left:15px;right:15px;bottom:calc(20px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:12px}.circle{width:55px;height:55px;border-radius:50%;display:grid;place-items:center;background:#2a2434;color:white;font-size:21px}.circle.end{background:#e33d58}.timer{font-size:18px;font-weight:900}.hidden{display:none!important}.stat{padding:13px;border-radius:15px;background:#18132a;border:1px solid #2e2644}.stat strong{font-size:20px;display:block}.recharge-plan{padding:13px;border-radius:15px;background:#19142b;border:1px solid #34294e;text-align:center}.recharge-plan.sel{border-color:#9b5cff;background:#2a1b4a}.plan-demo{border-color:#f5c451;background:#2a2110}.plan-price{font-size:18px;font-weight:950}.qrbox{display:grid;place-items:center;background:#fff;border-radius:18px;padding:12px;margin:12px auto;max-width:250px}.qrbox img{width:220px;height:220px;display:block}.disabled-note{color:#f5c451;font-size:12px;font-weight:800;margin-top:6px}.gift{padding:13px;border-radius:16px;background:#19142b;border:1px solid #34294e;text-align:center}.gift .emoji{font-size:29px}.history{padding:12px;border-bottom:1px solid #2a2340}.history:last-child{border-bottom:0}.status{font-size:11px;font-weight:900}.status.completed,.status.accepted,.status.scheduled,.status.calling{color:#61e998}.status.rejected,.status.cancelled{color:#ff7086}.status.pending{color:#f5c451}.announcement{border-color:#6943a0;background:linear-gradient(135deg,#24153f,#1b1530)}
+@media(min-width:600px){.grid{grid-template-columns:repeat(3,1fr)}}
+</style>
 </head>
-<body class="pb-20">
+<body>
+<div class="app">
+  <div class="top"><div class="brand">💜 Vynora <span>Live</span></div><div class="balance">🪙 <span id="topTokens">0</span></div></div>
 
-    <!-- Top Header -->
-    <header class="bg-slate-900 border-b border-slate-800 p-4 sticky top-0 z-50 flex justify-between items-center">
-        <div class="flex items-center space-x-2">
-            <span class="text-xl font-bold bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent">VYNORA LIVE</span>
-        </div>
-        <div class="flex items-center bg-slate-800 px-3 py-1.5 rounded-full border border-slate-700">
-            <i class="fa-solid fa-coins text-yellow-400 mr-1.5"></i>
-            <span id="user-token-balance" class="font-semibold text-sm">0</span>
-        </div>
-    </header>
-
-    <!-- Main Container -->
-    <main class="p-4 max-w-lg mx-auto">
-
-        <!-- HOME TAB -->
-        <div id="tab-home" class="tab-content active space-y-4">
-            <div class="bg-gradient-to-r from-purple-900 to-indigo-900 p-4 rounded-2xl border border-purple-700 shadow-lg">
-                <h2 class="text-lg font-bold mb-1">Welcome to Vynora Live 🌟</h2>
-                <p class="text-xs text-purple-200">Connect instantly with verified 1-to-1 live hosts securely.</p>
-            </div>
-
-            <h3 class="font-bold text-md mt-4 mb-2">🟢 Online Hosts</h3>
-            <div id="home-hosts-list" class="space-y-3">
-                <!-- Dynamically loaded hosts -->
-            </div>
-        </div>
-
-        <!-- HOSTS TAB -->
-        <div id="tab-hosts" class="tab-content space-y-4">
-            <h2 class="text-lg font-bold">All Hosts</h2>
-            <div id="all-hosts-list" class="space-y-3">
-                <!-- Dynamically loaded hosts -->
-            </div>
-        </div>
-
-        <!-- BOOKINGS TAB -->
-        <div id="tab-bookings" class="tab-content space-y-4">
-            <h2 class="text-lg font-bold">My Bookings & Calls</h2>
-            <div id="bookings-list" class="space-y-3">
-                <!-- Dynamically loaded bookings -->
-            </div>
-        </div>
-
-        <!-- WALLET TAB -->
-        <div id="tab-wallet" class="tab-content space-y-4">
-            <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 text-center">
-                <p class="text-xs text-slate-400">Available Tokens</p>
-                <h1 id="wallet-balance" class="text-3xl font-bold text-yellow-400 my-1">0</h1>
-                <p class="text-xs text-slate-400">1 Token = ₹1</p>
-            </div>
-
-            <h3 class="font-bold text-md">Recharge Tokens (UPI)</h3>
-            <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-3">
-                <div class="text-xs bg-slate-900 p-3 rounded-lg border border-slate-700">
-                    <p><b>UPI ID:</b> vynoralive@slc</p>
-                    <p><b>UPI Name:</b> Rajnish Kumar</p>
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Select Plan</label>
-                    <select id="recharge-amount" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
-                        <option value="50">₹50 = 50 Tokens</option>
-                        <option value="100">₹100 = 100 Tokens</option>
-                        <option value="200">₹200 = 200 Tokens</option>
-                        <option value="500">₹500 = 500 Tokens</option>
-                        <option value="1000">₹1000 = 1000 Tokens</option>
-                        <option value="1500">₹1500 = 1500 Tokens</option>
-                        <option value="2000">₹2000 = 2000 Tokens</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs text-slate-400 mb-1">Enter UTR / Transaction ID</label>
-                    <input type="text" id="recharge-utr" placeholder="e.g., 4321XXXXXXXX" class="w-full bg-slate-900 border border-slate-700 rounded-lg p-2.5 text-sm">
-                </div>
-                <button onclick="submitRecharge()" class="w-full bg-pink-600 hover:bg-pink-700 font-semibold py-2.5 rounded-lg text-sm transition">Submit Recharge Request</button>
-            </div>
-        </div>
-
-        <!-- PROFILE TAB -->
-        <div id="tab-profile" class="tab-content space-y-4">
-            <div class="bg-slate-800 p-4 rounded-2xl border border-slate-700 text-center space-y-2">
-                <div class="w-20 h-20 bg-pink-600 rounded-full mx-auto flex items-center justify-center text-2xl font-bold" id="profile-initials">VK</div>
-                <h3 id="profile-name" class="font-bold text-lg">Loading...</h3>
-                <p id="profile-username" class="text-xs text-slate-400">@username</p>
-                <div class="inline-block bg-slate-900 px-3 py-1 rounded-full text-xs border border-slate-700" id="profile-country">🇮🇳 India</div>
-            </div>
-        </div>
-
-    </main>
-
-    <!-- Bottom Navigation Bar -->
-    <nav class="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 flex justify-around py-3 z-50">
-        <button onclick="switchTab('home')" class="nav-btn text-pink-500 flex flex-col items-center" data-tab="home">
-            <i class="fa-solid fa-house text-lg"></i>
-            <span class="text-[10px] mt-1">Home</span>
-        </button>
-        <button onclick="switchTab('hosts')" class="nav-btn text-slate-400 flex flex-col items-center" data-tab="hosts">
-            <i class="fa-solid fa-users text-lg"></i>
-            <span class="text-[10px] mt-1">Hosts</span>
-        </button>
-        <button onclick="switchTab('bookings')" class="nav-btn text-slate-400 flex flex-col items-center" data-tab="bookings">
-            <i class="fa-solid fa-calendar-check text-lg"></i>
-            <span class="text-[10px] mt-1">Bookings</span>
-        </button>
-        <button onclick="switchTab('wallet')" class="nav-btn text-slate-400 flex flex-col items-center" data-tab="wallet">
-            <i class="fa-solid fa-wallet text-lg"></i>
-            <span class="text-[10px] mt-1">Wallet</span>
-        </button>
-        <button onclick="switchTab('profile')" class="nav-btn text-slate-400 flex flex-col items-center" data-tab="profile">
-            <i class="fa-solid fa-user text-lg"></i>
-            <span class="text-[10px] mt-1">Profile</span>
-        </button>
-    </nav>
-
-    <!-- Booking Modal -->
-    <div id="booking-modal" class="fixed inset-0 bg-black/80 hidden z-50 flex items-center justify-center p-4">
-        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-5 w-full max-w-sm space-y-4">
-            <h3 class="font-bold text-lg">Book 1-to-1 Call</h3>
-            <input type="hidden" id="modal-host-id">
-            <div>
-                <label class="block text-xs text-slate-400 mb-1">Select Duration</label>
-                <select id="modal-duration" class="w-full bg-slate-800 border border-slate-700 rounded-lg p-2.5 text-sm">
-                    <option value="1">1 Minute (20 Tokens)</option>
-                    <option value="5" selected>5 Minutes (100 Tokens)</option>
-                    <option value="10">10 Minutes (200 Tokens)</option>
-                    <option value="15">15 Minutes (300 Tokens)</option>
-                    <option value="20">20 Minutes (400 Tokens)</option>
-                    <option value="25">25 Minutes (500 Tokens)</option>
-                    <option value="30">30 Minutes (600 Tokens)</option>
-                </select>
-            </div>
-            <div class="flex space-x-2 pt-2">
-                <button onclick="closeBookingModal()" class="w-1/2 bg-slate-800 py-2.5 rounded-lg text-sm font-semibold">Cancel</button>
-                <button onclick="confirmBooking()" class="w-1/2 bg-pink-600 hover:bg-pink-700 py-2.5 rounded-lg text-sm font-semibold">Confirm</button>
-            </div>
-        </div>
+  <section id="home" class="page active">
+    <div id="announcement" class="notice announcement hidden"></div>
+    <div class="hero"><h1>Private 1-to-1 Video Call</h1><p>India-based Host चुनें, slot book करें और secure private video call करें.</p><div class="actions"><button class="btn" onclick="go('hosts')">🎥 Find Host</button><button class="btn secondary" onclick="go('wallet')">🪙 Recharge</button></div></div>
+    <div class="notice"><b>💰 Call Pricing</b><br><span class="small">🎁 Demo ₹20 (first time only) · 2 min ₹299 · 5 min ₹499 · 10 min ₹799 · 30 min ₹2499</span></div><div class="title">Quick Access</div>
+    <div class="grid">
+      <button class="card" onclick="go('hosts')">🎥<br><b>Hosts</b><br><span class="small muted">Online hosts</span></button>
+      <button class="card" onclick="go('bookings')">📅<br><b>Bookings</b><br><span class="small muted">Your calls</span></button>
+      <button class="card" onclick="go('wallet')">💳<br><b>Wallet</b><br><span class="small muted">Recharge</span></button>
+      <button class="card" onclick="go('profile')">👤<br><b>Profile</b><br><span class="small muted">Account</span></button>
     </div>
+    <div id="hostHome" class="card hidden"></div>
+    <div id="adminHome" class="card hidden"></div>
+  </section>
 
-    <!-- JavaScript Logic -->
-    <script>
-        const tg = window.Telegram.WebApp;
-        tg.expand();
+  <section id="hosts" class="page"><div class="between"><div class="title">Available Hosts</div><button class="pill" onclick="loadHosts()">↻ Refresh</button></div><div id="hostList"></div></section>
 
-        const initData = tg.initData || "";
-        const API_BASE = "";
+  <section id="bookings" class="page"><div class="title">My Bookings</div><div id="bookingList"></div></section>
 
-        async function apiCall(endpoint, method = "GET", body = null) {
-            const headers = {
-                "X-Telegram-Init-Data": initData,
-                "Content-Type": "application/json"
-            };
-            const options = { method, headers };
-            if (body) options.body = JSON.stringify(body);
-            const response = await fetch(API_BASE + endpoint, options);
-            if (!response.ok) {
-                const err = await response.json();
-                throw new Error(err.detail || "API Error");
-            }
-            return response.json();
-        }
+  <section id="wallet" class="page">
+    <div class="card"><div class="muted small">Available Coins</div><div style="font-size:31px;font-weight:950;margin-top:3px">🪙 <span id="walletTokens">0</span></div></div>
+    <div class="title">Recharge Coins</div>
+    <div id="rechargePlans" class="grid"></div>
+    <div class="card"><div class="between"><b>Payment</b><span class="pill">UPI</span></div><p class="small muted">UPI ID: <b id="upiId">vynoralive@slc</b><br>Name: <b id="upiName">Rajnish Kumar</b></p><button class="btn secondary" onclick="copyUPI()">📋 Copy UPI ID</button></div>
+    <div class="title">Host Withdrawal</div><div id="withdrawBox"></div>
+  </section>
 
-        function switchTab(tabName) {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
-            document.querySelectorAll('.nav-btn').forEach(el => {
-                el.classList.remove('text-pink-500');
-                el.classList.add('text-slate-400');
-            });
-            document.getElementById(`tab-${tabName}`).classList.add('active');
-            const btn = document.querySelector(`[data-tab="${tabName}"]`);
-            if (btn) {
-                btn.classList.remove('text-slate-400');
-                btn.classList.add('text-pink-500');
-            }
-            if (tabName === 'hosts' || tabName === 'home') loadHosts();
-            if (tabName === 'bookings') loadBookings();
-            if (tabName === 'profile') loadUserData();
-        }
+  <section id="profile" class="page"><div id="profileBox"></div><div class="title">Support & Settings</div><div class="grid"><button class="card" onclick="openSupport()">🆘<br><b>Help & Support</b></button><button class="card" onclick="openHostApply()">🎙️<br><b id="hostApplyText">Become a Host</b></button></div><div id="adminBox"></div></section>
+</div>
 
-        async function loadUserData() {
-            try {
-                const user = await apiCall('/api/me');
-                document.getElementById('user-token-balance').innerText = user.tokens;
-                document.getElementById('wallet-balance').innerText = user.tokens;
-                document.getElementById('profile-name').innerText = user.name;
-                document.getElementById('profile-username').innerText = `@${user.username || 'user'}`;
-                document.getElementById('profile-country').innerText = `🇮🇳 ${user.country || 'India'}`;
-                if(user.name) {
-                    document.getElementById('profile-initials').innerText = user.name.substring(0, 2).toUpperCase();
-                }
-            } catch (e) {
-                console.error("Auth Error:", e);
-            }
-        }
+<div class="nav"><div class="navin"><button onclick="go('home')" data-nav="home"><b>⌂</b>Home</button><button onclick="go('hosts')" data-nav="hosts"><b>👥</b>Hosts</button><button onclick="go('bookings')" data-nav="bookings"><b>📅</b>Bookings</button><button onclick="go('wallet')" data-nav="wallet"><b>🪙</b>Wallet</button><button onclick="go('profile')" data-nav="profile"><b>👤</b>Profile</button></div></div>
 
-        async function loadHosts() {
-            try {
-                const hosts = await apiCall('/api/hosts');
-                let html = '';
-                hosts.forEach(h => {
-                    html += `
-                        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 flex items-center justify-between">
-                            <div class="flex items-center space-x-3">
-                                <div class="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center font-bold">${h.name.substring(0, 2).toUpperCase()}</div>
-                                <div>
-                                    <h4 class="font-bold text-sm">${h.name}</h4>
-                                    <p class="text-xs text-slate-400">@${h.username || 'host'} • 🇮🇳 ${h.country || 'India'}</p>
-                                    <span class="text-[10px] ${h.is_online ? 'text-green-400' : 'text-slate-500'} font-semibold">${h.is_online ? '🟢 ONLINE' : '⚫ OFFLINE'}</span>
-                                </div>
-                            </div>
-                            <button onclick="openBookingModal('${h._id}', '${h.country || 'India'}')" class="bg-pink-600 hover:bg-pink-700 text-xs px-3 py-2 rounded-lg font-semibold">Book</button>
-                        </div>
-                    `;
-                });
-                document.getElementById('home-hosts-list').innerHTML = html || '<p class="text-xs text-slate-400 text-center py-4">No online hosts available.</p>';
-                document.getElementById('all-hosts-list').innerHTML = html || '<p class="text-xs text-slate-400 text-center py-4">No hosts available.</p>';
-            } catch (e) {
-                console.error("Failed to load hosts:", e);
-            }
-        }
+<div id="modal" class="modal"><div class="sheet" id="sheet"></div></div>
+<div id="toast" class="toast"></div>
 
-        function openBookingModal(hostId, hostCountry) {
-            if (hostCountry.toLowerCase() !== 'india') {
-                alert("⚠️ यह Host book नहीं किया जा सकता। यह दूसरे country का Host है। अभी केवल India-based Hosts available हैं।");
-                return;
-            }
-            document.getElementById('modal-host-id').value = hostId;
-            document.getElementById('booking-modal').classList.remove('hidden');
-        }
+<div id="callScreen" class="call">
+  <div id="remoteVideo" class="remote"></div><div id="localVideo" class="local"></div>
+  <div class="calltop"><div class="callbadge"><b id="callName">Vynora Call</b><br><span class="small" id="callState">Connecting…</span></div><div class="callbadge timer" id="callTimer">00:00</div></div>
+  <div class="callbottom"><button class="circle" id="micBtn" onclick="toggleMic()">🎙️</button><button class="circle" id="camBtn" onclick="toggleCam()">📹</button><button class="circle" onclick="switchCamera()">🔄</button><button class="circle end" onclick="endCurrentCall()">☎</button></div>
+</div>
 
-        function closeBookingModal() {
-            document.getElementById('booking-modal').classList.add('hidden');
-        }
+<script>
+const API='';
+const tg=window.Telegram?.WebApp;
+try{tg?.ready();tg?.expand();tg?.setHeaderColor?.('#090712');tg?.setBackgroundColor?.('#090712')}catch(e){}
+const initData=tg?.initData||'';
+let me=null,config=null,hosts=[],selectedHost=null,selectedMinutes=1,selectedRecharge=null,selectedBooking=null;
+let agoraClient=null,localTracks=[],callPoll=null,callTimerInterval=null,currentCallBooking=null,currentCallId=null,currentCallType=null,micOn=true,camOn=true;
 
-        async function confirmBooking() {
-            const hostId = document.getElementById('modal-host-id').value;
-            const duration = parseInt(document.getElementById('modal-duration').value);
-            try {
-                await apiCall('/api/bookings', 'POST', { host_id: hostId, duration_minutes: duration });
-                alert("Booking created successfully!");
-                closeBookingModal();
-                switchTab('bookings');
-                loadUserData();
-            } catch (e) {
-                alert(e.message);
-            }
-        }
+function $(id){return document.getElementById(id)}
+function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
+function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>$('toast').classList.remove('show'),3000)}
+function fmtTime(ts){if(!ts)return '-';return new Date(Number(ts)*1000).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}
+function fmtDur(sec){sec=Math.max(0,Math.floor(sec||0));return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
+function api(path,opt={}){const h=new Headers(opt.headers||{});if(initData)h.set('X-Telegram-Init-Data',initData);return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.detail||d.message||`HTTP ${r.status}`);return d})}
+function jsonApi(path,body){return api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}
+function openModal(html){$('sheet').innerHTML=html;$('modal').classList.add('show')}
+function closeModal(){$('modal').classList.remove('show');$('sheet').innerHTML=''}
+$('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()})
+function go(page){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(page).classList.add('active');document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===page));if(page==='hosts')loadHosts();if(page==='bookings')loadBookings();if(page==='wallet')renderWallet();if(page==='profile')renderProfile();window.scrollTo(0,0)}
+function photo(url,name){return url?`<img class="avatar" src="${esc(url)}" onerror="this.outerHTML='<div class=avatar>👤</div>'">`:`<div class="avatar">${esc((name||'U').slice(0,1).toUpperCase())}</div>`}
 
-        async function loadBookings() {
-            try {
-                const bookings = await apiCall('/api/bookings');
-                let html = '';
-                bookings.forEach(b => {
-                    html += `
-                        <div class="bg-slate-800 p-4 rounded-xl border border-slate-700 space-y-2">
-                            <div class="flex justify-between text-xs text-slate-400">
-                                <span>ID: ${b._id.substring(12)}</span>
-                                <span class="uppercase font-semibold text-pink-400">${b.status}</span>
-                            </div>
-                            <div class="flex justify-between items-center">
-                                <div>
-                                    <h4 class="font-bold text-sm">Host: ${b.host_name}</h4>
-                                    <p class="text-xs text-slate-300">Duration: ${b.duration_minutes} Mins | Cost: ${b.token_cost} Tokens</p>
-                                </div>
-                                ${b.status === 'accepted' || b.status === 'ongoing' ? `<button onclick="joinCallRoom('${b._id}')" class="bg-green-600 hover:bg-green-700 text-xs px-3 py-2 rounded-lg font-semibold">Join Call</button>` : ''}
-                            </div>
-                        </div>
-                    `;
-                });
-                document.getElementById('bookings-list').innerHTML = html || '<p class="text-xs text-slate-400 text-center py-4">No bookings found.</p>';
-            } catch (e) {
-                console.error("Failed to load bookings:", e);
-            }
-        }
+async function boot(){
+  if(!initData){toast('Telegram Mini App के अंदर से खोलें');return}
+  try{
+    config=await api('/api/config');
+    $('upiId').textContent=config.upi_id||'vynoralive@slc';$('upiName').textContent=config.upi_name||'Rajnish Kumar';
+    const u=tg?.initDataUnsafe?.user||{};
+    const start=await jsonApi('/api/start',{user_id:Number(u.id||0),name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN'});
+    me=start.user;
+    await refreshUser();
+    await loadAnnouncement();
+    await loadHosts();
+    renderProfile();
+    renderHome();
+    renderWallet();
+    pollIncoming();
+    setInterval(pollIncoming,5000);
+  }catch(e){toast('❌ '+e.message)}
+}
+async function refreshUser(){const u=tg?.initDataUnsafe?.user||{};const d=await api('/api/user/'+Number(u.id));me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
+function updateBalance(){$('topTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN');$('walletTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN')}
+async function loadAnnouncement(){try{const d=await api('/api/announcement');if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}catch(e){}}
+function renderHome(){
+  if(me?.host?.status==='approved'){$('hostHome').classList.remove('hidden');$('hostHome').innerHTML=`<div class="between"><b>🎙️ Host Dashboard</b><span class="pill ${me.host.online?'online':'offline'}">${me.host.online?'🟢 ONLINE':'⚫ OFFLINE'}</span></div><p class="small muted">Earnings: ₹${Number(me.host.available_earnings||0).toFixed(2)} · Calls: ${Number(me.host.total_tokens||0)}</p><div class="actions"><button class="btn ${me.host.online?'red':'green'}" onclick="toggleHostOnline()">${me.host.online?'GO OFFLINE':'GO ONLINE'}</button><button class="btn secondary" onclick="go('bookings')">Bookings</button></div>`}
+  if(me?.is_admin){$('adminHome').classList.remove('hidden');$('adminHome').innerHTML='<b>👑 VYNORA LIVE — VERIFIED SUPER ADMIN</b><p class="small muted">Admin dashboard Profile में उपलब्ध है.</p><button class="btn" onclick="go(\'profile\');renderAdmin()">Open Admin</button>'}
+}
 
-        async function submitRecharge() {
-            const amount = parseInt(document.getElementById('recharge-amount').value);
-            const utr = document.getElementById('recharge-utr').value.trim();
-            if (!utr) {
-                alert("Please enter valid UTR / Transaction ID");
-                return;
-            }
-            try {
-                await apiCall('/api/recharge', 'POST', { amount, utr });
-                alert("Recharge request submitted successfully! Admin will verify soon.");
-                document.getElementById('recharge-utr').value = '';
-            } catch (e) {
-                alert(e.message);
-            }
-        }
+async function loadHosts(){
+  try{hosts=await api('/api/hosts');renderHosts()}catch(e){$('hostList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}
+}
+function renderHosts(){
+  const real=hosts.filter(h=>String(h.country||'IN').toUpperCase()==='IN'&&!h.demo),foreign=hosts.filter(h=>String(h.country||'').toUpperCase()!=='IN'||h.demo);
+  let html='';
+  if(real.length)html+='<div class="title">🇮🇳 India Hosts</div>'+real.map(hostCard).join('');
+  if(foreign.length)html+='<div class="title">🌍 Demo / Foreign Hosts</div>'+foreign.map(hostCard).join('');
+  $('hostList').innerHTML=html||'<div class="empty">अभी कोई approved Host उपलब्ध नहीं है.</div>';
+}
+function hostCard(h){const allowed=String(h.country||'').toUpperCase()==='IN'&&!h.demo;return `<div class="card"><div class="host">${photo(h.photo_url,h.name)}<div class="host-info"><div class="host-name">${esc(h.name||'Host')} ${h.online?'<span class=online>●</span>':'<span class=offline>●</span>'}</div><div class="host-user">${h.username?'@'+esc(h.username):'Vynora Host'} · ${esc(h.country_name||'India')}</div><div class="small ${h.online?'online':'offline'}">${h.online?'🟢 ONLINE':'⚫ OFFLINE'}</div></div></div><div class="actions"><button class="btn secondary" onclick="viewHost(${Number(h.user_id)})">View</button><button class="btn secondary" ${(!allowed||!h.online)?'disabled':''} onclick="openGift(${Number(h.user_id)})">🎁 Gift</button><button class="btn" ${(!allowed||!h.online)?'disabled':''} onclick="openBooking(${Number(h.user_id)})">${!allowed?'Not Available':!h.online?'Offline':'Book Slot'}</button></div></div>`}
+async function viewHost(id){try{selectedHost=await api('/api/host/'+id);openModal(`<div class="between"><h2 style="margin:0">${esc(selectedHost.name)}</h2><button class="pill" onclick="closeModal()">✕</button></div><div style="text-align:center;margin:15px 0">${photo(selectedHost.photo_url,selectedHost.name)}<p class="muted">${selectedHost.username?'@'+esc(selectedHost.username):''}</p><span class="pill ${selectedHost.online?'online':'offline'}">${selectedHost.online?'🟢 ONLINE':'⚫ OFFLINE'}</span></div><div class="grid"><div class="stat"><span class="muted small">Host Earnings</span><strong>₹${Number(selectedHost.available_earnings||0).toFixed(0)}</strong></div><div class="stat"><span class="muted small">Gift Earnings</span><strong>${Number(selectedHost.gift_tokens||0).toFixed(0)} 🪙</strong></div></div><p class="small muted">India-based Host के साथ 1-to-1 private video call. Booking rates duration के अनुसार हैं.</p><button class="btn" ${selectedHost.online?'':'disabled'} onclick="closeModal();openBooking(${id})">📅 Book Slot</button>`)}catch(e){toast('❌ '+e.message)}}
 
-        async function joinCallRoom(bookingId) {
-            try {
-                const res = await apiCall(`/api/call/join?booking_id=${bookingId}`, 'POST');
-                alert(`Joining Agora Channel: ${res.channel_name}`);
-            } catch (e) {
-                alert(e.message);
-            }
-        }
+function openBooking(hostId){
+  const h=hosts.find(x=>Number(x.user_id)===Number(hostId))||selectedHost;if(!h)return;
+  if(String(h.country||'').toUpperCase()!=='IN'||h.demo){toast('⚠️ यह Host book नहीं किया जा सकता। अभी केवल India-based Hosts available हैं।');return}
+  if(!h.online){toast('⚫ Host अभी offline है');return}
+  selectedHost=h;
+  const plans=(config?.booking_plans||[]).slice().sort((a,b)=>Number(a.minutes)-Number(b.minutes));
+  const firstAvailable=plans.find(p=>!(Boolean(p.demo)||String(p.name||'').toLowerCase()==='demo')||!me?.demo_used)||plans[0];
+  selectedMinutes=Number(firstAvailable?.minutes||1);
+  const minDate=new Date(Date.now()+2*60*1000);minDate.setSeconds(0,0);
+  const local=new Date(minDate.getTime()-minDate.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  const planButtons=plans.map(p=>{
+    const isDemo=Boolean(p.demo)||String(p.name||'').toLowerCase()==='demo';
+    const used=Boolean(me?.demo_used)&&isDemo;
+    return `<button class="duration ${Number(p.minutes)===selectedMinutes&&!used?'sel':''} ${isDemo?'plan-demo':''}" data-min="${Number(p.minutes)}" data-token="${Number(p.tokens)}" data-demo="${isDemo}" ${used?'disabled':''} onclick="selectDuration(this)"><span class="plan-price">${isDemo?'Demo':Number(p.minutes)+' min'}</span><br><span class="small">₹${Number(p.tokens)} · ${Number(p.tokens)} 🪙</span>${isDemo?(used?'<div class="disabled-note">Demo already used</div>':'<div class="disabled-note">First time only</div>'):''}</button>`;
+  }).join('');
+  openModal(`<div class="between"><h2 style="margin:0">📅 Book Slot</h2><button class="pill" onclick="closeModal()">✕</button></div><div class="host" style="margin:14px 0">${photo(h.photo_url,h.name)}<div><b>${esc(h.name)}</b><br><span class="small online">🟢 ONLINE · India</span></div></div><div class="notice"><b>Call pricing</b><br><span class="small">Demo ₹20 first time only · 2 min ₹299 · 5 min ₹499 · 10 min ₹799 · 30 min ₹2499</span></div><div class="field"><label>Duration / Package</label><div class="grid3">${planButtons}</div></div><div class="field"><label>Date & Time</label><input id="bookTime" type="datetime-local" min="${local}" value="${local}"></div><div class="notice">Package charge: <b id="bookCost">₹${Number(firstAvailable?.tokens||0)} / ${Number(firstAvailable?.tokens||0)} Coins</b><br>Your balance: <b>${Number(me.tokens||0)} Coins</b><br><span class="small muted">Waiting time is not charged. Paid timer starts only when both User and Host are connected.</span></div><button class="btn" onclick="submitBooking()">Confirm Booking</button>`);
+}
+function selectDuration(el){if(el.disabled)return;document.querySelectorAll('.duration').forEach(x=>x.classList.remove('sel'));el.classList.add('sel');selectedMinutes=Number(el.dataset.min);const cost=Number(el.dataset.token);$('bookCost').textContent='₹'+cost+' / '+cost+' Coins'}
+async function submitBooking(){try{const t=$('bookTime').value;if(!t)throw new Error('Date & time चुनें');const ts=Math.floor(new Date(t).getTime()/1000);const plan=(config.booking_plans||[]).find(p=>Number(p.minutes)===selectedMinutes);if(!plan)throw new Error('Invalid duration');const isDemo=Boolean(plan.demo)||String(plan.name||'').toLowerCase()==='demo';if(isDemo&&me.demo_used)throw new Error('Demo already used. Demo सिर्फ पहली बार उपलब्ध है.');if(Number(me.tokens)<Number(plan.tokens))throw new Error('Insufficient Coins. पहले recharge करें.');await jsonApi('/api/book-slot',{user_id:me.user_id,host_id:selectedHost.user_id,minutes:selectedMinutes,requested_start:ts});closeModal();await refreshUser();toast(isDemo?'🎁 Demo booking request भेज दिया गया':'✅ Booking request भेज दिया गया');go('bookings');await loadBookings()}catch(e){toast('❌ '+e.message)}}
 
-        // Initialize App on load
-        loadUserData();
-        loadHosts();
-    </script>
+async function loadBookings(){try{const role=me?.host?.status==='approved'?'user':'user';const user=await api('/api/bookings?user_id='+me.user_id+'&role=user');let arr=user;if(me?.host?.status==='approved'){const hb=await api('/api/bookings?user_id='+me.user_id+'&role=host');arr=[...arr,...hb.map(x=>({...x,__host:true}))]}renderBookings(arr)}catch(e){$('bookingList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}}
+function renderBookings(arr){
+  if(!arr.length){$('bookingList').innerHTML='<div class="empty">अभी कोई booking नहीं है.</div>';return}
+  $('bookingList').innerHTML=arr.map(b=>{const isHost=b.__host;const title=isHost?`User #${b.user_id}`:`Host #${b.host_id}`;let buttons='';
+    if(isHost&&b.status==='pending')buttons=`<div class="actions"><button class="btn green" onclick="bookingAction('${b.booking_id}','accept')">Accept</button><button class="btn red" onclick="bookingAction('${b.booking_id}','reject')">Reject</button></div>`;
+    if(isHost&&b.status==='accepted')buttons=`<div class="actions"><button class="btn" onclick="scheduleBooking('${b.booking_id}',${b.minutes})">📅 Schedule Call</button></div>`;
+    if(b.status==='scheduled')buttons=`<div class="actions"><button class="btn" onclick="joinBooking('${b.booking_id}')">📹 JOIN CALL</button></div>`;
+    if(b.status==='calling')buttons=`<div class="actions"><button class="btn green" onclick="joinBooking('${b.booking_id}')">📹 OPEN CALL</button></div>`;
+    return `<div class="card"><div class="between"><b>${title}</b><span class="status ${esc(b.status)}">${esc(b.status).toUpperCase()}</span></div><p class="small muted">${b.minutes} min · ${b.tokens} Coins<br>Requested: ${fmtTime(b.requested_start)}${b.scheduled_start?'<br>Scheduled: '+fmtTime(b.scheduled_start):''}</p>${b.actual_seconds!=null?`<div class="small">Actual: ${fmtDur(b.actual_seconds)} · Used: ${b.charged_tokens||0} Coins · Refund: ${b.refunded_tokens||0}</div>`:''}${buttons}</div>`}).join('')
+}
+async function bookingAction(id,action){try{await jsonApi('/api/booking/action',{booking_id:id,host_id:me.user_id,action});toast(action==='accept'?'✅ Booking accepted':'❌ Booking rejected');await loadBookings();}catch(e){toast('❌ '+e.message)}}
+function scheduleBooking(id,minutes){const min=new Date(Date.now()+60*1000);min.setSeconds(0,0);const local=new Date(min.getTime()-min.getTimezoneOffset()*60000).toISOString().slice(0,16);openModal(`<h2 style="margin-top:0">📅 Schedule Call</h2><p class="muted">${minutes} minute call</p><div class="field"><label>Call Start</label><input id="scheduleTime" type="datetime-local" min="${local}" value="${local}"></div><button class="btn" onclick="submitSchedule('${id}')">Save Schedule</button><button class="btn secondary" style="margin-top:8px" onclick="closeModal()">Cancel</button>`)}
+async function submitSchedule(id){try{const ts=Math.floor(new Date($('scheduleTime').value).getTime()/1000);await jsonApi('/api/booking/schedule',{booking_id:id,host_id:me.user_id,scheduled_start:ts});closeModal();toast('✅ Call scheduled');await loadBookings()}catch(e){toast('❌ '+e.message)}}
+
+async function joinBooking(id){try{const d=await jsonApi('/api/call/join',{booking_id:id,user_id:me.user_id});const b=d.booking;await startPrivateCall(id,b)}catch(e){toast('❌ '+e.message)}}
+async function startPrivateCall(id,b){
+  currentCallBooking=id;currentCallType='booking';$('callName').textContent='Vynora Private Call';$('callState').textContent='Connecting…';$('callTimer').textContent='00:00';$('callScreen').classList.add('show');
+  try{await initAgora('booking_'+id);await jsonApi('/api/call/connect',{booking_id:id,user_id:me.user_id});startCallPolling(id);}
+  catch(e){toast('❌ Call connect नहीं हुआ: '+e.message);await leaveCall(false)}
+}
+async function initAgora(channel){
+  if(!window.AgoraRTC)throw new Error('Agora SDK load नहीं हुआ');
+  await cleanupAgora(false);const td=await api('/api/agora-token?channelName='+encodeURIComponent(channel)+'&uid='+me.user_id+'&role=publisher');
+  agoraClient=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
+  agoraClient.on('user-published',async(user,mediaType)=>{try{await agoraClient.subscribe(user,mediaType);if(mediaType==='video'&&user.videoTrack)user.videoTrack.play('remoteVideo');if(mediaType==='audio'&&user.audioTrack)user.audioTrack.play()}catch(e){}});
+  agoraClient.on('user-unpublished',()=>{});
+  await agoraClient.join(td.appId,channel,td.token,Number(me.user_id));
+  const mic=await AgoraRTC.createMicrophoneAudioTrack();const cam=await AgoraRTC.createCameraVideoTrack();localTracks=[mic,cam];micOn=true;camOn=true;cam.play('localVideo');await agoraClient.publish([mic,cam]);$('micBtn').textContent='🎙️';$('camBtn').textContent='📹';
+}
+function startCallPolling(id){clearInterval(callPoll);callPoll=setInterval(async()=>{try{const d=await api('/api/call/state/'+id+'?user_id='+me.user_id);const b=d.booking;if(b.call_started_at){$('callState').textContent='Connected • timer active';const elapsed=Math.floor(Date.now()/1000)-Number(b.call_started_at);$('callTimer').textContent=fmtDur(elapsed);if(b.scheduled_end&&Date.now()/1000>=Number(b.scheduled_end)){await leaveCall(true)}}else if(b.user_joined_at&&b.host_joined_at){$('callState').textContent='Starting timer…'}else{$('callState').textContent='Waiting for both participants…'}}catch(e){}},1000)}
+function startCallTimer(){clearInterval(callTimerInterval);callTimerInterval=null}
+async function toggleMic(){if(!localTracks[0])return;micOn=!micOn;await localTracks[0].setEnabled(micOn);$('micBtn').textContent=micOn?'🎙️':'🔇'}
+async function toggleCam(){if(!localTracks[1])return;camOn=!camOn;await localTracks[1].setEnabled(camOn);$('camBtn').textContent=camOn?'📹':'🚫'}
+async function switchCamera(){try{if(!localTracks[1])return;const cams=await AgoraRTC.getCameras();if(cams.length<2){toast('Second camera available नहीं है');return}const current=localTracks[1].getMediaStreamTrack?.().getSettings?.().deviceId;const idx=Math.max(0,cams.findIndex(c=>c.deviceId===current));await localTracks[1].setDevice(cams[(idx+1)%cams.length].deviceId)}catch(e){toast('Camera switch नहीं हुआ')}}
+async function cleanupAgora(hide=true){clearInterval(callPoll);callPoll=null;clearInterval(callTimerInterval);callTimerInterval=null;try{localTracks.forEach(t=>{try{t.stop();t.close()}catch(e){}});localTracks=[];if(agoraClient)await agoraClient.leave()}catch(e){}agoraClient=null;if(hide){$('remoteVideo').innerHTML='';$('localVideo').innerHTML=''}}
+async function endCurrentCall(){if(currentCallType==='admin'){await leaveDirectCall();toast('📞 Admin call ended');return}await leaveCall(true)}
+async function leaveCall(sendEnd){const id=currentCallBooking;try{if(sendEnd&&id&&currentCallType==='booking'){try{await jsonApi('/api/call/end',{user_id:me.user_id,booking_id:id})}catch(e){}}}finally{await cleanupAgora(true);$('callScreen').classList.remove('show');currentCallBooking=null;currentCallType=null;await refreshUser();if(id)await loadBookings();toast('📞 Call ended')}}
+
+async function pollIncoming(){if(!me)return;try{const p=await api('/api/call/pending/'+me.user_id);if(p.active&&!currentCallBooking){openIncomingBooking(p.booking)}}catch(e){}try{const d=await api('/api/direct-call/pending/'+me.user_id);if(d.active&&!currentCallId){openIncomingDirect(d.call)}}catch(e){}}
+function openIncomingBooking(b){openModal(`<div style="text-align:center"><div style="font-size:45px">📹</div><h2>Incoming Video Call</h2><p class="muted">Scheduled Vynora Live call is ready.</p><div class="notice"><b>${b.minutes} minutes</b><br>Booking: <span class="small">${esc(b.booking_id)}</span></div><div class="actions"><button class="btn red" onclick="closeModal();cancelIncoming()">Reject</button><button class="btn green" onclick="closeModal();joinBooking('${b.booking_id}')">Accept & Join</button></div></div>`)}
+function cancelIncoming(){toast('Call request dismissed. Booking remains available.')}
+
+async function openGift(hostId){const h=hosts.find(x=>Number(x.user_id)===Number(hostId))||selectedHost;if(!h)return;if(String(h.country||'').toUpperCase()!=='IN'||h.demo){toast('⚠️ Gift अभी केवल India-based Host के लिए है');return}try{const gifts=await api('/api/gifts');openModal(`<div class="between"><h2 style="margin:0">🎁 Send Gift</h2><button class="pill" onclick="closeModal()">✕</button></div><p class="small muted">To: <b>${esc(h.name)}</b> · Balance: ${Number(me.tokens||0)} Coins</p><div class="grid">${gifts.map(g=>`<button class="gift" onclick="sendGift(${Number(h.user_id)},'${esc(g.id)}')"><div class="emoji">${esc(g.emoji)}</div><b>${esc(g.name)}</b><br><span class="small">${Number(g.tokens)} Coins</span></button>`).join('')}</div>`)}catch(e){toast('❌ '+e.message)}}
+async function sendGift(hostId,giftId){try{await jsonApi('/api/gift',{user_id:me.user_id,host_id:hostId,gift_id:giftId,booking_id:currentCallBooking||''});closeModal();await refreshUser();toast('🎁 Gift sent successfully')}catch(e){toast('❌ '+e.message)}}
+
+async function renderWallet(){
+  if(!config)return;updateBalance();$('rechargePlans').innerHTML=config.recharge_plans.map(p=>`<button class="recharge-plan" onclick="openRecharge(${p.rupees},${p.tokens})"><b>₹${p.rupees}</b><br><span class="small">${p.tokens} Coins</span></button>`).join('');
+  if(me?.host?.status==='approved'){$('withdrawBox').innerHTML=`<div class="card"><div class="grid"><div class="stat"><span class="muted small">Available</span><strong>₹${Number(me.host.available_earnings||0).toFixed(2)}</strong></div><div class="stat"><span class="muted small">Host Share</span><strong>${Math.round(Number(config.host_share||.6)*100)}%</strong></div></div><div class="field"><label>Withdrawal Amount (minimum ₹700)</label><input id="withdrawAmount" type="number" min="700" step="1" placeholder="700"></div><button class="btn gold" onclick="withdraw()">💸 Request Withdrawal</button></div>`}else $('withdrawBox').innerHTML='<div class="notice">Host earnings और withdrawal के लिए approved Host बनें.</div>';
+}
+function copyUPI(){navigator.clipboard?.writeText(config?.upi_id||'vynoralive@slc');toast('UPI ID copied')}
+function openRecharge(rupees,tokens){selectedRecharge={rupees,tokens};const upi=config?.upi_id||'vynoralive@slc';const name=config?.upi_name||'Rajnish Kumar';const uri=`upi://pay?pa=${encodeURIComponent(upi)}&pn=${encodeURIComponent(name)}&am=${Number(rupees).toFixed(2)}&cu=INR`;const qr=`https://api.qrserver.com/v1/create-qr-code/?size=220x220&data=${encodeURIComponent(uri)}`;openModal(`<div class="between"><h2 style="margin:0">💳 Recharge</h2><button class="pill" onclick="closeModal()">✕</button></div><div class="notice"><b>₹${rupees}</b> → <b>${tokens} Coins</b><br><br>UPI ID: <b>${esc(upi)}</b><br>Name: <b>${esc(name)}</b></div><div class="qrbox"><img src="${qr}" alt="UPI QR"></div><p class="small muted" style="text-align:center">QR scan करके payment करें, फिर UTR और screenshot submit करें.</p><button class="btn secondary" onclick="location.href='${uri}'">📲 Open UPI App</button><div class="field"><label>UTR / Transaction ID</label><input id="utr" maxlength="100" placeholder="Enter UTR / Transaction ID"></div><div class="field"><label>Payment Screenshot</label><input id="paymentScreenshot" type="file" accept="image/*"></div><div id="preview" class="small muted"></div><button class="btn" onclick="submitRecharge()">Submit Recharge Request</button>`);$('paymentScreenshot').addEventListener('change',e=>{$('preview').textContent=e.target.files?.[0]?e.target.files[0].name:'No file'})}
+async function submitRecharge(){try{const utr=$('utr').value.trim(),file=$('paymentScreenshot').files?.[0];if(!utr)throw new Error('UTR / Transaction ID डालें');if(!file)throw new Error('Payment screenshot चुनें');if(file.size>1200000)throw new Error('Screenshot 1.2 MB से कम रखें');const fd=new FormData();fd.append('user_id',me.user_id);fd.append('rupees',selectedRecharge.rupees);fd.append('tokens',selectedRecharge.tokens);fd.append('utr',utr);fd.append('screenshot',file);const d=await api('/api/recharge/submit',{method:'POST',body:fd});closeModal();toast('✅ Recharge request submitted. Admin approval का wait करें.');}catch(e){toast('❌ '+e.message)}}
+async function withdraw(){try{const amount=Number($('withdrawAmount').value);if(amount<700)throw new Error('Minimum withdrawal ₹700 है');await api('/api/withdraw?user_id='+me.user_id+'&amount='+encodeURIComponent(amount),{method:'POST'});toast('✅ Withdrawal request भेज दी गई');await refreshUser();renderWallet()}catch(e){toast('❌ '+e.message)}}
+
+function renderProfile(){if(!me)return;const h=me.host;const photoUrl=me.photo_url||'';const demoText=me.demo_used?'❌ Demo already used':'🎁 Demo ₹20 — first time only';$('profileBox').innerHTML=`<div class="card"><div class="host">${photo(photoUrl,me.name)}<div class="host-info"><div class="host-name">${esc(me.name||'User')}</div><div class="host-user">${me.username?'@'+esc(me.username):'Telegram ID: '+me.user_id}</div><div class="small muted">Country: 🇮🇳 India</div></div></div><div class="actions"><button class="btn secondary" onclick="uploadPhoto()">📷 Change Photo</button><button class="btn" onclick="go('wallet')">🪙 ${Number(me.tokens||0)} Coins</button></div><div class="notice"><b>Demo:</b> ${demoText}</div></div>`+(h?`<div class="card"><div class="between"><b>🎙️ Host Status</b><span class="pill">${esc(h.status||'pending')}</span></div>${h.status==='approved'?`<p class="small muted">${h.online?'🟢 Online':'⚫ Offline'} · Earnings ₹${Number(h.available_earnings||0).toFixed(2)}</p><div class="actions"><button class="btn ${h.online?'red':'green'}" onclick="toggleHostOnline()">${h.online?'GO OFFLINE':'GO ONLINE'}</button><button class="btn secondary" onclick="hostFilters()">🎨 Filter</button></div>`:'<p class="small muted">Host application status: '+esc(h.status||'pending')+'</p>'}</div>`:'');renderAdmin()}
+function uploadPhoto(){openModal(`<h2 style="margin-top:0">📷 Profile Photo</h2><div class="field"><input id="profileFile" type="file" accept="image/*"></div><button class="btn" onclick="savePhoto()">Upload</button>`)}
+async function savePhoto(){try{const f=$('profileFile').files?.[0];if(!f)throw new Error('Image चुनें');if(f.size>900000)throw new Error('Photo 900 KB से कम रखें');const fd=new FormData();fd.append('user_id',me.user_id);fd.append('file',f);await api('/api/profile/photo-upload',{method:'POST',body:fd});closeModal();await refreshUser();renderProfile();toast('✅ Photo updated')}catch(e){toast('❌ '+e.message)}}
+function openHostApply(){if(me?.host?.status==='approved'){go('bookings');return}openModal(`<h2 style="margin-top:0">🎙️ Host Application</h2><div class="field"><label>Name</label><input id="haName" value="${esc(me.name||'')}"></div><div class="field"><label>Username</label><input id="haUsername" value="${esc(me.username||'')}"></div><div class="field"><label>Phone</label><input id="haPhone" placeholder="Phone number"></div><div class="field"><label>Age</label><input id="haAge" type="number" min="18" placeholder="18+"></div><div class="field"><label>Bio</label><textarea id="haBio" placeholder="Short bio"></textarea></div><button class="btn" onclick="submitHostApply()">Submit Application</button>`)}
+async function submitHostApply(){try{await jsonApi('/api/host/apply',{user_id:me.user_id,name:$('haName').value.trim()||me.name,username:$('haUsername').value.trim(),phone:$('haPhone').value.trim(),age:Number($('haAge').value)||null,bio:$('haBio').value.trim()});closeModal();await refreshUser();renderProfile();toast('✅ Host application submitted')}catch(e){toast('❌ '+e.message)}}
+async function toggleHostOnline(){try{const path=me.host.online?'/api/host/offline':'/api/host/online';await api(path+'?user_id='+me.user_id,{method:'POST'});await refreshUser();renderProfile();renderHome();await loadHosts();toast(me.host.online?'🟢 Host is online':'⚫ Host is offline')}catch(e){toast('❌ '+e.message)}}
+async function hostFilters(){try{const d=await api('/api/host/filter/'+me.user_id);openModal(`<h2 style="margin-top:0">🎨 Camera Filter</h2><p class="small muted">Next call में selected filter load होगा.</p><div class="grid">${['natural','glow','soft','warm'].map(x=>`<button class="card" onclick="saveFilter('${x}')">${x==='natural'?'🌿':x==='glow'?'✨':x==='soft'?'☁️':'🔥'}<br><b>${x[0].toUpperCase()+x.slice(1)}</b>${d.filter_name===x?'<br><span class=online>Selected</span>':''}</button>`).join('')}</div>`)}catch(e){toast('❌ '+e.message)}}
+async function saveFilter(name){try{await jsonApi('/api/host/filter',{user_id:me.user_id,filter_name:name});closeModal();toast('✅ Filter saved: '+name)}catch(e){toast('❌ '+e.message)}}
+function openSupport(){const url=config?.support_url||'https://t.me/VynoraSupport';try{tg?.openTelegramLink?.(url)}catch(e){location.href=url}}
+
+function renderAdmin(){if(!me?.is_admin){$('adminBox').innerHTML='';return}$('adminBox').innerHTML=`<div class="title">Admin</div><div class="card"><b>👑 VYNORA LIVE — VERIFIED SUPER ADMIN</b><div class="actions"><button class="btn" onclick="loadAdmin()">📊 Dashboard</button><button class="btn secondary" onclick="openAnnouncement()">📢 Announcement</button></div><div class="actions"><button class="btn secondary" onclick="openAdminCall()">📞 Direct Call</button><button class="btn secondary" onclick="loadAdminCalls()">📞 Call History</button></div></div><div id="adminStats"></div>`}
+async function loadAdmin(){try{const d=await api('/api/admin/overview/'+me.user_id);$('adminStats').innerHTML=`<div class="grid"><div class="stat">Users<strong>${d.users}</strong></div><div class="stat">Hosts<strong>${d.hosts}</strong></div><div class="stat">Online<strong>${d.online_hosts}</strong></div><div class="stat">Pending Host<strong>${d.pending_hosts}</strong></div><div class="stat">Pending Recharge<strong>${d.recharge_requests}</strong></div><div class="stat">Withdrawals<strong>${d.pending_withdrawals}</strong></div><div class="stat">Calls<strong>${d.total_calls}</strong></div><div class="stat">Minutes<strong>${d.total_minutes}</strong></div><div class="stat">Platform ₹<strong>${Number(d.platform_earnings||0).toFixed(0)}</strong></div><div class="stat">Host ₹<strong>${Number(d.host_earnings||0).toFixed(0)}</strong></div></div>`}catch(e){toast('❌ '+e.message)}}
+function openAnnouncement(){openModal(`<h2 style="margin-top:0">📢 Announcement</h2><div class="field"><textarea id="announcementText" placeholder="Write announcement"></textarea></div><button class="btn" onclick="sendAnnouncement()">Publish</button>`)}
+async function sendAnnouncement(){try{const m=$('announcementText').value.trim();if(!m)throw new Error('Message खाली है');await jsonApi('/api/announcement',{user_id:me.user_id,message:m});closeModal();await loadAnnouncement();toast('✅ Announcement published')}catch(e){toast('❌ '+e.message)}}
+function openAdminCall(){openModal(`<h2 style="margin-top:0">📞 Admin Direct Call</h2><p class="small muted">Free call. No coins and no time limit.</p><div class="field"><label>User / Host Telegram ID</label><input id="adminTarget" type="number" placeholder="Telegram ID"></div><button class="btn" onclick="startAdminDirectCall()">Call Now</button>`)}
+async function startAdminDirectCall(){try{const target=Number($('adminTarget').value);if(!target)throw new Error('Target ID डालें');const d=await jsonApi('/api/admin/direct-call',{admin_id:me.user_id,target_id:target});closeModal();await startDirectCall(d.call_id,d.channel);toast('📞 Direct call started')}catch(e){toast('❌ '+e.message)}}
+async function loadAdminCalls(){try{const d=await api('/api/admin/direct-calls/'+me.user_id);openModal(`<h2 style="margin-top:0">📞 Direct Calls</h2>${d.length?d.map(x=>`<div class="history"><b>${x.target_id}</b><br><span class="small muted">${x.status} · ${fmtTime(x.created_at)}</span>${x.status!=='ended'?`<button class="btn" style="margin-top:8px" onclick="closeModal();startDirectCall('${x.call_id}','${x.channel}')">Join</button>`:''}</div>`).join(''):'<div class=empty>No calls</div>'}`)}catch(e){toast('❌ '+e.message)}}
+async function startDirectCall(callId,channel){currentCallId=callId;currentCallType='admin';$('callName').textContent='👑 Vynora Admin Call';$('callState').textContent='Free • No time limit';$('callTimer').textContent='FREE';$('callScreen').classList.add('show');try{await jsonApi('/api/direct-call/join/'+callId+'?user_id='+me.user_id,{});await initAgora(channel)}catch(e){toast('❌ '+e.message);await leaveDirectCall()}}
+async function leaveDirectCall(){const id=currentCallId;try{if(id)await api('/api/direct-call/end/'+id+'?user_id='+me.user_id,{method:'POST'})}catch(e){}await cleanupAgora(true);$('callScreen').classList.remove('show');currentCallId=null;currentCallType=null}
+
+async function checkDirectForCall(){if(!me)return;try{const d=await api('/api/direct-call/pending/'+me.user_id);if(d.active&&!currentCallId){const c=d.call;if(c.status==='ringing'){openModal(`<div style="text-align:center"><div style="font-size:45px">👑</div><h2>Admin Call</h2><p>VYNORA SUPER ADMIN wants to speak with you.</p><div class="notice">Free call · No coins · No time limit</div><button class="btn green" onclick="closeModal();startDirectCall('${c.call_id}','${c.channel}')">📞 Accept Admin Call</button></div>`)}}}catch(e){}}
+
+setInterval(()=>{if(me)checkDirectForCall()},5000);
+boot();
+</script>
 </body>
 </html>
