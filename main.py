@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
+from pymongo.errors import DuplicateKeyError
 
 try:
     from agora_token_builder import RtcTokenBuilder, Role_Publisher
@@ -71,6 +72,7 @@ RECHARGE_PLANS = [
     {"rupees": 1000, "tokens": 1000},
     {"rupees": 1500, "tokens": 1500},
     {"rupees": 2000, "tokens": 2000},
+    {"rupees": 5000, "tokens": 5000},
 ]
 
 DUMMY_HOSTS = [
@@ -155,17 +157,40 @@ def ensure_user(user_id, name="", username="", country="IN"):
     user_id = uid(user_id)
     existing = col("users").find_one({"user_id": user_id})
     if not existing:
-        d = {"user_id": user_id, "name": name or "User", "username": username or "", "tokens": 0, "blocked": False, "country": (country or "IN").upper()[:2],
-            "demo_used": False, "demo_used_at": None, "demo_booking_id": None,
-            "created_at": now_ts(), "updated_at": now_ts()}
-        col("users").insert_one(d)
-        return d, True
+        d = {
+            "user_id": user_id,
+            "name": name or "User",
+            "username": username or "",
+            "tokens": 0,
+            "blocked": False,
+            "country": (country or "IN").upper()[:2],
+            "demo_used": False,
+            "demo_used_at": None,
+            "demo_booking_id": None,
+            "created_at": now_ts(),
+            "updated_at": now_ts(),
+        }
+        try:
+            col("users").insert_one(d)
+            return d, True
+        except DuplicateKeyError:
+            # Another request may have created the same Telegram user at the
+            # same time. Re-read instead of returning HTTP 500.
+            existing = col("users").find_one({"user_id": user_id})
+            if existing:
+                return existing, False
+            raise
     updates = {"updated_at": now_ts()}
-    if "demo_used" not in existing: updates["demo_used"] = False
-    if "demo_used_at" not in existing: updates["demo_used_at"] = None
-    if "demo_booking_id" not in existing: updates["demo_booking_id"] = None
-    if name: updates["name"] = name
-    if username is not None: updates["username"] = username
+    if "demo_used" not in existing:
+        updates["demo_used"] = False
+    if "demo_used_at" not in existing:
+        updates["demo_used_at"] = None
+    if "demo_booking_id" not in existing:
+        updates["demo_booking_id"] = None
+    if name:
+        updates["name"] = name
+    if username is not None:
+        updates["username"] = username
     col("users").update_one({"user_id": user_id}, {"$set": updates})
     return col("users").find_one({"user_id": user_id}), False
 
@@ -251,23 +276,47 @@ def remove_recharge_screenshot(recharge_id, delete_group_message=True):
                 tg_delete_message(GROUP_1_ID, mid)
     return True
 
-def notify_group(chat_id, text, buttons=None):
+def _send_group_message(chat_id, text, buttons=None):
     if not BOT_TOKEN:
-        log.error('Telegram group notify skipped: BOT_TOKEN is missing')
+        log.error("Telegram group notify skipped: BOT_TOKEN is missing")
         return False
     if not chat_id:
-        log.error('Telegram group notify skipped: group chat ID is missing')
+        log.error("Telegram group notify skipped: group chat ID is missing")
         return False
-    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
+    payload = {
+        "chat_id": str(chat_id),
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
     if buttons:
         payload["reply_markup"] = {"inline_keyboard": buttons}
     try:
-        r = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload, timeout=15)
-        if not r.ok: log.error('Telegram group notify HTTP %s: %s', r.status_code, r.text[:500])
+        r = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json=payload,
+            timeout=8,
+        )
+        if not r.ok:
+            log.error(
+                "Telegram group notify HTTP %s chat=%s: %s",
+                r.status_code, chat_id, r.text[:500]
+            )
         return r.ok
     except Exception as e:
-        log.warning("telegram group notify failed: %s", e)
+        log.warning("telegram group notify failed chat=%s: %s", chat_id, e)
         return False
+
+
+def notify_group(chat_id, text, buttons=None):
+    # Do not make a user's API request wait for Telegram. This prevents a
+    # slow Telegram API from turning a normal Mini App action into HTTP 504.
+    threading.Thread(
+        target=_send_group_message,
+        args=(chat_id, text, buttons),
+        daemon=True,
+    ).start()
+    return True
 
 
 def create_notification(user_id, kind, title, message, data=None):
@@ -277,19 +326,42 @@ def create_notification(user_id, kind, title, message, data=None):
         log.warning("notification create failed: %s", e)
 
 
-def notify_user(user_id, text, buttons=None):
-    create_notification(user_id, "telegram", "Vynora Live", text, {})
+def _send_user_message(user_id, text, buttons=None):
     if not BOT_TOKEN:
         return False
-    payload = {"chat_id": uid(user_id), "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
+    payload = {
+        "chat_id": uid(user_id),
+        "text": text,
+        "parse_mode": "HTML",
+        "disable_web_page_preview": True,
+    }
     if buttons:
         payload["reply_markup"] = {"inline_keyboard": buttons}
     try:
-        r = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload, timeout=15)
+        r = requests.post(
+            f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage",
+            json=payload,
+            timeout=8,
+        )
+        if not r.ok:
+            log.warning(
+                "Telegram user notify HTTP %s user=%s: %s",
+                r.status_code, user_id, r.text[:500]
+            )
         return r.ok
     except Exception as e:
-        log.warning("telegram user notify failed: %s", e)
+        log.warning("telegram user notify failed user=%s: %s", user_id, e)
         return False
+
+
+def notify_user(user_id, text, buttons=None):
+    create_notification(user_id, "telegram", "Vynora Live", text, {})
+    threading.Thread(
+        target=_send_user_message,
+        args=(user_id, text, buttons),
+        daemon=True,
+    ).start()
+    return True
 
 
 def notify_new_user(u):
@@ -1040,7 +1112,7 @@ def admin_command(chat_id, from_id, text):
     parts=text.strip().split(maxsplit=2); cmd=parts[0].lower(); args=parts[1:]
     try:
         if cmd in ("/helpadmin","/adminhelp"):
-            tg_send(chat_id,"👑 <b>VYNORA ADMIN COMMANDS</b>\n\n/addtoken ID AMOUNT\n/removetoken ID AMOUNT\n/settoken ID AMOUNT\n/approvehost ID\n/rejecthost ID\n/removehost ID\n/addhost ID\n/approveuser ID\n/user ID\n/ban ID [reason]\n/unban ID\n/block ID [reason]\n/unblock ID\n/banhost ID\n/unbanhost ID\n/approverecharge RECHARGE_ID\n/rejectrecharge RECHARGE_ID\n/approvebooking BOOKING_ID\n/rejectbooking BOOKING_ID\n/announce MESSAGE\n/offer MESSAGE\n/clearannouncement\n/callhost HOST_ID\n/setcountry USER_ID IN\n/stats")
+            tg_send(chat_id,"👑 <b>VYNORA ADMIN COMMANDS</b>\n\n/addtoken ID AMOUNT\n/removetoken ID AMOUNT\n/settoken ID AMOUNT\n/approvehost ID\n/rejecthost ID\n/removehost ID\n/addhost ID\n/approveuser ID\n/user ID\n/ban ID [reason]\n/unban ID\n/block ID [reason]\n/unblock ID\n/banhost ID\n/unbanhost ID\n/approverecharge RECHARGE_ID\n/rejectrecharge RECHARGE_ID\n/approvebooking BOOKING_ID\n/rejectbooking BOOKING_ID\n/announce MESSAGE\n/offer MESSAGE\n/clearannouncement\n/callhost HOST_ID\n/setcountry USER_ID IN\n/testgroups\n/stats")
         elif cmd in ("/addtoken","/removetoken","/settoken") and len(args)>=2:
             target=int(args[0]); amount=int(args[1]); u=ensure_user(target)[0]
             if cmd=="/addtoken": col("users").update_one({"user_id":target},{"$inc":{"tokens":amount}})
@@ -1141,6 +1213,16 @@ def admin_command(chat_id, from_id, text):
             tg_send(chat_id,f"📞 Calling <code>{target}</code>\nCall: <code>{cid}</code>\n💰 Free • No time limit")
             notify_user(target,"👑 <b>VYNORA SUPER ADMIN CALL</b>\n\nSuper Admin wants to speak with you immediately.\n💰 Free — no coins, no time limit.",[[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
             notify_full(f"👑 ADMIN DIRECT CALL\nAdmin: {from_id}\nTarget: {target}\nCall: <code>{cid}</code>\nFree: YES")
+        elif cmd=="/testgroups":
+            results=[]
+            test_text=f"🧪 <b>VYNORA GROUP TEST</b>\\nAdmin: <code>{from_id}</code>\\nTime: {iso(now_ts())}"
+            for label, gid in (("GROUP 1", GROUP_1_ID), ("GROUP 2", GROUP_2_ID), ("GROUP 3", GROUP_3_ID)):
+                if not gid:
+                    results.append(f"❌ {label}: ID missing")
+                    continue
+                result=tg_send(gid, test_text)
+                results.append(f"{'✅' if result and result.get('ok') else '❌'} {label}: {gid}")
+            tg_send(chat_id, "🧪 <b>GROUP TEST RESULT</b>\\n\\n" + "\\n".join(results))
         elif cmd=="/stats":
             tg_send(chat_id,f"📊 Users: {col('users').count_documents({})}\nHosts: {col('hosts').count_documents({'status':'approved'})}\nPending Hosts: {col('hosts').count_documents({'status':'pending'})}\nBookings: {col('bookings').count_documents({})}\nCompleted Calls: {col('bookings').count_documents({'status':'completed'})}")
         else:
@@ -1356,7 +1438,7 @@ def call_watchdog():
 
 @app.on_event("startup")
 def startup():
-    log.info('Vynora startup: BOT_TOKEN=%s, MONGO=%s, GROUP1=%s, GROUP2=%s, GROUP3=%s, AGORA=%s', bool(BOT_TOKEN), bool(MONGO_URI), bool(GROUP_1_ID), bool(GROUP_2_ID), bool(GROUP_3_ID), bool(AGORA_APP_ID and AGORA_APP_CERTIFICATE))
+    log.info('Vynora startup: BOT_TOKEN=%s, MONGO=%s, GROUP1=%s, GROUP2=%s, GROUP3=%s, AGORA=%s', bool(BOT_TOKEN), bool(MONGO_URI), GROUP_1_ID or 'MISSING', GROUP_2_ID or 'MISSING', GROUP_3_ID or 'MISSING', bool(AGORA_APP_ID and AGORA_APP_CERTIFICATE))
     if db is not None:
         try:
             col("users").create_index("user_id", unique=True)
