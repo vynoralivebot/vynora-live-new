@@ -240,7 +240,8 @@ async def create_booking(payload: BookingRequest, user: dict = Depends(get_curre
     )
 
     return {"status": "success", "booking_id": booking_id, "message": "Booking created successfully"}
-    @app.get("/api/bookings")
+
+@app.get("/api/bookings")
 async def get_bookings(user: dict = Depends(get_current_user)):
     query = {}
     if user["telegram_id"] in SUPER_ADMIN_IDS:
@@ -312,7 +313,6 @@ async def join_call(booking_id: str, user: dict = Depends(get_current_user)):
         return_document=True
     )
 
-    # STRICT TIMER RULE: Paid timer starts ONLY when BOTH are connected
     if updated_booking.get("user_joined_at") and updated_booking.get("host_joined_at") and not updated_booking.get("call_started_at"):
         await db.bookings.update_one(
             {"_id": ObjectId(booking_id)},
@@ -325,7 +325,7 @@ async def join_call(booking_id: str, user: dict = Depends(get_current_user)):
     return {
         "status": "success",
         "channel_name": channel_name,
-        "token": None,  # Token can be handled securely or left open in test mode
+        "token": None,
         "uid": uid,
         "app_id": AGORA_APP_ID
     }
@@ -363,7 +363,6 @@ async def end_call(booking_id: str, user: dict = Depends(get_current_user)):
             tokens_to_charge = 0
         refund_tokens = total_paid_tokens - tokens_to_charge
 
-    # Host 60%, Platform 40% calculation
     host_earning = int(tokens_to_charge * 0.60)
     platform_earning = tokens_to_charge - host_earning
 
@@ -494,4 +493,3 @@ async def admin_stats(admin: dict = Depends(get_current_admin)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
