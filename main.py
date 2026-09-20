@@ -128,7 +128,7 @@ def telegram_webhook(update: dict):
                     "username": username,
                     "name": first_name,
                     "country": "India",
-                    "tokens": 50,
+                    "tokens": 0,  # Joining bonus set to 0
                     "blocked": False,
                     "banned": False,
                     "created_at": datetime.now(timezone.utc).isoformat()
@@ -178,17 +178,21 @@ def verify_auth(payload: dict):
         data_dict = dict(parsed)
         user_data = json.loads(data_dict.get("user", "{}"))
         user_id = str(user_data.get("id", "7778606261"))
+        username = user_data.get("username", "user_" + user_id)
+        first_name = user_data.get("first_name", "User")
     except:
         user_id = "7778606261"
+        username = "admin"
+        first_name = "Admin"
         
     user = users_col.find_one({"user_id": user_id})
     if not user:
         user = {
             "user_id": user_id,
-            "username": "user_" + user_id,
-            "name": "User",
+            "username": username,
+            "name": first_name,
             "country": "India",
-            "tokens": 50,
+            "tokens": 0,  # Joining bonus set to 0
             "blocked": False,
             "banned": False,
             "created_at": datetime.now(timezone.utc).isoformat()
@@ -231,6 +235,34 @@ def create_booking(payload: BookingCreate):
     booking_id = f"BK_{int(time.time())}"
     return {"status": "success", "booking_id": booking_id, "message": "Booking request sent."}
 
+@app.post("/api/wallet/recharge")
+def submit_recharge(amount: float = Form(...), utr: str = Form(...), screenshot: UploadFile = File(...), initData: str = Form(...)):
+    try:
+        parsed = urllib.parse.parse_qsl(initData)
+        data_dict = dict(parsed)
+        user_data = json.loads(data_dict.get("user", "{}"))
+        user_id = str(user_data.get("id", "7778606261"))
+    except:
+        user_id = "7778606261"
+        
+    file_bytes = screenshot.file.read()
+    recharge_id = f"REC_{int(time.time())}_{user_id[-4:]}"
+    
+    recharges_col.insert_one({
+        "recharge_id": recharge_id,
+        "user_id": user_id,
+        "amount": amount,
+        "utr": utr,
+        "screenshot_bytes": file_bytes,
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    send_telegram_photo(GROUP_1_ID, file_bytes, f"💳 <b>New Recharge Request</b>\nID: {recharge_id}\nAmount: ₹{amount}\nUTR: {utr}")
+    send_telegram_message(GROUP_3_ID, f"💳 <b>Recharge Submitted</b> | User: {user_id} | ₹{amount}")
+    
+    return {"status": "success", "message": "Recharge request submitted successfully."}
+
 @app.get("/api/admin/stats")
 def get_admin_stats():
     return {
@@ -239,7 +271,7 @@ def get_admin_stats():
             "total_users": users_col.count_documents({}),
             "total_hosts": hosts_col.count_documents({}),
             "online_hosts": 1,
-            "pending_recharges": 0,
+            "pending_recharges": recharges_col.count_documents({"status": "pending"}),
             "total_calls": 0
         }
     }
