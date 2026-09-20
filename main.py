@@ -60,14 +60,81 @@ RECHARGE_PLANS = [50, 100, 200, 500, 1000, 1500, 2000]
 # ==========================================
 # TELEGRAM NOTIFICATION HELPER
 # ==========================================
-def send_telegram_message(chat_id: str, text: str):
+def send_telegram_message(chat_id: str, text: str, reply_markup=None):
     if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "YOUR_BOT_TOKEN":
         return
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    if reply_markup:
+        payload["reply_markup"] = reply_markup
     try:
-        requests.post(url, json={"chat_id": chat_id, "text": text, "parse_mode": "HTML"}, timeout=5)
+        requests.post(url, json=payload, timeout=5)
     except Exception as e:
         print(f"Telegram Notification Error: {e}")
+
+# ==========================================
+# TELEGRAM BOT WEBHOOK HANDLER (/start)
+# ==========================================
+@app.post("/webhook/telegram")
+async def telegram_webhook(request: Request):
+    try:
+        data = await request.json()
+        if "message" in data:
+            message = data["message"]
+            chat_id = message["chat"]["id"]
+            text = message.get("text", "")
+            user_info = message.get("from", {})
+            
+            if text.startswith("/start"):
+                telegram_id = user_info.get("id")
+                name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
+                username = user_info.get("username", "")
+                
+                # Check or register user in DB
+                user = await db.users.find_one({"telegram_id": telegram_id})
+                if not user:
+                    user = {
+                        "telegram_id": telegram_id,
+                        "name": name,
+                        "username": username,
+                        "country": "India",
+                        "tokens": 50,
+                        "role": "user",
+                        "created_at": datetime.now(timezone.utc)
+                    }
+                    await db.users.insert_one(user)
+                    send_telegram_message(
+                        GROUP_2_ID,
+                        f"👤 <b>New User Registration</b>\nName: {name}\nUsername: @{username}\nID: {telegram_id}\nCountry: India"
+                    )
+                
+                welcome_text = (
+                    "<b>Welcome to VYNORA LIVE</b>\n\n"
+                    "❤️ Real Connections • Real Moments\n\n"
+                    "आपने एक premium private connection platform में entry ली है।\n\n"
+                    "📹 1-to-1 Video Calls\n"
+                    "🛡️ Verified Hosts\n"
+                    "💎 Easy Token System\n"
+                    "🎁 Gifts & Rewards\n"
+                    "🔒 Secure & Private"
+                )
+                
+                reply_markup = {
+                    "inline_keyboard": [
+                        [
+                            {
+                                "text": "🚀 ENTER VYNORA LIVE",
+                                "web_app": {"url": "https://vynora-live-new.onrender.com"}
+                            }
+                        ]
+                    ]
+                }
+                send_telegram_message(chat_id, welcome_text, reply_markup=reply_markup)
+                
+        return {"status": "ok"}
+    except Exception as e:
+        print(f"Webhook error: {e}")
+        return {"status": "error"}
 
 # ==========================================
 # AUTHENTICATION & SECURITY
