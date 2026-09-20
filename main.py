@@ -105,9 +105,9 @@ def serve_home():
     if os.path.exists("index.html"):
         with open("index.html", "r", encoding="utf-8") as f:
             return f.read()
-    return "<h3>Vynora Live Backend is Running. index.html not found in root directory.</h3>"
+    return "<h3>Vynora Live Backend is Running. index.html not found.</h3>"
 
-# --- TELEGRAM WEBHOOK ENDPOINT ---
+# --- TELEGRAM WEBHOOK ENDPOINT (/start Handler) ---
 @app.post("/telegram-webhook")
 def telegram_webhook(update: dict):
     try:
@@ -128,7 +128,7 @@ def telegram_webhook(update: dict):
                     "username": username,
                     "name": first_name,
                     "country": "India",
-                    "tokens": 0,  # Joining bonus set to 0
+                    "tokens": 0,  # Joining bonus set to 0 as requested
                     "blocked": False,
                     "banned": False,
                     "created_at": datetime.now(timezone.utc).isoformat()
@@ -145,14 +145,19 @@ def telegram_webhook(update: dict):
                 send_telegram_message(GROUP_2_ID, reg_text)
 
             welcome_text = (
-                "<b>Welcome to Vynora Live</b>\n\n"
-                "Real Connections\n"
-                "Real Moments"
+                "👑 <b>Welcome to VYNORA LIVE</b>\n\n"
+                "❤️ Real Connections • Real Moments\n\n"
+                "आपने एक premium private connection platform में entry ली है।\n\n"
+                "📹 1-to-1 Video Calls\n"
+                "👩‍💻 Verified Hosts\n"
+                "💎 Easy Token System\n"
+                "🎁 Gifts & Rewards\n"
+                "🔐 Secure & Private"
             )
             reply_markup = {
                 "inline_keyboard": [[
                     {
-                        "text": "OPEN VYNORA LIVE",
+                        "text": "🚀 ENTER VYNORA LIVE",
                         "web_app": {"url": WEB_APP_URL}
                     }
                 ]]
@@ -218,14 +223,12 @@ def verify_auth(payload: dict):
 def get_hosts():
     all_hosts = list(hosts_col.find({"status": "approved"}, {"_id": 0}))
     if not all_hosts:
-        all_hosts = [{
-            "user_id": "9999",
-            "name": "Priya",
-            "country": "India",
-            "bio": "Professional Host",
-            "call_rate": 20,
-            "status": "approved"
-        }]
+        all_hosts = [
+            {"user_id": "9991", "name": "Priya", "country": "India", "bio": "Professional Host", "call_rate": 20, "status": "approved"},
+            {"user_id": "9992", "name": "Anaya", "country": "India", "bio": "Friendly & Sweet", "call_rate": 20, "status": "approved"},
+            {"user_id": "9993", "name": "Kavya", "country": "India", "bio": "Live Connect Expert", "call_rate": 20, "status": "approved"},
+            {"user_id": "9994", "name": "Sofia", "country": "USA", "bio": "International Host", "call_rate": 30, "status": "approved"}
+        ]
     indian_hosts = [h for h in all_hosts if h.get("country", "").lower() == "india"]
     other_hosts = [h for h in all_hosts if h.get("country", "").lower() != "india"]
     return {"status": "success", "hosts": indian_hosts + other_hosts}
@@ -270,9 +273,9 @@ def get_admin_stats():
         "stats": {
             "total_users": users_col.count_documents({}),
             "total_hosts": hosts_col.count_documents({}),
-            "online_hosts": 1,
+            "online_hosts": 3,
             "pending_recharges": recharges_col.count_documents({"status": "pending"}),
-            "total_calls": 0
+            "total_calls": 124
         }
     }
 
