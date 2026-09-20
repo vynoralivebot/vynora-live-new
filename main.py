@@ -43,25 +43,34 @@ client = AsyncIOMotorClient(MONGO_URI)
 db = client[DB_NAME]
 
 # ==========================================
-# ROOT & AUTOMATIC WEBHOOK SETUP
+# ROOT & WEBHOOK SETUP ROUTES
 # ==========================================
 @app.get("/")
 async def root():
     return {"status": "success", "message": "Vynora Live API is running successfully!"}
 
-@app.on_event("startup")
-async def startup_event():
+@app.get("/set-webhook-manual")
+async def set_webhook_manual():
     if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "YOUR_BOT_TOKEN":
-        print("❌ CRITICAL ERROR: TELEGRAM_BOT_TOKEN is not configured in Render Environment Variables!")
-        return
+        return {"status": "error", "message": "TELEGRAM_BOT_TOKEN is not set in Render Environment Variables!"}
     
     webhook_url = "https://vynora-live-new.onrender.com/webhook/telegram"
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}"
     try:
         response = requests.get(url, timeout=5)
-        print("Telegram Webhook Auto-Set Response:", response.json())
+        return {"status": "success", "telegram_response": response.json()}
     except Exception as e:
-        print(f"Failed to auto-set webhook: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.on_event("startup")
+async def startup_event():
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_TOKEN != "YOUR_BOT_TOKEN":
+        webhook_url = "https://vynora-live-new.onrender.com/webhook/telegram"
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}"
+        try:
+            requests.get(url, timeout=5)
+        except Exception as e:
+            print(f"Startup webhook set error: {e}")
 
 # ==========================================
 # PRICING & CONSTANTS
