@@ -43,6 +43,20 @@ client = AsyncIOMotorClient(MONGO_URI)
 db = client[DB_NAME]
 
 # ==========================================
+# AUTOMATIC WEBHOOK SETUP ON STARTUP
+# ==========================================
+@app.on_event("startup")
+async def startup_event():
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_TOKEN != "YOUR_BOT_TOKEN":
+        webhook_url = "https://vynora-live-new.onrender.com/webhook/telegram"
+        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}"
+        try:
+            response = requests.get(url, timeout=5)
+            print("Telegram Webhook Auto-Set Response:", response.json())
+        except Exception as e:
+            print(f"Failed to auto-set webhook: {e}")
+
+# ==========================================
 # PRICING & CONSTANTS
 # ==========================================
 BOOKING_PRICES = {
@@ -90,7 +104,6 @@ async def telegram_webhook(request: Request):
                 name = f"{user_info.get('first_name', '')} {user_info.get('last_name', '')}".strip()
                 username = user_info.get("username", "")
                 
-                # Check or register user in DB
                 user = await db.users.find_one({"telegram_id": telegram_id})
                 if not user:
                     user = {
