@@ -143,7 +143,7 @@ def verify_telegram_init_data(init_data: str):
 @app.middleware("http")
 async def telegram_webapp_auth(request: Request, call_next):
     path=request.url.path
-    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/telegram/webhook","/api/telegram/webhook-info"):
+    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/telegram/webhook","/api/telegram/webhook-info") and not path.startswith("/api/profile/photo/"):
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
         if verified is None:
             return Response(content=json.dumps({"detail":"Valid Telegram Mini App session is required"}), status_code=401, media_type="application/json")
@@ -503,15 +503,20 @@ async def upload_profile_photo(user_id: int, file: UploadFile = File(...)):
     raw = await file.read()
     if len(raw) > 900_000:
         raise HTTPException(400, "Photo is too large. Please use an image below 900 KB.")
+    if len(raw) < 32:
+        raise HTTPException(400, "Invalid or empty image file")
+    content_type = file.content_type.split(";",1)[0].lower()
+    if content_type not in {"image/jpeg","image/png","image/webp","image/gif"}:
+        raise HTTPException(400, "Please upload JPG, PNG, WEBP or GIF image")
     encoded = base64.b64encode(raw).decode("ascii")
-    data_uri = f"data:{file.content_type};base64,{encoded}"
+    data_uri = f"data:{content_type};base64,{encoded}"
     col("users").update_one(
         {"user_id": uid(user_id)},
         {"$set": {
             "photo_data": data_uri,
             "photo_url": "",
             "photo_filename": file.filename or "profile.jpg",
-            "photo_content_type": file.content_type,
+            "photo_content_type": content_type,
             "photo_updated_at": now_ts(),
             "updated_at": now_ts()
         }}
@@ -529,7 +534,7 @@ def get_profile_photo(user_id: int):
         content_type = header.split(";", 1)[0].replace("data:", "") or "image/jpeg"
         raw = base64.b64decode(encoded)
         from fastapi.responses import Response
-        return Response(content=raw, media_type=content_type, headers={"Cache-Control": "public, max-age=300"})
+        return Response(content=raw, media_type=content_type, headers={"Cache-Control": "public, max-age=300, immutable", "Content-Disposition": "inline"})
     except Exception:
         raise HTTPException(500, "Invalid profile photo")
 
@@ -649,6 +654,11 @@ def book_slot(data: BookingModel):
     u=user_doc(data.user_id)
     user_country=(u.get("country") or "IN").upper()
     host_country=(h.get("country") or "IN").upper()
+    # Dummy/test hosts are never bookable. Only real approved India hosts can receive bookings.
+    if bool(h.get("demo", False)):
+        raise HTTPException(403, "This Host is not available for real bookings. Please choose an approved real Host.")
+    if host_country != "IN":
+        raise HTTPException(403, "Only India-based real Hosts are available for booking.")
     if not bool(h.get("online")):
         raise HTTPException(409, "Host is currently offline. Please choose an online Host or try again later.")
     if host_country != user_country:
@@ -1084,7 +1094,7 @@ def admin_command(chat_id, from_id, text):
             tg_send(chat_id,f"✅ Token updated for <code>{target}</code>")
             notify_full(f"🪙 ADMIN TOKEN ACTION\nAdmin: {from_id}\nUser: {target}\nCommand: {cmd}\nAmount: {amount}")
         elif cmd in ("/approvehost","/addhost") and args:
-            target=int(args[0]); ensure_user(target); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":"approved","verified":True,"verification_label":"Vynora Verified Host","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>"); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आप bookings receive कर सकते हैं।"); notify_full(f"🎙️ HOST APPROVED\nAdmin: {from_id}\nHost: {target}\nTeam Group: Host approved and ready for monitoring")
+            target=int(args[0]); ensure_user(target); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":"approved","verified":True,"verification_label":"Vynora Verified Host","demo":False,"online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural","country":"IN","country_name":"India"}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>\n🟢 Host dashboard is now enabled."); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आपका Host Dashboard तुरंत enable हो गया है। Profile खोलकर GO ONLINE करें और bookings receive करें।"); notify_full(f"🎙️ HOST APPROVED\nAdmin: {from_id}\nHost: {target}\nTeam Group: Host approved and dashboard enabled")
         elif cmd in ("/rejecthost","/removehost") and args:
             target=int(args[0]); col("hosts").update_one({"user_id":target},{"$set":{"status":"rejected","online":False}}); tg_send(chat_id,f"❌ Host rejected/removed: <code>{target}</code>"); notify_full(f"❌ HOST REJECTED\nAdmin: {from_id}\nHost: {target}")
         elif cmd in ("/ban","/block","/banhost") and args:
@@ -1193,8 +1203,8 @@ def handle_update(upd):
             if action in ("approve_host","reject_host") and from_id in ADMIN_IDS:
                 target=int(key); ensure_user(target)
                 status="approved" if action=="approve_host" else "rejected"
-                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"verified":status=="approved","verification_label":"Vynora Verified Host" if status=="approved" else "","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
-                tg_send(chat_id,f"✅ Host {status}: <code>{target}</code>"); notify_user(target, f"{'🎙️ Host approved' if status=='approved' else '❌ Host application rejected'}."); notify_full(f"🎙️ HOST {status.upper()}\nAdmin: {from_id}\nHost: {target}\nTeam Action: Host approval status updated")
+                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"verified":status=="approved","verification_label":"Vynora Verified Host" if status=="approved" else "","demo":False if status=="approved" else False,"online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
+                tg_send(chat_id,f"✅ Host {status}: <code>{target}</code>"); notify_user(target, f"{'🎙️ Host approved — आपका Host Dashboard तुरंत enable हो गया है। Profile खोलकर GO ONLINE करें।' if status=='approved' else '❌ Host application rejected'}"); notify_full(f"🎙️ HOST {status.upper()}\nAdmin: {from_id}\nHost: {target}\nTeam Action: Host approval status updated")
             elif action in ("approve_recharge","reject_recharge") and from_id in ADMIN_IDS:
                 status="approved" if action=="approve_recharge" else "rejected"
                 r=col("recharges").find_one_and_update(
