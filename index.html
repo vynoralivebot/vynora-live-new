@@ -47,19 +47,17 @@
 
     <!-- Main Dynamic Container -->
     <main id="appContainer" class="flex-1 p-4 max-w-md mx-auto w-full space-y-4">
-        <!-- Loading State -->
         <div id="loadingView" class="flex flex-col items-center justify-center py-32 space-y-4">
             <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-pink-500"></div>
             <p class="text-slate-400 text-xs tracking-wider animate-pulse font-medium">Securing Connection...</p>
         </div>
     </main>
 
-    <!-- Bottom Professional Navigation Bar -->
+    <!-- Bottom Professional Navigation Bar (Includes Profile) -->
     <nav id="bottomNav" class="hidden fixed bottom-0 left-0 right-0 bg-cardbg/95 backdrop-blur-xl border-t border-cardborder px-2 py-2 flex justify-around items-center z-50 max-w-md mx-auto shadow-2xl">
         <!-- Dynamically injected -->
     </nav>
 
-    <!-- Script Application Logic -->
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
@@ -114,6 +112,7 @@
                 <button onclick="loadUserDashboard()" class="flex flex-col items-center text-pink-500 py-1 px-3 rounded-xl transition"><i class="fa-solid fa-house text-sm"></i><span class="text-[10px] mt-1 font-bold">Home</span></button>
                 <button onclick="loadUserBookings()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-3 rounded-xl transition"><i class="fa-solid fa-calendar-check text-sm"></i><span class="text-[10px] mt-1 font-semibold">Bookings</span></button>
                 <button onclick="loadWalletView()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-3 rounded-xl transition"><i class="fa-solid fa-wallet text-sm"></i><span class="text-[10px] mt-1 font-semibold">Recharge</span></button>
+                <button onclick="loadProfileView()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-3 rounded-xl transition"><i class="fa-solid fa-user text-sm"></i><span class="text-[10px] mt-1 font-semibold">Profile</span></button>
             `;
         }
 
@@ -148,7 +147,6 @@
             });
 
             container.innerHTML = `
-                <!-- Balance & Recharge Card -->
                 <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-cardborder rounded-2xl p-4 flex justify-between items-center shadow-2xl relative overflow-hidden">
                     <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-pink-500/10 rounded-full blur-2xl"></div>
                     <div>
@@ -164,7 +162,6 @@
                     </button>
                 </div>
 
-                <!-- Announcement Notice -->
                 <div class="bg-cardbg border border-pink-500/30 rounded-2xl p-3 flex items-center space-x-3 shadow-lg">
                     <div class="bg-pink-500/20 p-2.5 rounded-xl text-pink-400"><i class="fa-solid fa-bullhorn text-sm"></i></div>
                     <div class="flex-1">
@@ -173,7 +170,6 @@
                     </div>
                 </div>
 
-                <!-- Quick Action Buttons -->
                 <div class="grid grid-cols-3 gap-2.5">
                     <button onclick="loadUserBookings()" class="bg-cardbg border border-cardborder p-3 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-pink-500/40 transition shadow">
                         <div class="bg-indigo-500/20 text-indigo-400 p-2.5 rounded-xl"><i class="fa-solid fa-calendar-check text-sm"></i></div>
@@ -183,13 +179,12 @@
                         <div class="bg-emerald-500/20 text-emerald-400 p-2.5 rounded-xl"><i class="fa-solid fa-wallet text-sm"></i></div>
                         <span class="text-[11px] font-bold text-slate-300">Wallet</span>
                     </button>
-                    <button onclick="alert('Gift features available during calls!')" class="bg-cardbg border border-cardborder p-3 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-pink-500/40 transition shadow">
-                        <div class="bg-pink-500/20 text-pink-400 p-2.5 rounded-xl"><i class="fa-solid fa-gift text-sm"></i></div>
-                        <span class="text-[11px] font-bold text-slate-300">Gifts</span>
+                    <button onclick="loadProfileView()" class="bg-cardbg border border-cardborder p-3 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-pink-500/40 transition shadow">
+                        <div class="bg-pink-500/20 text-pink-400 p-2.5 rounded-xl"><i class="fa-solid fa-user text-sm"></i></div>
+                        <span class="text-[11px] font-bold text-slate-300">Profile</span>
                     </button>
                 </div>
 
-                <!-- Host List Header -->
                 <div class="pt-2">
                     <div class="flex items-center justify-between mb-3">
                         <h3 class="font-extrabold text-sm text-slate-200">Available India Hosts</h3>
@@ -197,6 +192,34 @@
                     </div>
                     <div class="grid grid-cols-2 gap-3">
                         ${hostsHtml}
+                    </div>
+                </div>
+            `;
+        }
+
+        async function loadProfileView() {
+            const container = document.getElementById('appContainer');
+            container.innerHTML = `
+                <div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-2xl space-y-4">
+                    <h2 class="text-sm font-extrabold text-pink-400 tracking-wide uppercase">User Profile</h2>
+                    <div class="space-y-3">
+                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
+                            <p class="text-[10px] text-slate-400">Name</p>
+                            <p class="text-xs font-bold text-white">${currentUser.name || 'User'}</p>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
+                            <p class="text-[10px] text-slate-400">Username</p>
+                            <p class="text-xs font-bold text-white">@${currentUser.username || 'N/A'}</p>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
+                            <p class="text-[10px] text-slate-400">Telegram User ID</p>
+                            <p class="text-xs font-bold text-white">${currentUser.user_id || 'N/A'}</p>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
+                            <p class="text-[10px] text-slate-400">Token Balance</p>
+                            <p class="text-xs font-bold text-yellow-400">${currentUser.tokens || 0} Tokens</p>
+                        </div>
+                        <button onclick="loadUserDashboard()" class="w-full bg-slate-800 py-2.5 rounded-xl font-bold text-xs text-slate-400">Back Home</button>
                     </div>
                 </div>
             `;
@@ -254,7 +277,6 @@
             }
         }
 
-        // --- RECHARGE WALLET WITH EMBEDDED UPI QR CODE ---
         async function loadWalletView() {
             const container = document.getElementById('appContainer');
             container.innerHTML = `
@@ -262,7 +284,6 @@
                     <h2 class="text-sm font-extrabold text-pink-400 tracking-wide uppercase">Recharge Wallet</h2>
                     <p class="text-xs text-slate-300">Scan QR or pay via UPI ID: <b class="text-yellow-400">vynoralive@slc</b> (Rajnish Kumar)</p>
                     
-                    <!-- Dynamic Professional UPI QR Code Display -->
                     <div class="bg-slate-900/90 border border-cardborder rounded-2xl p-4 flex flex-col items-center justify-center space-y-2 shadow-inner">
                         <div class="bg-white p-2 rounded-xl shadow-md">
                             <img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=upi://pay?pa=vynoralive@slc&pn=Rajnish%20Kumar" alt="UPI QR Code" class="w-36 h-36 rounded-lg">
