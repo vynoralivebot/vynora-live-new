@@ -75,12 +75,6 @@ RECHARGE_PLANS = [
     {"rupees": 5000, "tokens": 5000},
 ]
 
-DUMMY_HOSTS = [
-    {"user_id": 910000001, "name": "Sofia", "username": "sofia_demo", "country": "US", "country_name": "USA", "photo_url": "https://randomuser.me/api/portraits/women/44.jpg", "bio": "Demo profile", "status": "approved", "online": True},
-    {"user_id": 910000002, "name": "Emma", "username": "emma_demo", "country": "GB", "country_name": "United Kingdom", "photo_url": "https://randomuser.me/api/portraits/women/68.jpg", "bio": "Demo profile", "status": "approved", "online": True},
-    {"user_id": 910000003, "name": "Olivia", "username": "olivia_demo", "country": "PH", "country_name": "Philippines", "photo_url": "https://randomuser.me/api/portraits/women/65.jpg", "bio": "Demo profile", "status": "approved", "online": False},
-]
-
 app = FastAPI(title="Vynora Live 1v1", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
@@ -143,7 +137,7 @@ def verify_telegram_init_data(init_data: str):
 @app.middleware("http")
 async def telegram_webapp_auth(request: Request, call_next):
     path=request.url.path
-    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/telegram/webhook","/api/telegram/webhook-info") and not path.startswith("/api/profile/photo/"):
+    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/telegram/webhook","/api/telegram/webhook-info"):
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
         if verified is None:
             return Response(content=json.dumps({"detail":"Valid Telegram Mini App session is required"}), status_code=401, media_type="application/json")
@@ -503,20 +497,15 @@ async def upload_profile_photo(user_id: int, file: UploadFile = File(...)):
     raw = await file.read()
     if len(raw) > 900_000:
         raise HTTPException(400, "Photo is too large. Please use an image below 900 KB.")
-    if len(raw) < 32:
-        raise HTTPException(400, "Invalid or empty image file")
-    content_type = file.content_type.split(";",1)[0].lower()
-    if content_type not in {"image/jpeg","image/png","image/webp","image/gif"}:
-        raise HTTPException(400, "Please upload JPG, PNG, WEBP or GIF image")
     encoded = base64.b64encode(raw).decode("ascii")
-    data_uri = f"data:{content_type};base64,{encoded}"
+    data_uri = f"data:{file.content_type};base64,{encoded}"
     col("users").update_one(
         {"user_id": uid(user_id)},
         {"$set": {
             "photo_data": data_uri,
             "photo_url": "",
             "photo_filename": file.filename or "profile.jpg",
-            "photo_content_type": content_type,
+            "photo_content_type": file.content_type,
             "photo_updated_at": now_ts(),
             "updated_at": now_ts()
         }}
@@ -534,16 +523,21 @@ def get_profile_photo(user_id: int):
         content_type = header.split(";", 1)[0].replace("data:", "") or "image/jpeg"
         raw = base64.b64decode(encoded)
         from fastapi.responses import Response
-        return Response(content=raw, media_type=content_type, headers={"Cache-Control": "public, max-age=300, immutable", "Content-Disposition": "inline"})
+        return Response(content=raw, media_type=content_type, headers={"Cache-Control": "public, max-age=300"})
     except Exception:
         raise HTTPException(500, "Invalid profile photo")
 
 @app.get("/api/hosts")
 def hosts():
     rows = []
-    docs = list(col("hosts").find({"status":"approved"}))
-    # Real/India hosts first; demo/foreign hosts stay visible below for UI testing.
-    docs.sort(key=lambda h: (bool(h.get("demo", False)), not bool(h.get("online", False)), -int(h.get("updated_at", 0))))
+    # User-facing host list contains ONLY real, approved, India-based, ONLINE hosts.
+    # Dummy/demo/foreign/offline hosts are intentionally hidden from customers.
+    docs = list(col("hosts").find({
+        "status":"approved",
+        "demo":{"$ne":True},
+        "country":"IN",
+        "online":True
+    }).sort("updated_at", -1))
     for h in docs:
         u = user_doc(h["user_id"]) or {}
         rows.append(public_host_view(h, u))
@@ -1094,7 +1088,7 @@ def admin_command(chat_id, from_id, text):
             tg_send(chat_id,f"✅ Token updated for <code>{target}</code>")
             notify_full(f"🪙 ADMIN TOKEN ACTION\nAdmin: {from_id}\nUser: {target}\nCommand: {cmd}\nAmount: {amount}")
         elif cmd in ("/approvehost","/addhost") and args:
-            target=int(args[0]); ensure_user(target); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":"approved","verified":True,"verification_label":"Vynora Verified Host","demo":False,"online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural","country":"IN","country_name":"India"}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>\n🟢 Host dashboard is now enabled."); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आपका Host Dashboard तुरंत enable हो गया है। Profile खोलकर GO ONLINE करें और bookings receive करें।"); notify_full(f"🎙️ HOST APPROVED\nAdmin: {from_id}\nHost: {target}\nTeam Group: Host approved and dashboard enabled")
+            target=int(args[0]); ensure_user(target); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":"approved","verified":True,"verification_label":"Vynora Verified Host","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>"); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आप bookings receive कर सकते हैं।"); notify_full(f"🎙️ HOST APPROVED\nAdmin: {from_id}\nHost: {target}\nTeam Group: Host approved and ready for monitoring")
         elif cmd in ("/rejecthost","/removehost") and args:
             target=int(args[0]); col("hosts").update_one({"user_id":target},{"$set":{"status":"rejected","online":False}}); tg_send(chat_id,f"❌ Host rejected/removed: <code>{target}</code>"); notify_full(f"❌ HOST REJECTED\nAdmin: {from_id}\nHost: {target}")
         elif cmd in ("/ban","/block","/banhost") and args:
@@ -1203,8 +1197,8 @@ def handle_update(upd):
             if action in ("approve_host","reject_host") and from_id in ADMIN_IDS:
                 target=int(key); ensure_user(target)
                 status="approved" if action=="approve_host" else "rejected"
-                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"verified":status=="approved","verification_label":"Vynora Verified Host" if status=="approved" else "","demo":False if status=="approved" else False,"online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
-                tg_send(chat_id,f"✅ Host {status}: <code>{target}</code>"); notify_user(target, f"{'🎙️ Host approved — आपका Host Dashboard तुरंत enable हो गया है। Profile खोलकर GO ONLINE करें।' if status=='approved' else '❌ Host application rejected'}"); notify_full(f"🎙️ HOST {status.upper()}\nAdmin: {from_id}\nHost: {target}\nTeam Action: Host approval status updated")
+                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"verified":status=="approved","verification_label":"Vynora Verified Host" if status=="approved" else "","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
+                tg_send(chat_id,f"✅ Host {status}: <code>{target}</code>"); notify_user(target, f"{'🎙️ Host approved' if status=='approved' else '❌ Host application rejected'}."); notify_full(f"🎙️ HOST {status.upper()}\nAdmin: {from_id}\nHost: {target}\nTeam Action: Host approval status updated")
             elif action in ("approve_recharge","reject_recharge") and from_id in ADMIN_IDS:
                 status="approved" if action=="approve_recharge" else "rejected"
                 r=col("recharges").find_one_and_update(
@@ -1325,15 +1319,16 @@ def telegram_webhook_info():
     return tg("getWebhookInfo", {}) or {"ok": False, "error": "Telegram API unavailable"}
 
 
-def seed_dummy_hosts():
-    for x in DUMMY_HOSTS:
-        ensure_user(x["user_id"], x["name"], x["username"], x["country"])
-        col("users").update_one({"user_id":x["user_id"]},{"$set":{"name":x["name"],"username":x["username"],"country":x["country"],"updated_at":now_ts()}})
-        col("hosts").update_one(
-            {"user_id":x["user_id"]},
-            {"$set":{"user_id":x["user_id"],"name":x["name"],"username":x["username"],"country":x["country"],"country_name":x["country_name"],"photo_url":x["photo_url"],"bio":x["bio"],"status":"approved","online":x["online"],"demo":True,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"created_at":now_ts()}},
-            upsert=True
-        )
+def remove_dummy_hosts():
+    """Remove all legacy dummy/demo host records so only real hosts remain."""
+    try:
+        result = col("hosts").delete_many({"demo":True})
+        # Remove the known legacy dummy user accounts as well.
+        col("users").delete_many({"user_id":{"$in":[910000001,910000002,910000003]}})
+        if result.deleted_count:
+            log.info("Removed %s legacy dummy host records", result.deleted_count)
+    except Exception as e:
+        log.warning("dummy host cleanup: %s", e)
 
 
 def finalize_call(booking_id, ended_at=None, reason="completed"):
@@ -1412,10 +1407,7 @@ def startup():
             col("notifications").create_index([("user_id",1),("created_at",-1)])
         except Exception as e: log.warning("index setup: %s",e)
     if db is not None:
-        try:
-            seed_dummy_hosts()
-        except Exception as e:
-            log.warning("dummy host seed: %s", e)
+        remove_dummy_hosts()
     if BOT_TOKEN:
         # Webhook replaces long polling. Telegram does not allow getUpdates while
         # an outgoing webhook is configured.
