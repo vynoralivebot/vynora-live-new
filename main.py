@@ -25,9 +25,9 @@ AGORA_APP_CERTIFICATE = os.getenv("AGORA_APP_CERTIFICATE", "YOUR_AGORA_APP_CERTI
 
 SUPER_ADMIN_IDS = [7778606261, 7001825467]
 
-GROUP_1_ID = os.getenv("GROUP_1_ID", "-1000000000001")  # Admin/Requests
-GROUP_2_ID = os.getenv("GROUP_2_ID", "-1000000000002")  # User Registration
-GROUP_3_ID = os.getenv("GROUP_3_ID", "-1000000000003")  # Team/Operations
+GROUP_1_ID = os.getenv("GROUP_1_ID", "-1000000000001")
+GROUP_2_ID = os.getenv("GROUP_2_ID", "-1000000000002")
+GROUP_3_ID = os.getenv("GROUP_3_ID", "-1000000000003")
 
 app = FastAPI(title="Vynora Live API", version="1.0.0")
 
@@ -43,18 +43,25 @@ client = AsyncIOMotorClient(MONGO_URI)
 db = client[DB_NAME]
 
 # ==========================================
-# AUTOMATIC WEBHOOK SETUP ON STARTUP
+# ROOT & AUTOMATIC WEBHOOK SETUP
 # ==========================================
+@app.get("/")
+async def root():
+    return {"status": "success", "message": "Vynora Live API is running successfully!"}
+
 @app.on_event("startup")
 async def startup_event():
-    if TELEGRAM_BOT_TOKEN and TELEGRAM_BOT_TOKEN != "YOUR_BOT_TOKEN":
-        webhook_url = "https://vynora-live-new.onrender.com/webhook/telegram"
-        url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}"
-        try:
-            response = requests.get(url, timeout=5)
-            print("Telegram Webhook Auto-Set Response:", response.json())
-        except Exception as e:
-            print(f"Failed to auto-set webhook: {e}")
+    if not TELEGRAM_BOT_TOKEN or TELEGRAM_BOT_TOKEN == "YOUR_BOT_TOKEN":
+        print("❌ CRITICAL ERROR: TELEGRAM_BOT_TOKEN is not configured in Render Environment Variables!")
+        return
+    
+    webhook_url = "https://vynora-live-new.onrender.com/webhook/telegram"
+    url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/setWebhook?url={webhook_url}"
+    try:
+        response = requests.get(url, timeout=5)
+        print("Telegram Webhook Auto-Set Response:", response.json())
+    except Exception as e:
+        print(f"Failed to auto-set webhook: {e}")
 
 # ==========================================
 # PRICING & CONSTANTS
