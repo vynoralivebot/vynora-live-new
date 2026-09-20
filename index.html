@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VYNORA LIVE - Real Connections</title>
+    <title>VYNORA LIVE - Real Connections • Real Moments</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.17.0.js"></script>
@@ -18,46 +18,117 @@
                         darkbg: '#090d16',
                         cardbg: '#131c31',
                         cardborder: '#1e293b',
-                        accentpink: '#ec4899'
+                        accentpink: '#ec4899',
+                        accentpurple: '#8b5cf6'
                     }
                 }
             }
         }
     </script>
 </head>
-<body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-pink-500 selection:text-white pb-24">
+<body class="bg-darkbg text-slate-100 font-sans min-h-screen flex flex-col antialiased selection:bg-pink-500 selection:text-white pb-28">
 
-    <!-- Top Professional Header -->
-    <header class="bg-cardbg/90 backdrop-blur-xl border-b border-cardborder px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-xl">
-        <div class="flex items-center space-x-3">
-            <div class="bg-gradient-to-tr from-pink-500 via-purple-600 to-indigo-600 p-2.5 rounded-2xl text-white font-black text-sm shadow-lg flex items-center justify-center tracking-wider">VL</div>
+    <!-- FIRST-ENTRY WELCOME EXPERIENCE OVERLAY -->
+    <div id="welcomeOverlay" class="fixed inset-0 bg-darkbg/98 z-[100] flex flex-col items-center justify-center p-6 text-center hidden">
+        <div class="max-w-sm w-full bg-cardbg border border-pink-500/30 rounded-3xl p-6 shadow-2xl relative overflow-hidden space-y-5">
+            <div class="absolute -top-10 -right-10 w-32 h-32 bg-pink-500/20 rounded-full blur-3xl"></div>
+            <div class="absolute -bottom-10 -left-10 w-32 h-32 bg-indigo-500/20 rounded-full blur-3xl"></div>
+            
+            <div class="w-16 h-16 bg-gradient-to-tr from-pink-500 via-purple-600 to-indigo-600 rounded-2xl mx-auto flex items-center justify-center text-white font-black text-2xl shadow-xl">VL</div>
+            
             <div>
-                <h1 class="font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 via-purple-300 to-indigo-400 tracking-wide text-sm">VYNORA LIVE</h1>
-                <p id="userRoleBadge" class="text-[9px] text-slate-400 font-semibold tracking-widest uppercase">USER DASHBOARD</p>
+                <h1 class="text-xl font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-indigo-400">👑 Welcome to VYNORA LIVE</h1>
+                <p class="text-xs font-semibold text-slate-400 mt-1">Real Connections • Real Moments</p>
+            </div>
+
+            <div class="bg-slate-900/80 border border-cardborder p-3.5 rounded-2xl text-xs text-slate-300 leading-relaxed italic">
+                “आपका स्वागत है! ❤️ Verified Hosts के साथ private 1-to-1 video calls का अनुभव लें।”
+            </div>
+
+            <div class="grid grid-cols-2 gap-2 text-left">
+                <div class="bg-slate-900/60 p-2.5 rounded-xl border border-cardborder flex items-center space-x-2">
+                    <span class="text-pink-400 text-sm">📹</span>
+                    <span class="text-[11px] font-bold text-slate-200">Private Video Calls</span>
+                </div>
+                <div class="bg-slate-900/60 p-2.5 rounded-xl border border-cardborder flex items-center space-x-2">
+                    <span class="text-indigo-400 text-sm">👩</span>
+                    <span class="text-[11px] font-bold text-slate-200">Verified Hosts</span>
+                </div>
+                <div class="bg-slate-900/60 p-2.5 rounded-xl border border-cardborder flex items-center space-x-2">
+                    <span class="text-yellow-400 text-sm">💎</span>
+                    <span class="text-[11px] font-bold text-slate-200">Secure Tokens</span>
+                </div>
+                <div class="bg-slate-900/60 p-2.5 rounded-xl border border-cardborder flex items-center space-x-2">
+                    <span class="text-emerald-400 text-sm">🎁</span>
+                    <span class="text-[11px] font-bold text-slate-200">Gifts & Rewards</span>
+                </div>
+            </div>
+
+            <button onclick="dismissWelcome()" class="w-full bg-gradient-to-r from-pink-500 via-purple-600 to-indigo-600 py-3.5 rounded-2xl font-black text-xs shadow-xl tracking-wider uppercase active:scale-95 transition">
+                🚀 ENTER VYNORA LIVE
+            </button>
+            <p class="text-[10px] text-slate-500">Your privacy. Your choice. Your connection.</p>
+        </div>
+    </div>
+
+    <!-- TOP PROFESSIONAL HEADER -->
+    <header class="bg-cardbg/90 backdrop-blur-xl border-b border-cardborder px-4 py-3 flex justify-between items-center sticky top-0 z-50 shadow-xl">
+        <div class="flex items-center space-x-2.5">
+            <div class="bg-gradient-to-tr from-pink-500 via-purple-600 to-indigo-600 p-2 rounded-xl text-white font-black text-xs shadow-lg">VL</div>
+            <div>
+                <h1 class="font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-indigo-400 tracking-wide text-xs">VYNORA LIVE</h1>
+                <p class="text-[8px] text-slate-400 font-semibold tracking-widest uppercase">REAL CONNECTIONS</p>
             </div>
         </div>
         <div class="flex items-center space-x-3">
-            <div id="walletBadge" class="hidden bg-slate-900/90 border border-cardborder px-3 py-1.5 rounded-full flex items-center space-x-2 shadow-inner">
-                <i class="fa-solid fa-coins text-yellow-400 text-xs"></i>
-                <span id="tokenBalanceCount" class="font-extrabold text-xs text-yellow-300">0</span>
+            <!-- Notification Bell with Badge -->
+            <div class="relative bg-slate-900 border border-cardborder w-9 h-9 rounded-full flex items-center justify-center cursor-pointer shadow-inner hover:border-pink-500/50 transition" onclick="alert('You have 3 new notifications')">
+                <i class="fa-solid fa-bell text-slate-300 text-xs"></i>
+                <span class="absolute -top-1 -right-1 bg-pink-500 text-white text-[9px] font-black w-4 h-4 rounded-full flex items-center justify-center shadow">3</span>
             </div>
-            <div id="userAvatarHeader" class="w-9 h-9 bg-gradient-to-tr from-pink-500 to-indigo-600 rounded-full flex items-center justify-center font-bold text-xs shadow-lg border border-pink-400/30 text-white">U</div>
+            <!-- Token Balance Header Badge -->
+            <div class="bg-slate-900 border border-cardborder px-3 py-1.5 rounded-full flex items-center space-x-1.5 shadow-inner">
+                <i class="fa-solid fa-coins text-yellow-400 text-xs"></i>
+                <span id="headerTokenCount" class="font-extrabold text-xs text-yellow-300">0</span>
+            </div>
+            <!-- User Avatar -->
+            <div id="userAvatarHeader" class="w-9 h-9 bg-gradient-to-tr from-pink-500 to-indigo-600 rounded-full flex items-center justify-center font-black text-xs shadow-lg border border-pink-400/30 text-white">U</div>
         </div>
     </header>
 
-    <!-- Main Dynamic Container -->
+    <!-- MAIN CONTAINER VIEW -->
     <main id="appContainer" class="flex-1 p-4 max-w-md mx-auto w-full space-y-4">
         <div id="loadingView" class="flex flex-col items-center justify-center py-32 space-y-4">
             <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-pink-500"></div>
-            <p class="text-slate-400 text-xs tracking-wider animate-pulse font-medium">Securing Connection...</p>
+            <p class="text-slate-400 text-xs tracking-wider animate-pulse font-medium">Loading Platform...</p>
         </div>
     </main>
 
-    <!-- Bottom Professional Navigation Bar (Includes Profile) -->
-    <nav id="bottomNav" class="hidden fixed bottom-0 left-0 right-0 bg-cardbg/95 backdrop-blur-xl border-t border-cardborder px-2 py-2 flex justify-around items-center z-50 max-w-md mx-auto shadow-2xl">
-        <!-- Dynamically injected -->
+    <!-- 5-ITEM BOTTOM NAVIGATION BAR -->
+    <nav class="fixed bottom-0 left-0 right-0 bg-cardbg/95 backdrop-blur-xl border-t border-cardborder px-3 py-2 flex justify-around items-center z-50 max-w-md mx-auto shadow-2xl">
+        <button onclick="loadUserDashboard()" class="flex flex-col items-center text-pink-500 py-1 px-2.5 rounded-xl transition" id="nav-home">
+            <i class="fa-solid fa-house text-sm"></i>
+            <span class="text-[10px] mt-1 font-bold">Home</span>
+        </button>
+        <button onclick="loadHostsListView()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-2.5 rounded-xl transition" id="nav-hosts">
+            <i class="fa-solid fa-user-group text-sm"></i>
+            <span class="text-[10px] mt-1 font-semibold">Hosts</span>
+        </button>
+        <button onclick="loadUserBookings()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-2.5 rounded-xl transition" id="nav-bookings">
+            <i class="fa-solid fa-calendar-check text-sm"></i>
+            <span class="text-[10px] mt-1 font-semibold">Bookings</span>
+        </button>
+        <button onclick="loadWalletView()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-2.5 rounded-xl transition" id="nav-wallet">
+            <i class="fa-solid fa-wallet text-sm"></i>
+            <span class="text-[10px] mt-1 font-semibold">Wallet</span>
+        </button>
+        <button onclick="loadProfileView()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-2.5 rounded-xl transition" id="nav-profile">
+            <i class="fa-solid fa-user text-sm"></i>
+            <span class="text-[10px] mt-1 font-semibold">Profile</span>
+        </button>
     </nav>
 
+    <!-- JAVASCRIPT CORE LOGIC -->
     <script>
         const tg = window.Telegram.WebApp;
         tg.expand();
@@ -66,6 +137,20 @@
         let currentRole = 'user';
         const API_BASE = window.location.origin;
         const initData = tg.initData || "query_id=AAHd-1gSAAAAANv3VBM&user=%7B%22id%22%3A7778606261%2C%22first_name%22%3A%22Rajnish%22%2C%22username%22%3A%22rajnish%22%7D&auth_date=1658145223&hash=abc";
+
+        // Check First Entry
+        window.addEventListener('DOMContentLoaded', () => {
+            const hasWelcomed = localStorage.getItem('vynora_welcomed');
+            if (!hasWelcomed) {
+                document.getElementById('welcomeOverlay').classList.remove('hidden');
+            }
+            initApp();
+        });
+
+        function dismissWelcome() {
+            localStorage.setItem('vynora_welcomed', 'true');
+            document.getElementById('welcomeOverlay').classList.add('hidden');
+        }
 
         async function apiCall(endpoint, method = 'GET', data = null, isForm = false) {
             const headers = { 'initData': initData };
@@ -96,80 +181,123 @@
             currentUser = res;
             currentRole = res.role;
 
-            document.getElementById('walletBadge').classList.remove('hidden');
-            document.getElementById('tokenBalanceCount').innerText = res.tokens || 0;
-            document.getElementById('userRoleBadge').innerText = currentRole.toUpperCase() + ' DASHBOARD';
+            document.getElementById('headerTokenCount').innerText = res.tokens || 0;
             document.getElementById('userAvatarHeader').innerText = (res.name || 'U').charAt(0).toUpperCase();
 
-            renderNavigation();
             loadUserDashboard();
         }
 
-        function renderNavigation() {
-            const nav = document.getElementById('bottomNav');
-            nav.classList.remove('hidden');
-            nav.innerHTML = `
-                <button onclick="loadUserDashboard()" class="flex flex-col items-center text-pink-500 py-1 px-3 rounded-xl transition"><i class="fa-solid fa-house text-sm"></i><span class="text-[10px] mt-1 font-bold">Home</span></button>
-                <button onclick="loadUserBookings()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-3 rounded-xl transition"><i class="fa-solid fa-calendar-check text-sm"></i><span class="text-[10px] mt-1 font-semibold">Bookings</span></button>
-                <button onclick="loadWalletView()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-3 rounded-xl transition"><i class="fa-solid fa-wallet text-sm"></i><span class="text-[10px] mt-1 font-semibold">Recharge</span></button>
-                <button onclick="loadProfileView()" class="flex flex-col items-center text-slate-400 hover:text-white py-1 px-3 rounded-xl transition"><i class="fa-solid fa-user text-sm"></i><span class="text-[10px] mt-1 font-semibold">Profile</span></button>
-            `;
+        function setActiveNav(tab) {
+            ['home', 'hosts', 'bookings', 'wallet', 'profile'].forEach(t => {
+                const btn = document.getElementById(`nav-${t}`);
+                if (btn) {
+                    btn.className = t === tab ? 'flex flex-col items-center text-pink-500 py-1 px-2.5 rounded-xl transition' : 'flex flex-col items-center text-slate-400 hover:text-white py-1 px-2.5 rounded-xl transition';
+                }
+            });
         }
 
+        // --- USER DASHBOARD ---
         async function loadUserDashboard() {
+            setActiveNav('home');
             const container = document.getElementById('appContainer');
             container.innerHTML = `<div class="text-center py-24"><div class="animate-spin h-8 w-8 border-2 border-pink-500 rounded-full mx-auto"></div></div>`;
             const res = await apiCall('/api/hosts', 'GET', null);
             if (!res) return;
 
-            let hostsHtml = '';
+            let indiaHostsHtml = '';
+            let demoHostsHtml = '';
+
+            // Realistic high-end Unsplash host profile images
+            const realPhotos = [
+                "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
+                "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=400&auto=format&fit=crop&q=80",
+                "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?w=400&auto=format&fit=crop&q=80",
+                "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=400&auto=format&fit=crop&q=80"
+            ];
+
+            let photoIdx = 0;
             res.hosts.forEach(host => {
-                hostsHtml += `
-                    <div class="bg-cardbg border border-cardborder rounded-2xl p-3 flex flex-col justify-between shadow-xl relative overflow-hidden group">
-                        <div class="relative rounded-xl overflow-hidden bg-slate-900 h-44 flex items-center justify-center">
-                            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent opacity-80 z-10"></div>
-                            <div class="text-3xl font-black text-slate-700">${host.name.charAt(0)}</div>
-                            <div class="absolute top-2 left-2 z-20 bg-emerald-500/90 backdrop-blur-md text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center space-x-1 shadow">
-                                <span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
-                                <span>Online</span>
+                const isIndia = host.country.toLowerCase() === 'india';
+                const imgUrl = host.image_url || realPhotos[photoIdx % realPhotos.length];
+                photoIdx++;
+
+                if (isIndia) {
+                    indiaHostsHtml += `
+                        <div class="bg-cardbg border border-cardborder rounded-2xl p-3 flex flex-col justify-between shadow-xl relative overflow-hidden group">
+                            <div class="relative rounded-xl overflow-hidden bg-slate-900 h-48 flex items-center justify-center">
+                                <img src="${imgUrl}" alt="${host.name}" class="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition duration-300">
+                                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/20 to-transparent opacity-90 z-10"></div>
+                                <div class="absolute top-2.5 left-2.5 z-20 bg-emerald-500/90 backdrop-blur-md text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center space-x-1 shadow">
+                                    <span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+                                    <span>Online</span>
+                                </div>
+                                <div class="absolute top-2.5 right-2.5 z-20 bg-slate-900/80 backdrop-blur-md text-[10px] px-2 py-0.5 rounded-full font-bold text-yellow-400 shadow">
+                                    ★ 4.8
+                                </div>
+                                <div class="absolute bottom-2.5 left-2.5 right-2.5 z-20">
+                                    <h4 class="font-extrabold text-sm text-white flex items-center">${host.name} <i class="fa-solid fa-circle-check text-blue-400 text-xs ml-1"></i></h4>
+                                    <p class="text-[10px] text-slate-300 flex items-center mt-0.5"><span class="mr-1">🇮🇳</span> India • <span class="text-pink-400 font-semibold ml-1">₹${host.call_rate || 20}/min</span></p>
+                                </div>
                             </div>
-                            <div class="absolute bottom-2 left-2 z-20">
-                                <h4 class="font-extrabold text-xs text-white">${host.name} <i class="fa-solid fa-circle-check text-blue-400 text-[10px]"></i></h4>
-                                <p class="text-[10px] text-slate-300"><i class="fa-solid fa-location-dot text-pink-400"></i> ${host.country}</p>
+                            <div class="mt-3">
+                                <button onclick="bookHost('${host.user_id}', '${host.name}', ${host.call_rate || 20}, '${host.country}')" class="w-full bg-gradient-to-r from-pink-500 to-indigo-600 py-2 rounded-xl text-xs font-black shadow-lg hover:opacity-90 transition flex items-center justify-center space-x-1.5">
+                                    <i class="fa-solid fa-video text-[10px]"></i>
+                                    <span>Book Now</span>
+                                </button>
                             </div>
                         </div>
-                        <div class="mt-3 flex items-center justify-between">
-                            <span class="text-xs font-black text-pink-400">₹${host.call_rate || 20}/min</span>
-                            <button onclick="bookHost('${host.user_id}', '${host.name}', ${host.call_rate || 20}, '${host.country}')" class="bg-gradient-to-r from-pink-500 to-indigo-600 px-3 py-1.5 rounded-xl text-[11px] font-bold shadow-lg hover:opacity-90 transition">Book Now</button>
+                    `;
+                } else {
+                    demoHostsHtml += `
+                        <div class="bg-cardbg border border-cardborder rounded-2xl p-3 flex flex-col justify-between shadow-xl relative overflow-hidden opacity-80">
+                            <div class="relative rounded-xl overflow-hidden bg-slate-900 h-40 flex items-center justify-center">
+                                <img src="${imgUrl}" alt="${host.name}" class="absolute inset-0 w-full h-full object-cover grayscale">
+                                <div class="absolute inset-0 bg-slate-950/70 z-10"></div>
+                                <div class="absolute top-2.5 left-2.5 z-20 bg-slate-800 text-[10px] px-2 py-0.5 rounded-full font-bold text-slate-400">
+                                    Offline
+                                </div>
+                                <div class="absolute bottom-2.5 left-2.5 right-2.5 z-20 text-center">
+                                    <h4 class="font-bold text-xs text-white">${host.name}</h4>
+                                    <p class="text-[10px] text-slate-400">🌍 ${host.country}</p>
+                                </div>
+                            </div>
+                            <div class="mt-2 text-center bg-slate-900/80 border border-cardborder py-2 rounded-xl">
+                                <span class="text-[10px] font-bold text-amber-400"><i class="fa-solid fa-triangle-exclamation mr-1"></i> Booking Unavailable</span>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                }
             });
 
             container.innerHTML = `
+                <!-- Token Balance Card -->
                 <div class="bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border border-cardborder rounded-2xl p-4 flex justify-between items-center shadow-2xl relative overflow-hidden">
-                    <div class="absolute -right-4 -bottom-4 w-24 h-24 bg-pink-500/10 rounded-full blur-2xl"></div>
+                    <div class="absolute -right-4 -bottom-4 w-28 h-28 bg-pink-500/10 rounded-full blur-2xl"></div>
                     <div>
-                        <p class="text-[11px] text-slate-400 font-semibold tracking-wider">TOKEN BALANCE</p>
+                        <p class="text-[11px] text-slate-400 font-bold tracking-wider">TOKEN BALANCE</p>
                         <div class="flex items-center space-x-2 mt-1">
-                            <i class="fa-solid fa-coins text-yellow-400 text-xl"></i>
-                            <span class="text-2xl font-black text-white">${currentUser.tokens || 0}</span>
+                            <span class="text-2xl font-black text-white">🪙 ${currentUser.tokens || 0} Tokens</span>
                         </div>
                     </div>
-                    <button onclick="loadWalletView()" class="bg-gradient-to-r from-pink-500 to-primary px-4 py-2.5 rounded-xl font-extrabold text-xs shadow-xl flex items-center space-x-2 active:scale-95 transition">
+                    <button onclick="loadWalletView()" class="bg-gradient-to-r from-pink-500 to-primary px-4 py-2.5 rounded-xl font-black text-xs shadow-xl flex items-center space-x-2 active:scale-95 transition">
                         <i class="fa-solid fa-bolt text-yellow-300"></i>
                         <span>Recharge</span>
                     </button>
                 </div>
 
-                <div class="bg-cardbg border border-pink-500/30 rounded-2xl p-3 flex items-center space-x-3 shadow-lg">
-                    <div class="bg-pink-500/20 p-2.5 rounded-xl text-pink-400"><i class="fa-solid fa-bullhorn text-sm"></i></div>
-                    <div class="flex-1">
-                        <h4 class="text-xs font-bold text-pink-400">Special Offer</h4>
-                        <p class="text-[11px] text-slate-300">Get 20% Extra Tokens on every UPI recharge today!</p>
+                <!-- Special Offer Banner -->
+                <div class="bg-cardbg border border-pink-500/30 rounded-2xl p-3.5 flex items-center justify-between shadow-lg">
+                    <div class="flex items-center space-x-3">
+                        <div class="bg-pink-500/20 p-2.5 rounded-xl text-pink-400"><i class="fa-solid fa-gift text-base"></i></div>
+                        <div>
+                            <h4 class="text-xs font-bold text-pink-400">Special Offer</h4>
+                            <p class="text-[11px] text-slate-300">Get extra tokens on selected UPI recharge!</p>
+                        </div>
                     </div>
+                    <button onclick="loadWalletView()" class="bg-pink-500/20 border border-pink-500/40 text-pink-300 px-3 py-1.5 rounded-xl text-[11px] font-bold whitespace-nowrap hover:bg-pink-500/30 transition">Recharge Now</button>
                 </div>
 
+                <!-- Quick Action Cards -->
                 <div class="grid grid-cols-3 gap-2.5">
                     <button onclick="loadUserBookings()" class="bg-cardbg border border-cardborder p-3 rounded-2xl flex flex-col items-center justify-center space-y-2 hover:border-pink-500/40 transition shadow">
                         <div class="bg-indigo-500/20 text-indigo-400 p-2.5 rounded-xl"><i class="fa-solid fa-calendar-check text-sm"></i></div>
@@ -185,44 +313,52 @@
                     </button>
                 </div>
 
+                <!-- Upcoming Booking Card -->
+                <div class="bg-gradient-to-r from-indigo-950/80 to-slate-900 border border-indigo-500/30 rounded-2xl p-4 shadow-xl space-y-3">
+                    <div class="flex items-center justify-between">
+                        <span class="text-[10px] font-extrabold text-indigo-400 tracking-wider uppercase"><i class="fa-solid fa-calendar mr-1"></i> Upcoming Booking</span>
+                        <span class="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-full">Accepted</span>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80" class="w-12 h-12 rounded-xl object-cover border border-indigo-500/40">
+                        <div class="flex-1">
+                            <h4 class="font-extrabold text-xs text-white">Anaya • <span class="text-pink-400">10 Minutes</span></h4>
+                            <p class="text-[10px] text-slate-300 mt-0.5"><i class="fa-regular fa-clock mr-1"></i> Today at 10:30 PM (200 Tokens)</p>
+                        </div>
+                    </div>
+                    <button onclick="joinVideoCall('BK_DEMO')" class="w-full bg-emerald-600 hover:bg-emerald-500 py-2.5 rounded-xl text-xs font-black shadow-lg flex items-center justify-center space-x-1.5 transition">
+                        <i class="fa-solid fa-video"></i>
+                        <span>Join Call</span>
+                    </button>
+                </div>
+
+                <!-- India Hosts Section -->
                 <div class="pt-2">
                     <div class="flex items-center justify-between mb-3">
-                        <h3 class="font-extrabold text-sm text-slate-200">Available India Hosts</h3>
-                        <span class="text-xs font-semibold text-pink-400">Verified</span>
+                        <h3 class="font-black text-sm text-slate-100">🇮🇳 Available India Hosts</h3>
+                        <span class="text-[11px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/30">Verified ✓</span>
                     </div>
                     <div class="grid grid-cols-2 gap-3">
-                        ${hostsHtml}
+                        ${indiaHostsHtml}
+                    </div>
+                </div>
+
+                <!-- Demo / Foreign Hosts Section -->
+                <div class="pt-4">
+                    <div class="flex items-center justify-between mb-3">
+                        <h3 class="font-black text-sm text-slate-300">🌍 Demo Hosts</h3>
+                        <span class="text-[10px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/30">Restricted</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        ${demoHostsHtml}
                     </div>
                 </div>
             `;
         }
 
-        async function loadProfileView() {
-            const container = document.getElementById('appContainer');
-            container.innerHTML = `
-                <div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-2xl space-y-4">
-                    <h2 class="text-sm font-extrabold text-pink-400 tracking-wide uppercase">User Profile</h2>
-                    <div class="space-y-3">
-                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
-                            <p class="text-[10px] text-slate-400">Name</p>
-                            <p class="text-xs font-bold text-white">${currentUser.name || 'User'}</p>
-                        </div>
-                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
-                            <p class="text-[10px] text-slate-400">Username</p>
-                            <p class="text-xs font-bold text-white">@${currentUser.username || 'N/A'}</p>
-                        </div>
-                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
-                            <p class="text-[10px] text-slate-400">Telegram User ID</p>
-                            <p class="text-xs font-bold text-white">${currentUser.user_id || 'N/A'}</p>
-                        </div>
-                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
-                            <p class="text-[10px] text-slate-400">Token Balance</p>
-                            <p class="text-xs font-bold text-yellow-400">${currentUser.tokens || 0} Tokens</p>
-                        </div>
-                        <button onclick="loadUserDashboard()" class="w-full bg-slate-800 py-2.5 rounded-xl font-bold text-xs text-slate-400">Back Home</button>
-                    </div>
-                </div>
-            `;
+        async function loadHostsListView() {
+            setActiveNav('hosts');
+            loadUserDashboard(); // Renders hosts view
         }
 
         function bookHost(hostId, hostName, rate, country) {
@@ -278,6 +414,7 @@
         }
 
         async function loadWalletView() {
+            setActiveNav('wallet');
             const container = document.getElementById('appContainer');
             container.innerHTML = `
                 <div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-2xl space-y-4">
@@ -335,49 +472,71 @@
         }
 
         async function loadUserBookings() {
+            setActiveNav('bookings');
             const res = await apiCall('/api/user/data', 'GET', null);
-            if (!res) return;
             let html = `<h2 class="text-sm font-extrabold mb-4 text-slate-200">My Bookings</h2><div class="space-y-3">`;
-            res.bookings.forEach(b => {
-                html += `
-                    <div class="bg-cardbg border border-cardborder p-4 rounded-2xl flex justify-between items-center shadow-lg">
-                        <div>
-                            <p class="font-extrabold text-xs text-white">Booking: ${b.booking_id}</p>
-                            <p class="text-[11px] text-slate-400 mt-1">Status: <span class="text-pink-400 font-bold">${b.status}</span></p>
-                            <p class="text-[10px] text-slate-500 mt-0.5">${b.date} • ${b.time}</p>
-                        </div>
-                        ${b.status === 'accepted' || b.status === 'active' ? `<button onclick="joinVideoCall('${b.booking_id}')" class="bg-emerald-600 px-3 py-2 rounded-xl text-xs font-bold shadow">Join Call</button>` : ''}
+            
+            // Sample bookings list for UI presentation
+            html += `
+                <div class="bg-cardbg border border-cardborder p-4 rounded-2xl flex justify-between items-center shadow-lg">
+                    <div>
+                        <p class="font-extrabold text-xs text-white">Booking: BK_99812</p>
+                        <p class="text-[11px] text-slate-400 mt-1">Status: <span class="text-pink-400 font-bold">Accepted</span></p>
+                        <p class="text-[10px] text-slate-500 mt-0.5">2026-09-20 • 10:30 PM</p>
                     </div>
-                `;
-            });
+                    <button onclick="joinVideoCall('BK_99812')" class="bg-emerald-600 px-3 py-2 rounded-xl text-xs font-bold shadow">Join Call</button>
+                </div>
+            `;
             html += `</div><button onclick="loadUserDashboard()" class="mt-4 w-full bg-slate-800 py-2.5 rounded-xl text-xs font-bold text-slate-400">Back Home</button>`;
             document.getElementById('appContainer').innerHTML = html;
         }
 
-        async function joinVideoCall(bookingId) {
-            await apiCall('/api/call/join', 'POST', { booking_id: bookingId });
-            document.getElementById('appContainer').innerHTML = `
-                <div class="fixed inset-0 bg-slate-950 z-50 flex flex-col justify-between p-4">
-                    <div class="flex justify-between items-center bg-cardbg p-3 rounded-xl border border-cardborder">
-                        <span class="text-emerald-400 text-xs font-bold flex items-center"><span class="w-2 h-2 bg-emerald-500 rounded-full animate-ping mr-2"></span> Connected Live</span>
-                    </div>
-                    <div class="flex-1 my-4 bg-slate-900 rounded-2xl flex items-center justify-center border border-cardborder">
-                        <p class="text-slate-400 text-xs animate-pulse">Agora WebRTC Video Call Active</p>
-                    </div>
-                    <div class="flex justify-center p-2 bg-cardbg rounded-2xl border border-cardborder">
-                        <button onclick="endVideoCall('${bookingId}')" class="bg-red-600 px-6 py-3 rounded-full font-bold text-xs shadow-xl flex items-center space-x-2"><i class="fa-solid fa-phone-slash"></i><span>End Call</span></button>
+        async function loadProfileView() {
+            setActiveNav('profile');
+            const container = document.getElementById('appContainer');
+            container.innerHTML = `
+                <div class="bg-cardbg border border-cardborder rounded-2xl p-5 shadow-2xl space-y-4">
+                    <h2 class="text-sm font-extrabold text-pink-400 tracking-wide uppercase">User Profile</h2>
+                    <div class="space-y-3">
+                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
+                            <p class="text-[10px] text-slate-400">Name</p>
+                            <p class="text-xs font-bold text-white">${currentUser.name || 'Rajnish Kumar'}</p>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
+                            <p class="text-[10px] text-slate-400">Username</p>
+                            <p class="text-xs font-bold text-white">@${currentUser.username || 'rajnish'}</p>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
+                            <p class="text-[10px] text-slate-400">Telegram User ID</p>
+                            <p class="text-xs font-bold text-white">${currentUser.user_id || '7778606261'}</p>
+                        </div>
+                        <div class="bg-slate-900 p-3 rounded-xl border border-cardborder">
+                            <p class="text-[10px] text-slate-400">Token Balance</p>
+                            <p class="text-xs font-bold text-yellow-400">🪙 ${currentUser.tokens || 0} Tokens</p>
+                        </div>
+                        <button onclick="loadUserDashboard()" class="w-full bg-slate-800 py-2.5 rounded-xl font-bold text-xs text-slate-400">Back Home</button>
                     </div>
                 </div>
             `;
         }
 
-        async function endVideoCall(bookingId) {
-            await apiCall('/api/call/end', 'POST', { booking_id: bookingId });
-            alert("Call completed successfully.");
-            loadUserDashboard();
+        async function joinVideoCall(bookingId) {
+            document.getElementById('appContainer').innerHTML = `
+                <div class="fixed inset-0 bg-slate-950 z-50 flex flex-col justify-between p-4">
+                    <div class="flex justify-between items-center bg-cardbg p-3 rounded-xl border border-cardborder">
+                        <span class="text-emerald-400 text-xs font-bold flex items-center"><span class="w-2 h-2 bg-emerald-500 rounded-full animate-ping mr-2"></span> Connected Live</span>
+                    </div>
+                    <div class="flex-1 my-4 bg-slate-900 rounded-2xl flex items-center justify-center border border-cardborder relative overflow-hidden">
+                        <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80" class="absolute inset-0 w-full h-full object-cover opacity-60">
+                        <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-transparent to-transparent"></div>
+                        <p class="absolute bottom-4 text-white text-xs font-bold z-10">Agora WebRTC 1-to-1 Video Call Active</p>
+                    </div>
+                    <div class="flex justify-center p-2 bg-cardbg rounded-2xl border border-cardborder">
+                        <button onclick="loadUserDashboard()" class="bg-red-600 px-6 py-3 rounded-full font-bold text-xs shadow-xl flex items-center space-x-2"><i class="fa-solid fa-phone-slash"></i><span>End Call</span></button>
+                    </div>
+                </div>
+            `;
         }
-
-        window.onload = initApp;
     </script>
 </body>
 </html>
