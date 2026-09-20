@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
+from bson import ObjectId
 
 try:
     from agora_token_builder import RtcTokenBuilder, Role_Publisher
@@ -71,6 +72,7 @@ RECHARGE_PLANS = [
     {"rupees": 1000, "tokens": 1000},
     {"rupees": 1500, "tokens": 1500},
     {"rupees": 2000, "tokens": 2000},
+    {"rupees": 5000, "tokens": 5000},
 ]
 
 DUMMY_HOSTS = [
@@ -83,6 +85,37 @@ app = FastAPI(title="Vynora Live 1v1", version="3.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 _verified_web_user = contextvars.ContextVar("verified_web_user", default=None)
+
+def clean_json(value):
+    """Convert Mongo/Python values into JSON-safe values before FastAPI serializes them."""
+    if isinstance(value, ObjectId):
+        return str(value)
+    if isinstance(value, datetime):
+        return value.isoformat()
+    if isinstance(value, dict):
+        return {str(k): clean_json(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set)):
+        return [clean_json(v) for v in value]
+    return value
+
+def private_host_view(h):
+    if not h:
+        return None
+    return clean_json(h)
+
+def public_host_view(h, u=None):
+    u = u or {}
+    return {
+        "user_id": int(h.get("user_id") or u.get("user_id")),
+        "name": h.get("name") or u.get("name", "Host"),
+        "username": h.get("username") or u.get("username", ""),
+        "photo_url": public_photo_url(int(h.get("user_id") or u.get("user_id")), u) or h.get("photo_url", ""),
+        "online": bool(h.get("online")),
+        "country": h.get("country", "IN"),
+        "country_name": h.get("country_name", "India"),
+        "demo": bool(h.get("demo", False)),
+        "status": h.get("status")
+    }
 
 def verify_telegram_init_data(init_data: str):
     if not BOT_TOKEN or not init_data:
@@ -406,7 +439,7 @@ class CallEndModel(BaseModel):
 
 @app.get("/")
 def root():
-    return FileResponse(BASE / "index.html")
+    return FileResponse(BASE / "index.html", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
 
 @app.get("/api/notifications/{user_id}")
 def notifications(user_id:int):
@@ -420,7 +453,7 @@ def notifications(user_id:int):
 def notifications_read(user_id:int):
     require_user(user_id); col("notifications").update_many({"user_id":uid(user_id),"read":False},{"$set":{"read":True}}); return {"status":"success"}
 
-@app.api_route("/api/health", methods=["GET", "HEAD"])
+@app.get("/api/health")
 def health():
     mongo_ok = False
     if mongo:
@@ -445,47 +478,10 @@ def start(data: StartModel):
 
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
-    # Only return JSON-safe fields. MongoDB's internal _id/ObjectId must never
-    # leak into API responses (it causes FastAPI jsonable_encoder failures).
     u = require_user(user_id)
     h = host_doc(user_id)
-
-    host_data = None
-    if h:
-        # This is the authenticated user's own host record, so the host can
-        # see their private earnings in their own Mini App profile.
-        host_data = {
-            "user_id": int(h.get("user_id", user_id)),
-            "name": h.get("name") or u.get("name", "Host"),
-            "username": h.get("username") or u.get("username", ""),
-            "phone": h.get("phone", ""),
-            "age": h.get("age"),
-            "bio": h.get("bio", ""),
-            "photo_url": public_photo_url(user_id, u) or h.get("photo_url", ""),
-            "online": bool(h.get("online", False)),
-            "country": h.get("country", "IN"),
-            "country_name": h.get("country_name", "India"),
-            "status": h.get("status", "pending"),
-            "demo": bool(h.get("demo", False)),
-            "total_tokens": int(h.get("total_tokens", 0) or 0),
-            "available_earnings": float(h.get("available_earnings", 0) or 0),
-            "gift_tokens": float(h.get("gift_tokens", 0) or 0),
-            "filter_name": h.get("filter_name", "natural"),
-        }
-
-    return {
-        "user": {
-            "user_id": int(u["user_id"]),
-            "name": u.get("name"),
-            "username": u.get("username"),
-            "tokens": int(u.get("tokens", 0) or 0),
-            "country": u.get("country", "IN"),
-            "photo_url": public_photo_url(user_id, u),
-            "demo_used": bool(u.get("demo_used", False)),
-        },
-        "host": host_data,
-        "is_admin": is_admin(user_id),
-    }
+    return {"user": {"user_id": int(u["user_id"]), "name": u.get("name"), "username": u.get("username"), "tokens": int(u.get("tokens",0)), "country": u.get("country", "IN"), "photo_url": public_photo_url(user_id, u),
+            "demo_used": bool(u.get("demo_used", False))}, "host": private_host_view(h), "is_admin": is_admin(user_id)}
 
 @app.post("/api/profile/photo")
 def set_photo(data: PhotoModel):
@@ -543,38 +539,13 @@ def hosts():
     docs.sort(key=lambda h: (bool(h.get("demo", False)), not bool(h.get("online", False)), -int(h.get("updated_at", 0))))
     for h in docs:
         u = user_doc(h["user_id"]) or {}
-        # Public host list: NEVER expose host earnings/gift totals to other users.
-        rows.append({
-            "user_id": int(h["user_id"]),
-            "name": h.get("name") or u.get("name", "Host"),
-            "username": h.get("username") or u.get("username", ""),
-            "photo_url": public_photo_url(h["user_id"], u) or h.get("photo_url", ""),
-            "online": bool(h.get("online", False)),
-            "country": h.get("country", "IN"),
-            "country_name": h.get("country_name", "India"),
-            "demo": bool(h.get("demo", False)),
-            "status": h.get("status"),
-        })
+        rows.append(public_host_view(h, u))
     return rows
 
 @app.get("/api/host/{host_id}")
 def host_profile(host_id: int):
     h = host_or_404(host_id); u = user_doc(host_id) or {}
-    # Public host profile: earnings/gifts are private and must not be exposed.
-    return {
-        "user_id": int(host_id),
-        "name": h.get("name") or u.get("name", "Host"),
-        "username": h.get("username") or u.get("username", ""),
-        "photo_url": public_photo_url(host_id, u) or h.get("photo_url", ""),
-        "online": bool(h.get("online", False)),
-        "country": h.get("country", "IN"),
-        "country_name": h.get("country_name", "India"),
-        "demo": bool(h.get("demo", False)),
-        "filter_name": h.get("filter_name", "natural"),
-        "status": h.get("status"),
-        "age": h.get("age"),
-        "bio": h.get("bio", ""),
-    }
+    return {**public_host_view(h, u), "filter_name": h.get("filter_name","natural")}
 
 @app.post("/api/host/apply")
 def host_apply(data: HostApplyModel):
@@ -822,7 +793,7 @@ def pending_call(user_id:int):
     }, sort=[("scheduled_start",1)])
     if not b:
         return {"active":False}
-    b["_id"]=str(b["_id"])
+    b=clean_json(b)
     return {"active":True,"booking":b}
 
 
@@ -981,7 +952,7 @@ def join_direct_call(call_id:str, user_id:int):
     d=col("direct_calls").find_one({"call_id":call_id})
     if not d or uid(user_id) not in (d.get("admin_id"),d.get("target_id")): raise HTTPException(403,"Not allowed")
     col("direct_calls").update_one({"call_id":call_id},{"$set":{"status":"connected","joined_at":now_ts()}})
-    return {"status":"success","call":d}
+    return {"status":"success","call":clean_json(d)}
 
 
 @app.get("/api/direct-call/pending/{target_id}")
@@ -990,7 +961,7 @@ def pending_direct_call(target_id:int):
     d=col("direct_calls").find_one({"target_id":uid(target_id),"status":{"$in":["ringing","connected"]}},sort=[("created_at",-1)])
     if not d: return {"active":False}
     d["_id"]=str(d["_id"])
-    return {"active":True,"call":d}
+    return {"active":True,"call":clean_json(d)}
 
 @app.post("/api/direct-call/end/{call_id}")
 def end_direct_call(call_id:str, user_id:int):
@@ -1006,7 +977,7 @@ def end_direct_call(call_id:str, user_id:int):
 @app.get("/api/admin/direct-calls/{admin_id}")
 def direct_calls(admin_id:int):
     if not is_admin(admin_id): raise HTTPException(403,"Admin only")
-    return list(col("direct_calls").find({"admin_id":uid(admin_id)}).sort("created_at",-1).limit(20))
+    return clean_json(list(col("direct_calls").find({"admin_id":uid(admin_id)}).sort("created_at",-1).limit(20)))
 
 @app.get("/api/admin/overview/{admin_id}")
 def admin_overview(admin_id:int):
