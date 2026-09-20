@@ -114,7 +114,9 @@ def public_host_view(h, u=None):
         "country": h.get("country", "IN"),
         "country_name": h.get("country_name", "India"),
         "demo": bool(h.get("demo", False)),
-        "status": h.get("status")
+        "status": h.get("status"),
+        "verified": h.get("status") == "approved",
+        "verification_label": "Vynora Verified Host" if h.get("status") == "approved" else ""
     }
 
 def verify_telegram_init_data(init_data: str):
@@ -1082,7 +1084,7 @@ def admin_command(chat_id, from_id, text):
             tg_send(chat_id,f"✅ Token updated for <code>{target}</code>")
             notify_full(f"🪙 ADMIN TOKEN ACTION\nAdmin: {from_id}\nUser: {target}\nCommand: {cmd}\nAmount: {amount}")
         elif cmd in ("/approvehost","/addhost") and args:
-            target=int(args[0]); ensure_user(target); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":"approved","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>"); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आप bookings receive कर सकते हैं।"); notify_full(f"🎙️ HOST APPROVED\nAdmin: {from_id}\nHost: {target}\nTeam Group: Host approved and ready for monitoring")
+            target=int(args[0]); ensure_user(target); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":"approved","verified":True,"verification_label":"Vynora Verified Host","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>"); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आप bookings receive कर सकते हैं।"); notify_full(f"🎙️ HOST APPROVED\nAdmin: {from_id}\nHost: {target}\nTeam Group: Host approved and ready for monitoring")
         elif cmd in ("/rejecthost","/removehost") and args:
             target=int(args[0]); col("hosts").update_one({"user_id":target},{"$set":{"status":"rejected","online":False}}); tg_send(chat_id,f"❌ Host rejected/removed: <code>{target}</code>"); notify_full(f"❌ HOST REJECTED\nAdmin: {from_id}\nHost: {target}")
         elif cmd in ("/ban","/block","/banhost") and args:
@@ -1191,7 +1193,7 @@ def handle_update(upd):
             if action in ("approve_host","reject_host") and from_id in ADMIN_IDS:
                 target=int(key); ensure_user(target)
                 status="approved" if action=="approve_host" else "rejected"
-                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
+                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"verified":status=="approved","verification_label":"Vynora Verified Host" if status=="approved" else "","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
                 tg_send(chat_id,f"✅ Host {status}: <code>{target}</code>"); notify_user(target, f"{'🎙️ Host approved' if status=='approved' else '❌ Host application rejected'}."); notify_full(f"🎙️ HOST {status.upper()}\nAdmin: {from_id}\nHost: {target}\nTeam Action: Host approval status updated")
             elif action in ("approve_recharge","reject_recharge") and from_id in ADMIN_IDS:
                 status="approved" if action=="approve_recharge" else "rejected"
