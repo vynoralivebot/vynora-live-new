@@ -1,5 +1,5 @@
 import os, time, uuid, threading, logging, base64, mimetypes, hmac, hashlib, json, urllib.parse, contextvars
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Optional
 
@@ -146,7 +146,7 @@ def verify_telegram_init_data(init_data: str):
 @app.middleware("http")
 async def telegram_webapp_auth(request: Request, call_next):
     path=request.url.path
-    if path.startswith("/api/") and not path.startswith("/api/profile/photo/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info"):
+    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info"):
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
         if verified is None:
             return Response(content=json.dumps({"detail":"Valid Telegram Mini App session is required"}), status_code=401, media_type="application/json")
@@ -177,7 +177,8 @@ def esc_html(value):
 
 
 def iso(ts):
-    return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+    # Vynora Live timestamps are displayed in India Standard Time (IST).
+    return datetime.fromtimestamp(int(ts), tz=timezone(timedelta(hours=5, minutes=30))).isoformat()
 
 
 def uid(v):
@@ -322,7 +323,7 @@ def create_notification(user_id, kind, title, message, data=None):
         log.warning("notification create failed: %s", e)
 
 
-def notify_user(user_id, text, buttons=None):
+def notify_user(user_id, text, buttons=None, auto_delete_seconds=None):
     create_notification(user_id, "telegram", "Vynora Live", text, {})
     if not BOT_TOKEN:
         return False
@@ -331,6 +332,19 @@ def notify_user(user_id, text, buttons=None):
         payload["reply_markup"] = {"inline_keyboard": buttons}
     try:
         r = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload, timeout=15)
+        if r.ok and auto_delete_seconds is not None:
+            try:
+                body = r.json()
+                message_id = (body.get("result") or {}).get("message_id")
+                if message_id:
+                    def _delete_later(chat_id=uid(user_id), mid=message_id, delay=int(auto_delete_seconds)):
+                        try:
+                            tg_delete_message(chat_id, mid)
+                        except Exception as e:
+                            log.warning("auto-delete notification failed: %s", e)
+                    threading.Timer(max(1, int(auto_delete_seconds)), _delete_later).start()
+            except Exception as e:
+                log.warning("notification auto-delete setup failed: %s", e)
         return r.ok
     except Exception as e:
         log.warning("telegram user notify failed: %s", e)
@@ -1462,8 +1476,10 @@ def finalize_call(booking_id, ended_at=None, reason="completed"):
     report=(f"📊 <b>1v1 CALL COMPLETED</b>\n\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nBooked: {b['minutes']} min\nActual Connected: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins\nHost 60%: ₹{host_earned:.2f}\nPlatform 40%: ₹{platform_earned:.2f}\nStart: {iso(start)}\nEnd: {iso(end)}")
     notify_request(report)
     notify_full(report)
-    notify_user(b["user_id"],f"🟢 Call completed.\nActual connected time: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins")
-    notify_user(b["host_id"],f"💰 Call completed.\nActual connected time: {round(actual/60,2)} min\nYour earning: ₹{host_earned:.2f}")
+    # Completion notifications remain visible briefly so both sides can read them,
+    # then Telegram removes them automatically.
+    notify_user(b["user_id"],f"🟢 Call completed.\nActual connected time: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins", auto_delete_seconds=30)
+    notify_user(b["host_id"],f"💰 Call completed.\nActual connected time: {round(actual/60,2)} min\nYour earning: ₹{host_earned:.2f}", auto_delete_seconds=30)
     pending=col("bookings").find({"host_id":b["host_id"],"status":"pending","busy_at_request":True})
     host_name=(host_doc(b["host_id"]) or {}).get("name","Host")
     for pb in pending:
