@@ -16,7 +16,11 @@ from pymongo import MongoClient, ReturnDocument
 from bson import ObjectId
 
 try:
-    from agora_token_builder import RtcTokenBuilder, Role_Publisher
+    from agora_token_builder import RtcTokenBuilder
+    # agora-token-builder exposes the publisher role as value 1.
+    # Keep this independent from the package export list so a missing
+    # Role_Publisher symbol does not make the whole import fail.
+    Role_Publisher = 1
 except Exception:
     RtcTokenBuilder = None
     Role_Publisher = 1
