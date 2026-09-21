@@ -77,7 +77,7 @@ function openModal(html){$('sheet').innerHTML=html;$('modal').classList.add('sho
 function closeModal(){$('modal').classList.remove('show');$('sheet').innerHTML=''}
 $('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()})
 function go(page){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(page).classList.add('active');document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===page));if(page==='hosts')loadHosts();if(page==='bookings')loadBookings();if(page==='wallet')renderWallet();if(page==='profile')renderProfile();window.scrollTo(0,0)}
-function photo(url,name){const u=url||'';return u?`<img class="avatar" src="${esc(u)}" loading="lazy" onerror="this.onerror=null;this.outerHTML='<div class=avatar>👤</div>'">`:`<div class="avatar">${esc((name||'U').slice(0,1).toUpperCase())}</div>`}
+function photo(url,name){const u=url||'';return u?`<img class="avatar" src="${esc(u)}" loading="eager" onerror="this.onerror=null;this.outerHTML='<div class=avatar>👤</div>'">`:`<div class="avatar">${esc((name||'U').slice(0,1).toUpperCase())}</div>`}
 
 async function boot(){
   if(!initData){toast('Telegram Mini App के अंदर से खोलें');return}
@@ -152,7 +152,7 @@ async function startPrivateCall(id,b){
 }
 async function initAgora(channel){
   if(!window.AgoraRTC)throw new Error('Agora SDK load नहीं हुआ');
-  await cleanupAgora(false);let st;try{st=await api('/api/agora-status')}catch(e){st=null}if(st&&!st.configured){throw new Error('Agora server configuration missing. Render में AGORA_APP_ID और AGORA_APP_CERTIFICATE check करें.')}const td=await api('/api/agora-token?channelName='+encodeURIComponent(channel)+'&uid='+me.user_id+'&role=publisher&booking_id='+encodeURIComponent(currentCallBooking||''));
+  await cleanupAgora(false);let st;try{st=await api('/api/agora-status')}catch(e){st=null}if(st&&!st.configured){throw new Error('Agora setup incomplete: '+(st.message||'Render environment variables check करें'))}let td;try{td=await api('/api/agora-token?channelName='+encodeURIComponent(channel)+'&uid='+me.user_id+'&role=publisher&booking_id='+encodeURIComponent(currentCallBooking||''))}catch(e){throw new Error(errorText(e.message))}
   agoraClient=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
   agoraClient.on('user-published',async(user,mediaType)=>{try{await agoraClient.subscribe(user,mediaType);if(mediaType==='video'&&user.videoTrack)user.videoTrack.play('remoteVideo');if(mediaType==='audio'&&user.audioTrack)user.audioTrack.play()}catch(e){}});
   agoraClient.on('user-unpublished',()=>{});
