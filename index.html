@@ -156,7 +156,7 @@ async function initAgora(channel){
   agoraClient=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
   agoraClient.on('user-published',async(user,mediaType)=>{try{await agoraClient.subscribe(user,mediaType);if(mediaType==='video'&&user.videoTrack)user.videoTrack.play('remoteVideo');if(mediaType==='audio'&&user.audioTrack)user.audioTrack.play()}catch(e){}});
   agoraClient.on('user-unpublished',()=>{});
-  await agoraClient.join(td.appId,channel,td.token,Number(me.user_id));
+  await agoraClient.join(td.appId,channel,td.token,Number(td.uid));
   let mic,cam;try{mic=await AgoraRTC.createMicrophoneAudioTrack();cam=await AgoraRTC.createCameraVideoTrack()}catch(e){throw new Error('Camera/Microphone permission दें और फिर Call Join करें')}localTracks=[mic,cam];micOn=true;camOn=true;cam.play('localVideo');await agoraClient.publish([mic,cam]);$('micBtn').textContent='🎙️';$('camBtn').textContent='📹';
 }
 function startCallPolling(id){clearInterval(callPoll);callPoll=setInterval(async()=>{try{const d=await api('/api/call/state/'+id+'?user_id='+me.user_id);const b=d.booking;if(b.call_started_at){$('callState').textContent='Connected • timer active';const elapsed=Math.floor(Date.now()/1000)-Number(b.call_started_at);$('callTimer').textContent=fmtDur(elapsed);if(b.scheduled_end&&Date.now()/1000>=Number(b.scheduled_end)){await leaveCall(true)}}else if(b.user_joined_at&&b.host_joined_at){$('callState').textContent='Starting timer…'}else{$('callState').textContent='Waiting for both participants…'}}catch(e){}},1000)}
