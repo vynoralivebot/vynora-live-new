@@ -543,8 +543,14 @@ async def upload_profile_photo(
 
 @app.get("/api/profile/photo/{user_id}")
 def get_profile_photo(user_id: int):
+    # Read from users first, then hosts. This fixes the common case where the
+    # upload was synced to the host document but the public image route only
+    # looked at users.
     d = user_doc(user_id) or {}
     data_uri = d.get("photo_data", "")
+    if not data_uri.startswith("data:image/"):
+        h = host_doc(user_id) or {}
+        data_uri = h.get("photo_data", "")
     if not data_uri.startswith("data:image/"):
         raise HTTPException(404, "Profile photo not found")
     try:
@@ -552,7 +558,8 @@ def get_profile_photo(user_id: int):
         content_type = header.split(";", 1)[0].replace("data:", "") or "image/jpeg"
         raw = base64.b64decode(encoded)
         from fastapi.responses import Response
-        return Response(content=raw, media_type=content_type, headers={"Cache-Control": "public, max-age=300"})
+        # Do not let the Telegram WebView keep an old avatar in cache.
+        return Response(content=raw, media_type=content_type, headers={"Cache-Control": "no-store, max-age=0"})
     except Exception:
         raise HTTPException(500, "Invalid profile photo")
 
@@ -873,11 +880,21 @@ def agora_token(channelName: str, uid: int, role: str="publisher", booking_id: s
 
 @app.get("/api/agora-status")
 def agora_status():
+    app_ok = bool(AGORA_APP_ID)
+    cert_ok = bool(AGORA_APP_CERTIFICATE)
+    builder_ok = bool(RtcTokenBuilder)
+    configured = app_ok and cert_ok and builder_ok
+    missing = []
+    if not app_ok: missing.append("AGORA_APP_ID")
+    if not cert_ok: missing.append("AGORA_APP_CERTIFICATE")
+    if not builder_ok: missing.append("agora-token-builder")
     return {
-        "configured": bool(AGORA_APP_ID and AGORA_APP_CERTIFICATE and RtcTokenBuilder),
-        "app_id_present": bool(AGORA_APP_ID),
-        "certificate_present": bool(AGORA_APP_CERTIFICATE),
-        "token_builder_present": bool(RtcTokenBuilder),
+        "configured": configured,
+        "app_id_present": app_ok,
+        "certificate_present": cert_ok,
+        "token_builder_present": builder_ok,
+        "missing": missing,
+        "message": "Agora ready" if configured else "Missing: " + ", ".join(missing)
     }
 
 @app.get("/api/upi-qr")
