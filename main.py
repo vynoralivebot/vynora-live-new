@@ -42,6 +42,7 @@ AGORA_APP_CERTIFICATE = (os.getenv("AGORA_APP_CERTIFICATE") or os.getenv("AGORA_
 UPI_ID = os.getenv("UPI_ID", "vynoralive@slc")
 UPI_NAME = os.getenv("UPI_NAME", "Rajnish Kumar")
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://t.me/VynoraSupport")
+TELEGRAM_USER_MESSAGE_AUTO_DELETE_SECONDS = int(os.getenv("TELEGRAM_USER_MESSAGE_AUTO_DELETE_SECONDS", "90"))
 
 BOOKING_PLANS = [
     {"minutes": 1, "tokens": 20, "name": "Demo", "demo": True},
@@ -69,8 +70,8 @@ GIFT_PLANS = [
     {"id":"heart","name":"Heart","emoji":"❤️","tokens":20},
     {"id":"coffee","name":"Coffee","emoji":"☕","tokens":50},
     {"id":"diamond","name":"Diamond","emoji":"💎","tokens":100},
-    {"id":"crown","name":"Crown","emoji":"👑","tokens":250},
-    {"id":"rocket","name":"Rocket","emoji":"🚀","tokens":500},
+    {"id":"teddy","name":"Teddy","emoji":"🧸","tokens":150},
+    {"id":"crown","name":"Crown","emoji":"👑","tokens":200},
 ]
 RECHARGE_PLANS = [
     {"rupees": 50, "tokens": 50},
@@ -146,7 +147,7 @@ def verify_telegram_init_data(init_data: str):
 @app.middleware("http")
 async def telegram_webapp_auth(request: Request, call_next):
     path=request.url.path
-    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info"):
+    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info") and not path.startswith("/api/profile/photo/"):
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
         if verified is None:
             return Response(content=json.dumps({"detail":"Valid Telegram Mini App session is required"}), status_code=401, media_type="application/json")
@@ -322,16 +323,35 @@ def create_notification(user_id, kind, title, message, data=None):
         log.warning("notification create failed: %s", e)
 
 
-def notify_user(user_id, text, buttons=None):
+def _auto_delete_telegram_user_message(chat_id, message_id, delay=None):
+    delay = TELEGRAM_USER_MESSAGE_AUTO_DELETE_SECONDS if delay is None else int(delay)
+    if delay <= 0 or not message_id:
+        return
+    def _delete():
+        try:
+            tg_delete_message(chat_id, message_id)
+        except Exception as e:
+            log.warning("auto delete telegram user message failed: %s", e)
+    threading.Timer(delay, _delete).start()
+
+def notify_user(user_id, text, buttons=None, auto_delete_seconds=None):
     create_notification(user_id, "telegram", "Vynora Live", text, {})
     if not BOT_TOKEN:
         return False
-    payload = {"chat_id": uid(user_id), "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
+    chat_id = uid(user_id)
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     if buttons:
         payload["reply_markup"] = {"inline_keyboard": buttons}
     try:
         r = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload, timeout=15)
-        return r.ok
+        if not r.ok:
+            return False
+        try:
+            message_id = (r.json().get("result") or {}).get("message_id")
+            _auto_delete_telegram_user_message(chat_id, message_id, auto_delete_seconds)
+        except Exception:
+            pass
+        return True
     except Exception as e:
         log.warning("telegram user notify failed: %s", e)
         return False
@@ -657,24 +677,46 @@ def send_gift(data: GiftModel):
         raise HTTPException(400, "Invalid gift")
     if (u.get("country") or "IN").upper() != (h.get("country") or "IN").upper():
         raise HTTPException(403, "Gifts are available only for India-based host/user pairs")
+    if not data.booking_id:
+        raise HTTPException(400, "Gift is available only during an active call")
+    b = col("bookings").find_one({"booking_id": data.booking_id})
+    if not b or uid(data.user_id) != b.get("user_id") or uid(data.host_id) != b.get("host_id"):
+        raise HTTPException(403, "Invalid call participants")
+    if b.get("status") != "calling" or not b.get("call_started_at"):
+        raise HTTPException(400, "Gift is available only when the call is connected")
     cost = int(gift["tokens"])
     changed = col("users").update_one({"user_id":uid(data.user_id),"tokens":{"$gte":cost}}, {"$inc":{"tokens":-cost}})
     if changed.modified_count != 1:
         raise HTTPException(400, "Insufficient tokens")
     host_earned = round(cost * HOST_SHARE, 2)
-    gift_id = str(uuid.uuid4())
+    gift_record_id = str(uuid.uuid4())
+    created = now_ts()
     col("gifts").insert_one({
-        "gift_id":gift_id,"user_id":uid(data.user_id),"host_id":uid(data.host_id),
+        "gift_id":gift_record_id,"user_id":uid(data.user_id),"host_id":uid(data.host_id),
         "gift_type":gift["id"],"gift_name":gift["name"],"emoji":gift["emoji"],
         "tokens":cost,"host_earned":host_earned,"platform_earned":round(cost*(1-HOST_SHARE),2),
-        "booking_id":data.booking_id or "","created_at":now_ts()
+        "booking_id":data.booking_id,"created_at":created
     })
-    col("hosts").update_one({"user_id":uid(data.host_id)}, {"$inc":{"gift_tokens":host_earned,"total_tokens":host_earned,"available_earnings":host_earned}, "$set":{"updated_at":now_ts()}})
+    col("hosts").update_one({"user_id":uid(data.host_id)}, {"$inc":{"gift_tokens":host_earned,"total_tokens":host_earned,"available_earnings":host_earned}, "$set":{"updated_at":created}})
     sender = u.get("name", "User"); host_name = h.get("name", "Host")
     notify_user(data.user_id, f"🎁 {gift['emoji']} <b>{gift['name']} sent!</b>\n{host_name} को {cost} Coins का gift भेजा गया।")
     notify_user(data.host_id, f"🎁 <b>New Gift Received!</b>\n\n{sender} ने आपको {gift['emoji']} {gift['name']} भेजा।\nValue: {cost} Coins\nYour earning: {host_earned:.2f} Coins")
-    notify_full(f"🎁 GIFT SENT\nUser: {data.user_id}\nHost: {data.host_id}\nGift: {gift['emoji']} {gift['name']}\nValue: {cost} Coins\nHost earning: {host_earned:.2f}\nBooking: {data.booking_id or '-'}")
-    return {"status":"success","gift":gift,"host_earned":host_earned}
+    notify_full(f"🎁 GIFT SENT\nUser: {data.user_id}\nHost: {data.host_id}\nGift: {gift['emoji']} {gift['name']}\nValue: {cost} Coins\nHost earning: {host_earned:.2f}\nBooking: {data.booking_id}")
+    return {"status":"success","gift":gift,"host_earned":host_earned,"gift_id":gift_record_id}
+
+@app.get("/api/call/gifts/{booking_id}")
+def call_gifts(booking_id: str, user_id: int):
+    require_user(user_id)
+    b = col("bookings").find_one({"booking_id": booking_id})
+    if not b or uid(user_id) not in (b.get("user_id"), b.get("host_id")):
+        raise HTTPException(403, "Not allowed")
+    rows = []
+    for g in col("gifts").find({"booking_id": booking_id}).sort("created_at", -1).limit(20):
+        g["_id"] = str(g["_id"])
+        g["user_id"] = int(g.get("user_id", 0))
+        g["host_id"] = int(g.get("host_id", 0))
+        rows.append(g)
+    return {"gifts": rows}
 
 @app.get("/api/bookings")
 def bookings(user_id: int, role: str = "user"):
@@ -787,7 +829,7 @@ def call_join(data: CallJoinModel):
     if uid(data.user_id) not in (b["user_id"],b["host_id"]): raise HTTPException(403,"Not a participant")
     if b.get("status") not in ("scheduled","calling"): raise HTTPException(400,"Call is not scheduled")
     if b.get("scheduled_start") and now_ts() < int(b["scheduled_start"]): raise HTTPException(400,"Call is not ready yet")
-    return {"status":"authorized","booking":{k:b.get(k) for k in ["booking_id","minutes","tokens","status","call_started_at","scheduled_end","user_joined_at","host_joined_at"]}}
+    return {"status":"authorized","booking":{k:b.get(k) for k in ["booking_id","user_id","host_id","minutes","tokens","status","call_started_at","scheduled_end","user_joined_at","host_joined_at"]}}
 
 
 @app.post("/api/call/connect")
