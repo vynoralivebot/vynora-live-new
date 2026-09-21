@@ -146,7 +146,7 @@ def verify_telegram_init_data(init_data: str):
 @app.middleware("http")
 async def telegram_webapp_auth(request: Request, call_next):
     path=request.url.path
-    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info"):
+    if path.startswith("/api/") and not path.startswith("/api/profile/photo/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info"):
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
         if verified is None:
             return Response(content=json.dumps({"detail":"Valid Telegram Mini App session is required"}), status_code=401, media_type="application/json")
@@ -177,7 +177,7 @@ def esc_html(value):
 
 
 def iso(ts):
-    # Vynora Live timestamps are displayed in India Standard Time (IST).
+    # Display Telegram/Vynora timestamps in India Standard Time (IST).
     return datetime.fromtimestamp(int(ts), tz=timezone(timedelta(hours=5, minutes=30))).isoformat()
 
 
@@ -323,7 +323,38 @@ def create_notification(user_id, kind, title, message, data=None):
         log.warning("notification create failed: %s", e)
 
 
-def notify_user(user_id, text, buttons=None, auto_delete_seconds=None):
+def _track_booking_message(booking_id, user_id, message_id):
+    if not booking_id or not message_id:
+        return
+    try:
+        col("bookings").update_one(
+            {"booking_id": str(booking_id)},
+            {"$addToSet": {"telegram_user_messages": {
+                "chat_id": uid(user_id),
+                "message_id": int(message_id)
+            }}}
+        )
+    except Exception as e:
+        log.warning("booking message tracking failed: %s", e)
+
+def delete_booking_notifications(booking_id):
+    if not booking_id:
+        return
+    try:
+        b = col("bookings").find_one({"booking_id": str(booking_id)}, {"telegram_user_messages": 1})
+        for item in (b or {}).get("telegram_user_messages", []):
+            try:
+                tg_delete_message(item.get("chat_id"), item.get("message_id"))
+            except Exception as e:
+                log.warning("booking notification delete failed: %s", e)
+        col("bookings").update_one(
+            {"booking_id": str(booking_id)},
+            {"$set": {"telegram_user_messages_deleted": True}}
+        )
+    except Exception as e:
+        log.warning("delete_booking_notifications failed: %s", e)
+
+def notify_user(user_id, text, buttons=None, booking_id=None):
     create_notification(user_id, "telegram", "Vynora Live", text, {})
     if not BOT_TOKEN:
         return False
@@ -332,19 +363,13 @@ def notify_user(user_id, text, buttons=None, auto_delete_seconds=None):
         payload["reply_markup"] = {"inline_keyboard": buttons}
     try:
         r = requests.post(f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage", json=payload, timeout=15)
-        if r.ok and auto_delete_seconds is not None:
+        if r.ok and booking_id:
             try:
                 body = r.json()
                 message_id = (body.get("result") or {}).get("message_id")
-                if message_id:
-                    def _delete_later(chat_id=uid(user_id), mid=message_id, delay=int(auto_delete_seconds)):
-                        try:
-                            tg_delete_message(chat_id, mid)
-                        except Exception as e:
-                            log.warning("auto-delete notification failed: %s", e)
-                    threading.Timer(max(1, int(auto_delete_seconds)), _delete_later).start()
+                _track_booking_message(booking_id, user_id, message_id)
             except Exception as e:
-                log.warning("notification auto-delete setup failed: %s", e)
+                log.warning("booking notification tracking response failed: %s", e)
         return r.ok
     except Exception as e:
         log.warning("telegram user notify failed: %s", e)
@@ -747,8 +772,8 @@ def book_slot(data: BookingModel):
     col("bookings").insert_one(doc)
     if is_demo:
         col("users").update_one({"user_id":uid(data.user_id)},{"$set":{"demo_booking_id":bid,"updated_at":now_ts()}})
-    notify_user(data.user_id, f"✅ <b>Booking request submitted</b>\n\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCharge: {plan['tokens']} Coins\n\nHost confirmation ka wait karein. Agar Host busy hai to aapko update milega.")
-    notify_user(data.host_id, f"📅 <b>New Slot Booking Request</b>\n\nUser: <code>{data.user_id}</code>\nDuration: {plan['minutes']} min\nRequested: {iso(start)}\n\nVynora Live में जाकर Accept या Reject करें.")
+    notify_user(data.user_id, f"✅ <b>Booking request submitted</b>\n\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCharge: {plan['tokens']} Coins\n\nHost confirmation ka wait karein. Agar Host busy hai to aapko update milega.", booking_id=bid)
+    notify_user(data.host_id, f"📅 <b>New Slot Booking Request</b>\n\nUser: <code>{data.user_id}</code>\nDuration: {plan['minutes']} min\nRequested: {iso(start)}\n\nVynora Live में जाकर Accept या Reject करें.", booking_id=bid)
     notify_request(f"📅 <b>NEW BOOKING REQUEST</b>\n\nUser: <code>{data.user_id}</code>\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy at request: {'YES' if busy else 'NO'}", [[{"text":"✅ Accept","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
     notify_full(f"📅 NEW BOOKING\nBooking: <code>{bid}</code>\nUser: {data.user_id}\nHost: {data.host_id}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy: {busy}")
     return {"status":"success","booking_id":bid,"busy":busy,"message":"Booking submitted"}
@@ -788,8 +813,8 @@ def schedule(data: ScheduleModel):
         if other: raise HTTPException(409,"Host is busy at that time")
     col("bookings").update_one({"booking_id":data.booking_id},{"$set":{"scheduled_start":start,"scheduled_end":end,"status":"scheduled","updated_at":now_ts()}})
     host_name = host_doc(b['host_id']).get('name','Host') if host_doc(b['host_id']) else 'Host'
-    notify_user(b["user_id"],f"📞 <b>Call Scheduled</b>\n\nHost: {host_name}\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par JOIN CALL button milega. Host aapko call karega.")
-    notify_user(b["host_id"],f"📞 <b>Call Scheduled</b>\n\nUser: <code>{b['user_id']}</code>\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par Vynora Live खोलकर JOIN CALL करें.")
+    notify_user(b["user_id"],f"📞 <b>Call Scheduled</b>\n\nHost: {host_name}\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par JOIN CALL button milega. Host aapko call karega.", booking_id=b["booking_id"])
+    notify_user(b["host_id"],f"📞 <b>Call Scheduled</b>\n\nUser: <code>{b['user_id']}</code>\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par Vynora Live खोलकर JOIN CALL करें.", booking_id=b["booking_id"])
     notify_full(f"🕐 BOOKING SCHEDULED\nBooking: <code>{b['booking_id']}</code>\nHost: {b['host_id']}\nUser: {b['user_id']}\nStart: {iso(start)}\nDuration: {b['minutes']} min")
     return {"status":"success","scheduled_start":start,"scheduled_end":end}
 
@@ -1224,8 +1249,8 @@ def admin_command(chat_id, from_id, text):
             if not b: raise ValueError("Booking not found")
             ok=cmd=="/approvebooking"; status="accepted" if ok else "rejected"
             col("bookings").update_one({"booking_id":bid},{"$set":{"status":status,"updated_at":now_ts()}})
-            if ok: notify_user(b["user_id"],"✅ Booking accepted. Host/admin will schedule the call.")
-            else: col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":b["tokens"]}}); notify_user(b["user_id"],f"❌ Booking rejected. {b['tokens']} Coins refunded.")
+            if ok: notify_user(b["user_id"],"✅ Booking accepted. Host/admin will schedule the call.", booking_id=bid)
+            else: col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":b["tokens"]}}); notify_user(b["user_id"],f"❌ Booking rejected. {b['tokens']} Coins refunded.", booking_id=bid)
             tg_send(chat_id,f"Booking {status}: <code>{bid}</code>"); notify_full(f"BOOKING {status.upper()}\nBooking: {bid}\nUser: {b['user_id']}\nHost: {b['host_id']}\nAdmin: {from_id}")
         elif cmd in ("/approvewithdrawal","/rejectwithdrawal") and args:
             wid=args[0]; w=col("withdrawals").find_one({"withdrawal_id":wid,"status":"pending"})
@@ -1476,10 +1501,11 @@ def finalize_call(booking_id, ended_at=None, reason="completed"):
     report=(f"📊 <b>1v1 CALL COMPLETED</b>\n\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nBooked: {b['minutes']} min\nActual Connected: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins\nHost 60%: ₹{host_earned:.2f}\nPlatform 40%: ₹{platform_earned:.2f}\nStart: {iso(start)}\nEnd: {iso(end)}")
     notify_request(report)
     notify_full(report)
-    # Completion notifications remain visible briefly so both sides can read them,
-    # then Telegram removes them automatically.
-    notify_user(b["user_id"],f"🟢 Call completed.\nActual connected time: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins", auto_delete_seconds=30)
-    notify_user(b["host_id"],f"💰 Call completed.\nActual connected time: {round(actual/60,2)} min\nYour earning: ₹{host_earned:.2f}", auto_delete_seconds=30)
+    notify_user(b["user_id"],f"🟢 Call completed.\nActual connected time: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins", booking_id=b["booking_id"])
+    notify_user(b["host_id"],f"💰 Call completed.\nActual connected time: {round(actual/60,2)} min\nYour earning: ₹{host_earned:.2f}", booking_id=b["booking_id"])
+    # Remove every tracked Vynora bot notification belonging to this booking
+    # from both the user and host chats. Group/team notifications are untouched.
+    delete_booking_notifications(b["booking_id"])
     pending=col("bookings").find({"host_id":b["host_id"],"status":"pending","busy_at_request":True})
     host_name=(host_doc(b["host_id"]) or {}).get("name","Host")
     for pb in pending:
@@ -1494,8 +1520,8 @@ def call_watchdog():
             # Send the actual call-time Telegram reminder once.
             for b in col("bookings").find({"status":"scheduled","scheduled_start":{"$lte":t},"call_started_at":None,"call_reminded_at":{"$exists":False}}):
                 col("bookings").update_one({"booking_id":b["booking_id"],"call_reminded_at":{"$exists":False}},{"$set":{"call_reminded_at":t}})
-                notify_user(b["user_id"],f"📹 <b>Your Host is ready now</b>\nJoin your {b['minutes']}-minute video call in Vynora Live.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
-                notify_user(b["host_id"],f"📹 <b>Your scheduled call is ready</b>\nUser: <code>{b['user_id']}</code>\nJoin now to start the paid timer when both connect.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+                notify_user(b["user_id"],f"📹 <b>Your Host is ready now</b>\nJoin your {b['minutes']}-minute video call in Vynora Live.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]], booking_id=b["booking_id"])
+                notify_user(b["host_id"],f"📹 <b>Your scheduled call is ready</b>\nUser: <code>{b['user_id']}</code>\nJoin now to start the paid timer when both connect.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]], booking_id=b["booking_id"])
                 notify_full(f"📹 CALL READY\nBooking: {b['booking_id']}\nUser: {b['user_id']}\nHost: {b['host_id']}")
             for b in col("bookings").find({"status":"scheduled","scheduled_start":{"$lte":t}}):
                 if t >= int(b.get("scheduled_start",t)) + int(b.get("minutes",1))*60:
