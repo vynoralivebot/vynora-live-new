@@ -4,15 +4,14 @@ from pathlib import Path
 from typing import Optional
 
 import requests
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, Query
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel, Field
-
 try:
     import qrcode
 except Exception:
     qrcode = None
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, Query
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, Response
+from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
 from bson import ObjectId
 
@@ -105,16 +104,15 @@ def private_host_view(h):
 def public_host_view(h, u=None):
     u = u or {}
     tid = int(h.get("user_id") or u.get("user_id"))
-    country_raw = h.get("country") or u.get("country") or "IN"
-    country = str(country_raw).strip().upper()
-    if country in {"INDIA", "भारत", "IN-IND"}: country = "IN"
+    raw_country = str(h.get("country") or u.get("country") or "IN").strip().upper()
+    country = "IN" if raw_country in {"IN", "INDIA", "🇮🇳"} else raw_country
     return {
         "user_id": tid, "telegram_id": tid,
         "name": h.get("name") or u.get("name", "Host"),
         "username": h.get("username") or u.get("username", ""),
         "photo_url": public_photo_url(tid, u) or h.get("photo_url", ""),
         "online": bool(h.get("online")), "country": country,
-        "country_name": "India" if country == "IN" else (h.get("country_name") or country),
+        "country_name": h.get("country_name") or ("India" if country == "IN" else country),
         "demo": bool(h.get("demo", False)), "status": h.get("status"),
         "verified": h.get("status") == "approved",
         "verification_label": "Vynora Verified Host" if h.get("status") == "approved" else ""
@@ -497,31 +495,44 @@ def set_photo(data: PhotoModel):
     return {"status": "success", "photo_url": url}
 
 @app.post("/api/profile/photo-upload")
-async def upload_profile_photo(request: Request, user_id: Optional[int] = Form(None), file: UploadFile = File(...)):
-    # Telegram numeric user_id is the only identity key. Accept form-data and query parameter.
-    if user_id is None:
-        raw_id = request.query_params.get("user_id", "").strip()
-        if not raw_id.isdigit():
-            raise HTTPException(422, "Telegram user ID is required")
-        user_id = int(raw_id)
-    require_user(user_id)
-    if not file.content_type or not file.content_type.startswith("image/"):
+async def upload_profile_photo(
+    user_id: Optional[int] = Form(None),
+    user_id_query: Optional[int] = Query(None, alias="user_id"),
+    file: UploadFile = File(...),
+):
+    # Accept the Telegram user ID from either multipart FormData or query string.
+    # The verified Telegram WebApp ID remains the source of truth in require_user().
+    resolved_id = user_id if user_id is not None else user_id_query
+    if resolved_id is None:
+        verified = _verified_web_user.get()
+        if verified is None:
+            raise HTTPException(400, "Telegram user ID is required")
+        resolved_id = verified
+    require_user(resolved_id)
+    if not file.content_type or not file.content_type.lower().startswith("image/"):
         raise HTTPException(400, "Please upload an image file")
+    raw = await file.read()
+    if len(raw) > 900_000:
+        raise HTTPException(400, "Photo is too large. Please use an image below 900 KB.")
+    if len(raw) < 32:
+        raise HTTPException(400, "Invalid or empty image file")
     content_type = file.content_type.split(";", 1)[0].lower()
     if content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
         raise HTTPException(400, "Please upload JPG, PNG, WEBP or GIF image")
-    raw = await file.read()
-    if len(raw) < 32:
-        raise HTTPException(400, "Invalid or empty image file")
-    if len(raw) > 900_000:
-        raise HTTPException(400, "Photo is too large. Please use an image below 900 KB.")
     encoded = base64.b64encode(raw).decode("ascii")
     data_uri = f"data:{content_type};base64,{encoded}"
-    col("users").update_one({"user_id": uid(user_id)}, {"$set": {
-        "photo_data": data_uri, "photo_url": "", "photo_filename": file.filename or "profile.jpg",
-        "photo_content_type": content_type, "photo_updated_at": now_ts(), "updated_at": now_ts()
-    }})
-    return {"status":"success","user_id":int(user_id),"photo_url":public_photo_url(user_id)}
+    col("users").update_one(
+        {"user_id": uid(resolved_id)},
+        {"$set": {
+            "photo_data": data_uri,
+            "photo_url": "",
+            "photo_filename": file.filename or "profile.jpg",
+            "photo_content_type": content_type,
+            "photo_updated_at": now_ts(),
+            "updated_at": now_ts()
+        }}
+    )
+    return {"status": "success", "photo_url": public_photo_url(resolved_id)}
 
 @app.get("/api/profile/photo/{user_id}")
 def get_profile_photo(user_id: int):
@@ -538,29 +549,23 @@ def get_profile_photo(user_id: int):
     except Exception:
         raise HTTPException(500, "Invalid profile photo")
 
-@app.get("/api/upi-qr")
-def upi_qr(amount: Optional[float] = Query(None)):
-    if qrcode is None:
-        raise HTTPException(503, "QR service unavailable")
-    uri=f"upi://pay?pa={urllib.parse.quote(UPI_ID)}&pn={urllib.parse.quote(UPI_NAME)}&cu=INR"
-    if amount is not None and float(amount)>0: uri+=f"&am={float(amount):.2f}"
-    img=qrcode.make(uri)
-    import io
-    out=io.BytesIO(); img.save(out,format="PNG")
-    return Response(content=out.getvalue(),media_type="image/png",headers={"Cache-Control":"no-store"})
-
 @app.get("/api/hosts")
 def hosts():
-    rows=[]
-    docs=list(col("hosts").find({"status":"approved"}).sort("updated_at",-1))
+    rows = []
+    # Real approved India hosts only. Offline hosts remain visible so the
+    # customer can see that the host exists; booking is enabled only online.
+    docs = list(col("hosts").find({
+        "status":"approved",
+        "demo":{"$ne":True}
+    }).sort("updated_at", -1))
     for h in docs:
-        u=user_doc(h["user_id"]) or {}
-        if bool(h.get("demo",False)): continue
-        country=str(h.get("country") or u.get("country") or "IN").strip().upper()
-        if country in {"INDIA","भारत","IN-IND"}: country="IN"
-        if country!="IN": continue
-        rows.append(public_host_view(h,u))
-    rows.sort(key=lambda x:(not bool(x.get("online")),-int(x.get("user_id",0))))
+        u = user_doc(h["user_id"]) or {}
+        country = str(h.get("country") or u.get("country") or "IN").strip().upper()
+        if country in {"INDIA", "🇮🇳"}: country = "IN"
+        if country != "IN":
+            continue
+        rows.append(public_host_view(h, u))
+    rows.sort(key=lambda x: (not bool(x.get("online")), -int(x.get("user_id",0))))
     return rows
 
 @app.get("/api/host/{host_id}")
@@ -666,8 +671,9 @@ def book_slot(data: BookingModel):
     start=int(data.requested_start); end=start+plan_minutes*60
     if start < now_ts()-60: raise HTTPException(400,"Please choose a future time")
     u=user_doc(data.user_id)
-    user_country=(u.get("country") or "IN").upper()
-    host_country=(h.get("country") or "IN").upper()
+    norm_country=lambda v: "IN" if str(v or "IN").strip().upper() in {"IN","INDIA","🇮🇳"} else str(v or "IN").strip().upper()
+    user_country=norm_country(u.get("country"))
+    host_country=norm_country(h.get("country"))
     # Dummy/test hosts are never bookable. Only real approved India hosts can receive bookings.
     if bool(h.get("demo", False)):
         raise HTTPException(403, "This Host is not available for real bookings. Please choose an approved real Host.")
@@ -855,6 +861,16 @@ def agora_token(channelName: str, uid: int, role: str="publisher"):
     expiry=now_ts()+86400
     token=RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID,AGORA_APP_CERTIFICATE,channelName,int(uid),Role_Publisher,expiry)
     return {"appId":AGORA_APP_ID,"channelName":channelName,"uid":int(uid),"token":token,"expiresAt":expiry}
+
+@app.get("/api/upi-qr")
+def upi_qr(amount: float = Query(..., gt=0)):
+    if qrcode is None:
+        raise HTTPException(503, "QR service unavailable")
+    uri = "upi://pay?pa=" + urllib.parse.quote(UPI_ID, safe="@") + "&pn=" + urllib.parse.quote(UPI_NAME) + f"&am={float(amount):.2f}&cu=INR"
+    img = qrcode.make(uri)
+    import io
+    out = io.BytesIO(); img.save(out, format="PNG")
+    return Response(content=out.getvalue(), media_type="image/png", headers={"Cache-Control":"no-store"})
 
 @app.post("/api/recharge")
 def recharge(data: RechargeModel):
@@ -1108,7 +1124,7 @@ def admin_command(chat_id, from_id, text):
             tg_send(chat_id,f"✅ Token updated for <code>{target}</code>")
             notify_full(f"🪙 ADMIN TOKEN ACTION\nAdmin: {from_id}\nUser: {target}\nCommand: {cmd}\nAmount: {amount}")
         elif cmd in ("/approvehost","/addhost") and args:
-            u=ensure_user(int(args[0]))[0]; target=int(args[0]); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"name":u.get("name") or "Host","username":u.get("username") or "","country":"IN","country_name":"India","status":"approved","verified":True,"verification_label":"Vynora Verified Host","demo":False,"online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>"); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आप bookings receive कर सकते हैं।"); notify_full(f"🎙️ HOST APPROVED\nAdmin: {from_id}\nHost: {target}\nTeam Group: Host approved and ready for monitoring")
+            target=int(args[0]); ensure_user(target); col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"telegram_id":target,"status":"approved","verified":True,"verification_label":"Vynora Verified Host","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True); tg_send(chat_id,f"✅ Host approved: <code>{target}</code>"); notify_user(target,"🎙️ आपका Host account approve हो गया है। अब आप bookings receive कर सकते हैं।"); notify_full(f"🎙️ HOST APPROVED\nAdmin: {from_id}\nHost: {target}\nTeam Group: Host approved and ready for monitoring")
         elif cmd in ("/rejecthost","/removehost") and args:
             target=int(args[0]); col("hosts").update_one({"user_id":target},{"$set":{"status":"rejected","online":False}}); tg_send(chat_id,f"❌ Host rejected/removed: <code>{target}</code>"); notify_full(f"❌ HOST REJECTED\nAdmin: {from_id}\nHost: {target}")
         elif cmd in ("/ban","/block","/banhost") and args:
@@ -1218,7 +1234,7 @@ def handle_update(upd):
                 target=int(key); ensure_user(target)
                 status="approved" if action=="approve_host" else "rejected"
                 u = user_doc(target) or {}
-                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"verified":status=="approved","verification_label":"Vynora Verified Host" if status=="approved" else "","demo":False,"online":False,"name":u.get("name","Host"),"username":u.get("username",""),"country":"IN","country_name":"India","updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
+                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"telegram_id":target,"status":status,"verified":status=="approved","verification_label":"Vynora Verified Host" if status=="approved" else "","demo":False,"online":False,"name":u.get("name","Host"),"username":u.get("username",""),"country":"IN","country_name":"India","updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
                 tg_send(chat_id,f"✅ Host {status}: <code>{target}</code>"); notify_user(target, f"{'🎙️ Host approved' if status=='approved' else '❌ Host application rejected'}."); notify_full(f"🎙️ HOST {status.upper()}\nAdmin: {from_id}\nHost: {target}\nTeam Action: Host approval status updated")
             elif action in ("approve_recharge","reject_recharge") and from_id in ADMIN_IDS:
                 status="approved" if action=="approve_recharge" else "rejected"
