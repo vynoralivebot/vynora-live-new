@@ -33,8 +33,8 @@ GROUP_3_ID = os.getenv("GROUP_3_ID", "")
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
 MONGO_URI = os.getenv("MONGO_URI", os.getenv("MONGO_URL", ""))
 MONGO_DB = os.getenv("MONGO_DB", "vynora_live")
-AGORA_APP_ID = os.getenv("AGORA_APP_ID", "")
-AGORA_APP_CERTIFICATE = os.getenv("AGORA_APP_CERTIFICATE", "")
+AGORA_APP_ID = (os.getenv("AGORA_APP_ID") or os.getenv("AGORA_APPID") or os.getenv("AGORA_APP_ID_VALUE") or "").strip()
+AGORA_APP_CERTIFICATE = (os.getenv("AGORA_APP_CERTIFICATE") or os.getenv("AGORA_APP_CERT") or os.getenv("AGORA_CERTIFICATE") or os.getenv("AGORA_APP_CERTIFICATE_VALUE") or "").strip()
 UPI_ID = os.getenv("UPI_ID", "vynoralive@slc")
 UPI_NAME = os.getenv("UPI_NAME", "Rajnish Kumar")
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://t.me/VynoraSupport")
@@ -110,7 +110,7 @@ def public_host_view(h, u=None):
         "user_id": tid, "telegram_id": tid,
         "name": h.get("name") or u.get("name", "Host"),
         "username": h.get("username") or u.get("username", ""),
-        "photo_url": public_photo_url(tid, u) or h.get("photo_url", ""),
+        "photo_url": public_photo_url(tid, h) or public_photo_url(tid, u) or h.get("photo_url", ""),
         "online": bool(h.get("online")), "country": country,
         "country_name": h.get("country_name") or ("India" if country == "IN" else country),
         "demo": bool(h.get("demo", False)), "status": h.get("status"),
@@ -521,16 +521,23 @@ async def upload_profile_photo(
         raise HTTPException(400, "Please upload JPG, PNG, WEBP or GIF image")
     encoded = base64.b64encode(raw).decode("ascii")
     data_uri = f"data:{content_type};base64,{encoded}"
+    photo_meta = {
+        "photo_data": data_uri,
+        "photo_url": "",
+        "photo_filename": file.filename or "profile.jpg",
+        "photo_content_type": content_type,
+        "photo_updated_at": now_ts(),
+        "updated_at": now_ts()
+    }
     col("users").update_one(
         {"user_id": uid(resolved_id)},
-        {"$set": {
-            "photo_data": data_uri,
-            "photo_url": "",
-            "photo_filename": file.filename or "profile.jpg",
-            "photo_content_type": content_type,
-            "photo_updated_at": now_ts(),
-            "updated_at": now_ts()
-        }}
+        {"$set": photo_meta}
+    )
+    # Keep the host document in sync too, so public host cards never lose the photo
+    # because of a user/host document mismatch.
+    col("hosts").update_one(
+        {"user_id": uid(resolved_id)},
+        {"$set": photo_meta}
     )
     return {"status": "success", "photo_url": public_photo_url(resolved_id)}
 
@@ -840,12 +847,14 @@ def call_remind(booking_id:str, user_id:int):
 
 
 @app.get("/api/agora-token")
-def agora_token(channelName: str, uid: int, role: str="publisher"):
+def agora_token(channelName: str, uid: int, role: str="publisher", booking_id: str=""):
     verified=_verified_web_user.get()
     if verified is None or int(uid) != verified:
         raise HTTPException(403,"Telegram identity mismatch")
     if channelName.startswith("booking_"):
-        bid=channelName[len("booking_"):]
+        bid=booking_id or channelName[len("booking_"):]
+        if channelName != "booking_" + bid:
+            raise HTTPException(403,"Invalid booking channel")
         b=col("bookings").find_one({"booking_id":bid})
         if not b or verified not in (b.get("user_id"),b.get("host_id")):
             raise HTTPException(403,"Not a booking participant")
@@ -861,6 +870,15 @@ def agora_token(channelName: str, uid: int, role: str="publisher"):
     expiry=now_ts()+86400
     token=RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID,AGORA_APP_CERTIFICATE,channelName,int(uid),Role_Publisher,expiry)
     return {"appId":AGORA_APP_ID,"channelName":channelName,"uid":int(uid),"token":token,"expiresAt":expiry}
+
+@app.get("/api/agora-status")
+def agora_status():
+    return {
+        "configured": bool(AGORA_APP_ID and AGORA_APP_CERTIFICATE and RtcTokenBuilder),
+        "app_id_present": bool(AGORA_APP_ID),
+        "certificate_present": bool(AGORA_APP_CERTIFICATE),
+        "token_builder_present": bool(RtcTokenBuilder),
+    }
 
 @app.get("/api/upi-qr")
 def upi_qr(amount: float = Query(..., gt=0)):
