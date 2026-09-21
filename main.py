@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 import requests
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
@@ -490,27 +490,44 @@ def set_photo(data: PhotoModel):
     return {"status": "success", "photo_url": url}
 
 @app.post("/api/profile/photo-upload")
-async def upload_profile_photo(user_id: int, file: UploadFile = File(...)):
-    require_user(user_id)
-    if not file.content_type or not file.content_type.startswith("image/"):
+async def upload_profile_photo(
+    user_id: Optional[int] = Form(None),
+    user_id_query: Optional[int] = Query(None, alias="user_id"),
+    file: UploadFile = File(...),
+):
+    # Accept the Telegram user ID from either multipart FormData or query string.
+    # The verified Telegram WebApp ID remains the source of truth in require_user().
+    resolved_id = user_id if user_id is not None else user_id_query
+    if resolved_id is None:
+        verified = _verified_web_user.get()
+        if verified is None:
+            raise HTTPException(400, "Telegram user ID is required")
+        resolved_id = verified
+    require_user(resolved_id)
+    if not file.content_type or not file.content_type.lower().startswith("image/"):
         raise HTTPException(400, "Please upload an image file")
     raw = await file.read()
     if len(raw) > 900_000:
         raise HTTPException(400, "Photo is too large. Please use an image below 900 KB.")
+    if len(raw) < 32:
+        raise HTTPException(400, "Invalid or empty image file")
+    content_type = file.content_type.split(";", 1)[0].lower()
+    if content_type not in {"image/jpeg", "image/png", "image/webp", "image/gif"}:
+        raise HTTPException(400, "Please upload JPG, PNG, WEBP or GIF image")
     encoded = base64.b64encode(raw).decode("ascii")
-    data_uri = f"data:{file.content_type};base64,{encoded}"
+    data_uri = f"data:{content_type};base64,{encoded}"
     col("users").update_one(
-        {"user_id": uid(user_id)},
+        {"user_id": uid(resolved_id)},
         {"$set": {
             "photo_data": data_uri,
             "photo_url": "",
             "photo_filename": file.filename or "profile.jpg",
-            "photo_content_type": file.content_type,
+            "photo_content_type": content_type,
             "photo_updated_at": now_ts(),
             "updated_at": now_ts()
         }}
     )
-    return {"status": "success", "photo_url": public_photo_url(user_id)}
+    return {"status": "success", "photo_url": public_photo_url(resolved_id)}
 
 @app.get("/api/profile/photo/{user_id}")
 def get_profile_photo(user_id: int):
@@ -530,17 +547,19 @@ def get_profile_photo(user_id: int):
 @app.get("/api/hosts")
 def hosts():
     rows = []
-    # User-facing host list contains ONLY real, approved, India-based, ONLINE hosts.
-    # Dummy/demo/foreign/offline hosts are intentionally hidden from customers.
+    # Real approved India hosts only. Offline hosts remain visible so the
+    # customer can see that the host exists; booking is enabled only online.
     docs = list(col("hosts").find({
         "status":"approved",
-        "demo":{"$ne":True},
-        "country":"IN",
-        "online":True
+        "demo":{"$ne":True}
     }).sort("updated_at", -1))
     for h in docs:
         u = user_doc(h["user_id"]) or {}
+        country = str(h.get("country") or u.get("country") or "IN").upper()
+        if country != "IN":
+            continue
         rows.append(public_host_view(h, u))
+    rows.sort(key=lambda x: (not bool(x.get("online")), -int(x.get("user_id",0))))
     return rows
 
 @app.get("/api/host/{host_id}")
@@ -1197,7 +1216,8 @@ def handle_update(upd):
             if action in ("approve_host","reject_host") and from_id in ADMIN_IDS:
                 target=int(key); ensure_user(target)
                 status="approved" if action=="approve_host" else "rejected"
-                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"verified":status=="approved","verification_label":"Vynora Verified Host" if status=="approved" else "","online":False,"updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
+                u = user_doc(target) or {}
+                col("hosts").update_one({"user_id":target},{"$set":{"user_id":target,"status":status,"verified":status=="approved","verification_label":"Vynora Verified Host" if status=="approved" else "","demo":False,"online":False,"name":u.get("name","Host"),"username":u.get("username",""),"country":"IN","country_name":"India","updated_at":now_ts()},"$setOnInsert":{"total_tokens":0,"available_earnings":0,"gift_tokens":0,"filter_name":"natural"}},upsert=True)
                 tg_send(chat_id,f"✅ Host {status}: <code>{target}</code>"); notify_user(target, f"{'🎙️ Host approved' if status=='approved' else '❌ Host application rejected'}."); notify_full(f"🎙️ HOST {status.upper()}\nAdmin: {from_id}\nHost: {target}\nTeam Action: Host approval status updated")
             elif action in ("approve_recharge","reject_recharge") and from_id in ADMIN_IDS:
                 status="approved" if action=="approve_recharge" else "rejected"
