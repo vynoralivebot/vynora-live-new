@@ -185,6 +185,13 @@ def uid(v):
     except Exception: raise HTTPException(400, "Invalid user id")
 
 
+def agora_uid(telegram_user_id: int) -> int:
+    """Map a Telegram user ID to a stable Agora numeric UID in 1..9999."""
+    n = int(telegram_user_id)
+    digest = hashlib.sha256(str(n).encode("ascii")).hexdigest()
+    return (int(digest[:12], 16) % 9999) + 1
+
+
 def user_doc(user_id):
     return col("users").find_one({"user_id": uid(user_id)})
 
@@ -879,8 +886,24 @@ def agora_token(channelName: str, uid: int, role: str="publisher", booking_id: s
     if not AGORA_APP_ID or not AGORA_APP_CERTIFICATE or not RtcTokenBuilder:
         raise HTTPException(503,"Agora is not configured")
     expiry=now_ts()+86400
-    token=RtcTokenBuilder.buildTokenWithUid(AGORA_APP_ID,AGORA_APP_CERTIFICATE,channelName,int(uid),Role_Publisher,expiry)
-    return {"appId":AGORA_APP_ID,"channelName":channelName,"uid":int(uid),"token":token,"expiresAt":expiry}
+    telegram_uid = int(uid)
+    agora_uid_value = agora_uid(telegram_uid)
+    token=RtcTokenBuilder.buildTokenWithUid(
+        AGORA_APP_ID,
+        AGORA_APP_CERTIFICATE,
+        channelName,
+        agora_uid_value,
+        Role_Publisher,
+        expiry
+    )
+    return {
+        "appId":AGORA_APP_ID,
+        "channelName":channelName,
+        "uid":agora_uid_value,
+        "telegramUid":telegram_uid,
+        "token":token,
+        "expiresAt":expiry
+    }
 
 @app.get("/api/agora-status")
 def agora_status():
