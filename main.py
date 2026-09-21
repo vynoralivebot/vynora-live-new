@@ -30,7 +30,7 @@ log = logging.getLogger("vynora")
 
 BASE = Path(__file__).resolve().parent
 ADMIN_IDS = {int(x.strip()) for x in os.getenv("ADMIN_IDS", "7778606261,7001825467").split(",") if x.strip().isdigit()}
-HOST_SHARE = float(os.getenv("HOST_SHARE", "0.60"))
+HOST_SHARE = float(os.getenv("HOST_SHARE", "0.50"))
 GROUP_1_ID = os.getenv("GROUP_1_ID", "")
 GROUP_2_ID = os.getenv("GROUP_2_ID", "")
 GROUP_3_ID = os.getenv("GROUP_3_ID", "")
@@ -635,10 +635,9 @@ class HostFilterModel(BaseModel):
     filter_name: str = "natural"
 
 FILTERS = {
-    "natural": "none",
-    "glow": "brightness(1.08) saturate(1.18) contrast(1.04) drop-shadow(0 0 7px rgba(255,210,180,.35))",
-    "soft": "brightness(1.06) saturate(1.08) contrast(.98)",
-    "warm": "brightness(1.06) saturate(1.12) sepia(.08)",
+    # Safe browser-side beauty-style filters. These do not change the call/timer logic.
+    "natural": "brightness(1.03) saturate(1.04) contrast(1.01)",
+    "glam": "brightness(1.07) saturate(1.10) contrast(1.03) sepia(.025)",
 }
 
 @app.get("/api/host/filter/{host_id}")
@@ -1501,7 +1500,7 @@ def finalize_call(booking_id, ended_at=None, reason="completed"):
     if refund:
         col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":refund}})
     col("hosts").update_one({"user_id":b["host_id"]},{"$inc":{"total_tokens":host_earned,"available_earnings":host_earned},"$set":{"updated_at":end}})
-    report=(f"📊 <b>1v1 CALL COMPLETED</b>\n\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nBooked: {b['minutes']} min\nActual Connected: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins\nHost 60%: ₹{host_earned:.2f}\nPlatform 40%: ₹{platform_earned:.2f}\nStart: {iso(start)}\nEnd: {iso(end)}")
+    report=(f"📊 <b>1v1 CALL COMPLETED</b>\n\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nBooked: {b['minutes']} min\nActual Connected: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins\nHost {HOST_SHARE*100:.0f}%: ₹{host_earned:.2f}\nPlatform {(1-HOST_SHARE)*100:.0f}%: ₹{platform_earned:.2f}\nStart: {iso(start)}\nEnd: {iso(end)}")
     notify_request(report)
     notify_full(report)
     notify_user(b["user_id"],f"🟢 Call completed.\nActual connected time: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins")
