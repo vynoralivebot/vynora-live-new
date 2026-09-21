@@ -1,11 +1,11 @@
-fastapi
-uvicorn
-pymongo
-requests
-pydantic
+fastapi==0.110.0
+uvicorn==0.28.0
+pymongo==4.6.1
+requests==2.31.0
+pydantic==2.6.4
 python-multipart
 agora-token-builder
 httpx
-python-dotenv
+python-dotenv==1.0.1
 qrcode==8.2
 Pillow==11.3.0
