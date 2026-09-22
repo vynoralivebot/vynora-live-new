@@ -131,7 +131,6 @@ def public_host_view(h, u=None):
     return {
         "user_id": tid, "telegram_id": tid,
         "name": h.get("name") or u.get("name", "Host"),
-        "username": h.get("username") or u.get("username", ""),
         "photo_url": public_photo_url(tid, h) or public_photo_url(tid, u) or h.get("photo_url", ""),
         "online": bool(h.get("online")), "country": country,
         "country_name": h.get("country_name") or ("India" if country == "IN" else country),
@@ -664,6 +663,7 @@ def host_apply(data: HostApplyModel):
     if existing and existing.get("status") == "approved": raise HTTPException(400,"Already an approved host")
     col("hosts").update_one({"user_id":uid(data.user_id)}, {"$set":d}, upsert=True)
     text = f"🎙️ <b>HOST APPLICATION</b>\n\nName: {data.name}\nUser ID: <code>{data.user_id}</code>\nUsername: @{data.username.lstrip('@') or '-'}\nPhone: {data.phone or '-'}\nAge: {data.age or '-'}\nBio: {data.bio or '-'}"
+    notify_request(text, [[{"text":"✅ Approve Host","callback_data":f"approve_host:{data.user_id}"},{"text":"❌ Reject","callback_data":f"reject_host:{data.user_id}"}]])
     notify_full(text)
     return {"status":"success","message":"Host application submitted"}
 
@@ -792,7 +792,8 @@ def book_slot(data: BookingModel):
         col("users").update_one({"user_id":uid(data.user_id)},{"$set":{"demo_booking_id":bid,"updated_at":now_ts()}})
     notify_user(data.user_id, f"✅ <b>Booking request submitted</b>\n\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCharge: {plan['tokens']} Coins\n\nHost confirmation ka wait karein. Agar Host busy hai to aapko update milega.")
     notify_user(data.host_id, f"📅 <b>New Slot Booking Request</b>\n\nUser: <code>{data.user_id}</code>\nDuration: {plan['minutes']} min\nRequested: {iso(start)}\n\nVynora Live में जाकर Accept या Reject करें.")
-    notify_full(f"📅 <b>NEW BOOKING REQUEST</b>\nBooking: <code>{bid}</code>\nUser: <code>{data.user_id}</code>\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy at request: {'YES' if busy else 'NO'}")
+    notify_request(f"📅 <b>NEW BOOKING REQUEST</b>\n\nUser: <code>{data.user_id}</code>\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy at request: {'YES' if busy else 'NO'}", [[{"text":"✅ Accept","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
+    notify_full(f"📅 NEW BOOKING\nBooking: <code>{bid}</code>\nUser: {data.user_id}\nHost: {data.host_id}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy: {busy}")
     return {"status":"success","booking_id":bid,"busy":busy,"message":"Booking submitted"}
 
 @app.post("/api/booking/action")
@@ -805,10 +806,9 @@ def booking_action(data: BookingAction):
     action=data.action
     if action=="reject":
         if b["status"] not in ("pending",): raise HTTPException(400,"Booking cannot be rejected now")
-        closed=col("bookings").find_one_and_update({"booking_id":b["booking_id"],"status":"pending","earnings_credited":{"$ne":True}}, {"$set":{"status":"rejected","updated_at":now_ts(),"earnings_credited":True,"refunded_tokens":int(b["tokens"]),"completion_reason":"booking_rejected"}}, return_document=ReturnDocument.AFTER)
-        if not closed: raise HTTPException(409,"Booking already processed")
-        col("users").update_one({"user_id":closed["user_id"],"call_refund_keys":{"$ne":closed["booking_id"]}},{"$inc":{"tokens":int(closed["tokens"])},"$addToSet":{"call_refund_keys":closed["booking_id"]},"$set":{"updated_at":now_ts()}})
-        notify_user(closed["user_id"],f"❌ Booking rejected. {closed['tokens']} Coins refunded.")
+        col("bookings").update_one({"booking_id":b["booking_id"]},{"$set":{"status":"rejected","updated_at":now_ts()}})
+        col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":b["tokens"]}})
+        notify_user(b["user_id"],f"❌ Booking rejected. {b['tokens']} Coins refunded.")
         return {"status":"success"}
     if action=="accept":
         if b["status"]!="pending": raise HTTPException(400,"Booking already processed")
@@ -883,11 +883,15 @@ def call_end(data: CallEndModel):
     if b.get("status") in ("completed","rejected","cancelled"): return {"status":"success"}
     if not b.get("call_started_at"):
         # No connected call: refund the full reserved amount exactly once.
-        closed, claimed = _settle_no_connect(data.booking_id, "cancelled_before_connect")
-        if claimed and closed:
-            col("users").update_one({"user_id":closed["user_id"],"call_refund_keys":{"$ne":closed["booking_id"]}},{"$inc":{"tokens":int(closed.get("refunded_tokens",0))},"$addToSet":{"call_refund_keys":closed["booking_id"]},"$set":{"updated_at":now_ts()}})
-            notify_full(f"📊 CALL CANCELLED BEFORE CONNECT\nBooking: {closed['booking_id']}\nUser: {closed['user_id']}\nHost: {closed['host_id']}\nRefunded: {closed.get('refunded_tokens',0)} Coins")
-        return {"status":"success","actual_seconds":0,"charged_tokens":0,"refunded_tokens":closed.get("refunded_tokens",0) if claimed and closed else 0}
+        closed=col("bookings").find_one_and_update(
+            {"booking_id":data.booking_id,"earnings_credited":{"$ne":True}},
+            {"$set":{"status":"completed","call_ended_at":now_ts(),"actual_seconds":0,"charged_tokens":0,"refunded_tokens":b.get("tokens",0),"host_earned":0,"platform_earned":0,"earnings_credited":True,"completion_reason":"cancelled_before_connect"}},
+            return_document=ReturnDocument.AFTER
+        )
+        if closed:
+            col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":int(b.get("tokens",0))}})
+            notify_full(f"📊 CALL CANCELLED BEFORE CONNECT\nBooking: {b['booking_id']}\nUser: {b['user_id']}\nHost: {b['host_id']}\nRefunded: {b['tokens']} Coins")
+        return {"status":"success","actual_seconds":0,"charged_tokens":0,"refunded_tokens":b.get("tokens",0) if closed else 0}
     fresh=finalize_call(data.booking_id, now_ts(), "manual_end")
     return {"status":"success","actual_seconds":fresh.get("actual_seconds",0) if fresh else 0,"charged_tokens":fresh.get("charged_tokens",0) if fresh else 0,"refunded_tokens":fresh.get("refunded_tokens",0) if fresh else 0,"host_earned":fresh.get("host_earned",0) if fresh else 0}
 
@@ -996,6 +1000,7 @@ def recharge(data: RechargeModel):
     col("recharges").insert_one({"recharge_id":rid,"user_id":uid(data.user_id),"rupees":data.rupees,"tokens":data.tokens,"utr":data.utr,"screenshot_url":data.screenshot_url,"status":"pending","created_at":now_ts()})
     text=f"💳 <b>RECHARGE REQUEST</b>\nID: <code>{rid}</code>\nUser: <code>{data.user_id}</code>\n₹{data.rupees} → {data.tokens} Coins\nUTR: {data.utr or '-'}"
     notify_request(text,[[{"text":"✅ Approve","callback_data":f"approve_recharge:{rid}"},{"text":"❌ Reject","callback_data":f"reject_recharge:{rid}"}]])
+    notify_full(text)
     return {"status":"success","recharge_id":rid}
 
 @app.post("/api/recharge/submit")
@@ -1046,7 +1051,7 @@ async def recharge_submit(
         fallback = tg_send(GROUP_1_ID, f"🧾 <b>Recharge Action</b>\nID: <code>{rid}</code>\n₹{rupees} → {tokens} Coins", buttons) or {}
         if fallback.get("ok") and fallback.get("result", {}).get("message_id"):
             col("recharges").update_one({"recharge_id": rid}, {"$set": {"telegram_action_message_id": fallback["result"]["message_id"]}})
-    # Initial recharge request is Group 1 only. Group 3 receives the final approve/reject event.
+    notify_full(f"RECHARGE REQUEST\nUser: {uid(user_id)}\n₹{rupees} → {tokens} Coins\nUTR: {utr}\nID: {rid}")
     return {"status":"success", "recharge_id":rid}
 
 @app.get("/api/recharge/screenshot/{recharge_id}")
@@ -1160,6 +1165,8 @@ def admin_overview(admin_id:int):
 def announcement(data: AnnouncementModel):
     if not is_admin(data.user_id): raise HTTPException(403,"Admin only")
     col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":data.message,"updated_at":now_ts()}},upsert=True)
+    notify_group(GROUP_1_ID,f"📢 <b>ANNOUNCEMENT</b>\n{data.message}")
+    notify_group(GROUP_2_ID,f"📢 <b>ANNOUNCEMENT</b>\n{data.message}")
     notify_group(GROUP_3_ID,f"📢 <b>ANNOUNCEMENT</b>\n{data.message}")
     return {"status":"success"}
 
@@ -1200,16 +1207,11 @@ def withdraw(user_id:int, amount:float):
     h=host_or_404(user_id)
     if str(h.get("status","")).lower() != "approved": raise HTTPException(403,"Only approved hosts can withdraw")
     if amount < 700: raise HTTPException(400,"Minimum withdrawal is ₹700")
-    amount=round(float(amount),2)
-    if amount <= 0: raise HTTPException(400,"Invalid withdrawal amount")
-    created=now_ts(); wid=str(uuid.uuid4())
-    col("withdrawals").insert_one({"withdrawal_id":wid,"user_id":uid(user_id),"amount":amount,"status":"reserving","created_at":created})
-    reserved=col("hosts").find_one_and_update({"user_id":uid(user_id),"available_earnings":{"$gte":amount}}, {"$inc":{"available_earnings":-amount},"$set":{"updated_at":created}}, return_document=ReturnDocument.AFTER)
-    if not reserved:
-        col("withdrawals").delete_one({"withdrawal_id":wid,"status":"reserving"})
-        raise HTTPException(400,"Insufficient balance")
-    col("withdrawals").update_one({"withdrawal_id":wid,"status":"reserving"},{"$set":{"status":"pending","reserved_at":created}})
-    notify_full(f"💸 WITHDRAWAL REQUEST\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>\nRequested: {iso(created)}", [[{"text":"✅ Paid","callback_data":f"approve_withdraw:{wid}"},{"text":"❌ Reject","callback_data":f"reject_withdraw:{wid}"}]])
+    if amount > float(h.get("available_earnings",0)): raise HTTPException(400,"Insufficient balance")
+    created=now_ts(); wid=str(uuid.uuid4()); col("withdrawals").insert_one({"withdrawal_id":wid,"user_id":uid(user_id),"amount":amount,"status":"pending","created_at":created})
+    col("hosts").update_one({"user_id":uid(user_id)},{"$inc":{"available_earnings":-amount}})
+    notify_request(f"💸 <b>WITHDRAWAL REQUEST</b>\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>\nRequested: {iso(created)}", [[{"text":"✅ Paid","callback_data":f"approve_withdraw:{wid}"},{"text":"❌ Reject","callback_data":f"reject_withdraw:{wid}"}]])
+    notify_full(f"💸 WITHDRAWAL REQUEST\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>\nRequested: {iso(created)}")
     notify_user(user_id, f"💸 Withdrawal request submitted.\nAmount: ₹{amount}\nRequested: {iso(created)}")
     return {"status":"success","withdrawal_id":wid}
 
@@ -1284,10 +1286,11 @@ def admin_command(chat_id, from_id, text):
             else: col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":b["tokens"]}}); notify_user(b["user_id"],f"❌ Booking rejected. {b['tokens']} Coins refunded.")
             tg_send(chat_id,f"Booking {status}: <code>{bid}</code>"); notify_full(f"BOOKING {status.upper()}\nBooking: {bid}\nUser: {b['user_id']}\nHost: {b['host_id']}\nAdmin: {from_id}")
         elif cmd in ("/approvewithdrawal","/rejectwithdrawal") and args:
-            wid=args[0]; ok=cmd=="/approvewithdrawal"; processed=now_ts()
-            w=col("withdrawals").find_one_and_update({"withdrawal_id":wid,"status":"pending"},{"$set":{"status":"paid" if ok else "rejected","processed_by":from_id,"processed_at":processed}}, return_document=ReturnDocument.AFTER)
+            wid=args[0]; w=col("withdrawals").find_one({"withdrawal_id":wid,"status":"pending"})
             if not w: raise ValueError("Withdrawal not found or already processed")
-            if not ok: col("hosts").update_one({"user_id":w["user_id"]},{"$inc":{"available_earnings":float(w["amount"])},"$set":{"updated_at":processed}})
+            ok=cmd=="/approvewithdrawal"
+            col("withdrawals").update_one({"withdrawal_id":wid,"status":"pending"},{"$set":{"status":"paid" if ok else "rejected","processed_by":from_id,"processed_at":now_ts()}})
+            if not ok: col("hosts").update_one({"user_id":w["user_id"]},{"$inc":{"available_earnings":float(w["amount"])}})
             notify_user(w["user_id"], '✅ Withdrawal paid.' if ok else '❌ Withdrawal rejected. Balance returned.')
             notify_full(f"WITHDRAWAL {'PAID' if ok else 'REJECTED'}\nHost: {w['user_id']}\nAmount: ₹{w['amount']}\nAdmin: {from_id}")
             tg_send(chat_id,f"✅ Withdrawal {'paid' if ok else 'rejected'}: <code>{wid}</code>")
@@ -1333,12 +1336,12 @@ def admin_command(chat_id, from_id, text):
         elif cmd=="/setcountry" and len(args)>=2:
             target=int(args[0]); country=args[1].upper()[:2]; ensure_user(target); col("users").update_one({"user_id":target},{"$set":{"country":country,"updated_at":now_ts()}}); col("hosts").update_one({"user_id":target},{"$set":{"country":country,"country_name":country,"updated_at":now_ts()}}); tg_send(chat_id,f"🌍 Country set for <code>{target}</code>: <b>{country}</b>")
         elif cmd=="/offer" and args:
-            msg=" ".join(args); col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":msg,"updated_at":now_ts()}},upsert=True); notify_group(GROUP_3_ID,f"🎁 <b>OFFER</b>\n{msg}") if GROUP_3_ID else None; tg_send(chat_id,"✅ Offer sent")
+            msg=" ".join(args); col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":msg,"updated_at":now_ts()}},upsert=True); [notify_group(g,f"🎁 <b>OFFER</b>\n{msg}") for g in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID) if g]; tg_send(chat_id,"✅ Offer sent")
         elif cmd=="/clearannouncement":
             col("settings").update_one({"key":"announcement"},{"$set":{"message":"","updated_at":now_ts()}},upsert=True); tg_send(chat_id,"✅ Announcement cleared")
         elif cmd in ("/announce","/announcement") and args:
             msg=" ".join(args); col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":msg,"updated_at":now_ts()}},upsert=True); 
-            if GROUP_3_ID: notify_group(GROUP_3_ID,f"📢 <b>ANNOUNCEMENT</b>\n{msg}")
+            for gid in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID): notify_group(gid,f"📢 <b>ANNOUNCEMENT</b>\n{msg}")
             tg_send(chat_id,"✅ Announcement sent")
         elif cmd in ("/call","/calluser","/callhost") and args:
             target=int(args[0]); target_u=ensure_user(target)[0]
@@ -1386,13 +1389,13 @@ def handle_update(upd):
                 tg_send(chat_id,f"Recharge {status}: <code>{key}</code>\n🗑️ Payment screenshot deleted")
                 notify_full(f"RECHARGE {status.upper()}\nUser: {r['user_id']}\n₹{r['rupees']} → {r['tokens']} Coins\nAdmin: {from_id}\nScreenshot: DELETED")
             elif action in ("approve_withdraw","reject_withdraw") and from_id in ADMIN_IDS:
+                w=col("withdrawals").find_one({"withdrawal_id":key,"status":"pending"})
+                if not w: return
                 ok=action=="approve_withdraw"
                 processed=now_ts()
-                new_status="paid" if ok else "rejected"
-                w=col("withdrawals").find_one_and_update({"withdrawal_id":key,"status":"pending"},{"$set":{"status":new_status,"processed_by":from_id,"processed_at":processed}}, return_document=ReturnDocument.AFTER)
-                if not w: return
+                col("withdrawals").update_one({"withdrawal_id":key,"status":"pending"},{"$set":{"status":"paid" if ok else "rejected","processed_by":from_id,"processed_at":processed}})
                 if not ok:
-                    col("hosts").update_one({"user_id":w["user_id"]},{"$inc":{"available_earnings":float(w["amount"])},"$set":{"updated_at":processed}})
+                    col("hosts").update_one({"user_id":w["user_id"]},{"$inc":{"available_earnings":float(w["amount"])}})
                 notify_user(w["user_id"], f"{'✅ Withdrawal paid.' if ok else '❌ Withdrawal rejected. Balance returned.'}\nAmount: ₹{w['amount']}\nProcessed: {iso(processed)}")
                 notify_full(f"💸 WITHDRAWAL {'PAID' if ok else 'REJECTED'}\nHost: {w['user_id']}\nAmount: ₹{w['amount']}\nAdmin: {from_id}\nProcessed: {iso(processed)}")
                 tg_send(chat_id,f"Withdrawal {'paid' if ok else 'rejected'}: <code>{key}</code>")
@@ -1401,19 +1404,9 @@ def handle_update(upd):
                 b=col("bookings").find_one({"booking_id":key});
                 if not b: return
                 if action=="reject_booking":
-                    closed=col("bookings").find_one_and_update({"booking_id":key,"status":"pending","earnings_credited":{"$ne":True}}, {"$set":{"status":"rejected","updated_at":now_ts(),"earnings_credited":True,"refunded_tokens":int(b["tokens"]),"completion_reason":"booking_rejected"}}, return_document=ReturnDocument.AFTER)
-                    if not closed: return
-                    col("users").update_one({"user_id":closed["user_id"],"call_refund_keys":{"$ne":closed["booking_id"]}},{"$inc":{"tokens":int(closed["tokens"])},"$addToSet":{"call_refund_keys":closed["booking_id"]},"$set":{"updated_at":now_ts()}}); notify_user(closed["user_id"],f"❌ Booking rejected. {closed['tokens']} Coins refunded.")
+                    col("bookings").update_one({"booking_id":key},{"$set":{"status":"rejected","updated_at":now_ts()}}); col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":b["tokens"]}}); notify_user(b["user_id"],f"❌ Booking rejected. {b['tokens']} Coins refunded.")
                 else:
-                    accepted=col("bookings").find_one_and_update(
-                        {"booking_id":key,"status":"pending","earnings_credited":{"$ne":True}},
-                        {"$set":{"status":"accepted","updated_at":now_ts()}},
-                        return_document=ReturnDocument.AFTER
-                    )
-                    if not accepted:
-                        tg_send(chat_id,f"⚠️ Booking <code>{key}</code> is already processed.")
-                        return
-                    notify_user(accepted["user_id"],"✅ Booking accepted. Host/admin will schedule the call.")
+                    col("bookings").update_one({"booking_id":key},{"$set":{"status":"accepted","updated_at":now_ts()}}); notify_user(b["user_id"],"✅ Booking accepted. Host/admin will schedule the call.")
                 tg_send(chat_id,f"Booking {action.replace('_',' ')}: <code>{key}</code>")
             elif action=="join_admin_call":
                 dc=col("direct_calls").find_one({"call_id":key})
@@ -1510,47 +1503,6 @@ def remove_dummy_hosts():
         log.warning("dummy host cleanup: %s", e)
 
 
-def _settle_no_connect(booking_id, reason="no_connect"):
-    """Idempotently refund a booking that never reached a two-party call.
-
-    Wallet credit is guarded by a per-booking marker first. The booking is then
-    finalized. This ordering means a process crash cannot permanently mark the
-    booking settled before the user's refund has been applied.
-    """
-    b=col("bookings").find_one({"booking_id":booking_id})
-    if not b:
-        return None, False
-    if b.get("call_started_at"):
-        return b, False
-    if b.get("status") in ("completed", "rejected", "cancelled") and b.get("earnings_credited") is True:
-        return b, False
-    refund=int(b.get("tokens",0))
-    # Idempotent wallet refund. If this booking was already refunded, modified_count=0
-    # but the marker proves that the refund was already applied.
-    if refund > 0:
-        r=col("users").update_one(
-            {"user_id":b["user_id"],"call_refund_keys":{"$ne":booking_id}},
-            {"$inc":{"tokens":refund},"$addToSet":{"call_refund_keys":booking_id},"$set":{"updated_at":now_ts()}}
-        )
-        if r.modified_count != 1:
-            check=col("users").find_one({"user_id":b["user_id"],"call_refund_keys":booking_id},{"_id":1})
-            if not check:
-                return b, False
-    t=now_ts()
-    closed=col("bookings").find_one_and_update(
-        {"booking_id":booking_id,"earnings_credited":{"$ne":True},"call_started_at":None,
-         "status":{"$in":["scheduled","pending","accepted"]}},
-        {"$set":{"status":"completed","call_ended_at":t,"actual_seconds":0,"charged_tokens":0,
-                 "refunded_tokens":refund,"host_earned":0,"platform_earned":0,
-                 "earnings_credited":True,"completion_reason":reason,"updated_at":t}},
-        return_document=ReturnDocument.AFTER
-    )
-    if closed:
-        return closed, True
-    latest=col("bookings").find_one({"booking_id":booking_id})
-    return latest, False
-
-
 def finalize_call(booking_id, ended_at=None, reason="completed"):
     b=col("bookings").find_one({"booking_id":booking_id})
     if not b: return None
@@ -1558,52 +1510,30 @@ def finalize_call(booking_id, ended_at=None, reason="completed"):
     start=int(b.get("call_started_at") or end)
     actual=max(0,end-start)
     booked_tokens=int(b.get("tokens",0))
+    # Actual connected time is the paid time. Billing is capped at the booked slot.
     if actual <= 0:
         charged=0
     else:
         booked_minutes=max(1, int(b.get("minutes",1)))
+        # Charge according to the selected package price, not a hard-coded per-minute rate.
+        # Billing is rounded up to the connected minute and capped at the package price.
         per_minute=booked_tokens / booked_minutes
         connected_minutes=max(1, (actual+59)//60)
         charged=min(booked_tokens, int(round(per_minute*connected_minutes)))
     refund=max(0,booked_tokens-charged)
     host_earned=round(charged*HOST_SHARE,2)
     platform_earned=round(charged*(1-HOST_SHARE),2)
-
-    # Idempotent financial settlement: each wallet operation has its own booking
-    # marker. This remains safe if /api/call/end and the watchdog race each other,
-    # or if a request is retried after a transient failure.
-    if refund:
-        r=col("users").update_one(
-            {"user_id":b["user_id"],"call_refund_keys":{"$ne":booking_id}},
-            {"$inc":{"tokens":refund},"$addToSet":{"call_refund_keys":booking_id},"$set":{"updated_at":end}}
-        )
-        if r.modified_count != 1:
-            if not col("users").find_one({"user_id":b["user_id"],"call_refund_keys":booking_id},{"_id":1}):
-                log.error("call settlement refund failed booking=%s",booking_id)
-                return b
-
-    r=col("hosts").update_one(
-        {"user_id":b["host_id"],"call_earning_keys":{"$ne":booking_id}},
-        {"$inc":{"total_tokens":host_earned,"available_earnings":host_earned},"$addToSet":{"call_earning_keys":booking_id},"$set":{"updated_at":end}}
-    )
-    if r.modified_count != 1:
-        if not col("hosts").find_one({"user_id":b["host_id"],"call_earning_keys":booking_id},{"_id":1}):
-            log.error("call settlement host wallet update failed booking=%s host=%s",booking_id,b["host_id"])
-            return b
-
     fresh=col("bookings").find_one_and_update(
         {"booking_id":booking_id,"earnings_credited":{"$ne":True}},
-        {"$set":{"status":"completed","call_ended_at":end,"actual_seconds":actual,
-                  "charged_tokens":charged,"refunded_tokens":refund,"host_earned":host_earned,
-                  "platform_earned":platform_earned,"earnings_credited":True,
-                  "completion_reason":reason,"updated_at":end}},
+        {"$set":{"status":"completed","call_ended_at":end,"actual_seconds":actual,"charged_tokens":charged,"refunded_tokens":refund,"host_earned":host_earned,"platform_earned":platform_earned,"earnings_credited":True,"completion_reason":reason,"updated_at":end}},
         return_document=ReturnDocument.AFTER
     )
-    if not fresh:
-        fresh=col("bookings").find_one({"booking_id":booking_id}) or b
-        return fresh
-
+    if not fresh: return b
+    if refund:
+        col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":refund}})
+    col("hosts").update_one({"user_id":b["host_id"]},{"$inc":{"total_tokens":host_earned,"available_earnings":host_earned},"$set":{"updated_at":end}})
     report=(f"📊 <b>1v1 CALL COMPLETED</b>\n\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nBooked: {b['minutes']} min\nActual Connected: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins\nHost 60%: ₹{host_earned:.2f}\nPlatform 40%: ₹{platform_earned:.2f}\nStart: {iso(start)}\nEnd: {iso(end)}")
+    notify_request(report)
     notify_full(report)
     notify_user(b["user_id"],f"🟢 Call completed.\nActual connected time: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins")
     notify_user(b["host_id"],f"💰 Call completed.\nActual connected time: {round(actual/60,2)} min\nYour earning: ₹{host_earned:.2f}")
@@ -1612,6 +1542,7 @@ def finalize_call(booking_id, ended_at=None, reason="completed"):
     for pb in pending:
         notify_user(pb["user_id"],f"🟢 <b>{host_name} is available again</b>\nYour booking request is still waiting for host confirmation.")
     return fresh
+
 
 def call_watchdog():
     while True:
@@ -1625,11 +1556,10 @@ def call_watchdog():
                 notify_full(f"📹 CALL READY\nBooking: {b['booking_id']}\nUser: {b['user_id']}\nHost: {b['host_id']}")
             for b in col("bookings").find({"status":"scheduled","scheduled_start":{"$lte":t}}):
                 if t >= int(b.get("scheduled_start",t)) + int(b.get("minutes",1))*60:
-                    closed, claimed = _settle_no_connect(b["booking_id"], "no_connect")
-                    if claimed and closed:
-                        refund=int(closed.get("refunded_tokens",0))
-                        notify_full(f"📊 CALL MISSED / NO CONNECT\nBooking: {closed['booking_id']}\nUser: {closed['user_id']}\nHost: {closed['host_id']}\nRefunded: {refund} Coins")
-                        notify_user(closed["user_id"],"⏰ Call window ended without both participants connecting. Your reserved Coins were refunded.")
+                    col("bookings").update_one({"booking_id":b["booking_id"],"status":"scheduled"},{"$set":{"status":"completed","call_ended_at":t,"actual_seconds":0,"charged_tokens":0,"refunded_tokens":b.get("tokens",0),"host_earned":0,"platform_earned":0,"earnings_credited":True,"completion_reason":"no_connect"}})
+                    col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":int(b.get("tokens",0))}})
+                    notify_full(f"📊 CALL MISSED / NO CONNECT\nBooking: {b['booking_id']}\nUser: {b['user_id']}\nHost: {b['host_id']}\nRefunded: {b['tokens']} Coins")
+                    notify_user(b["user_id"],"⏰ Call window ended without both participants connecting. Your reserved Coins were refunded.")
             for b in col("bookings").find({"status":"calling","scheduled_end":{"$lte":t}}):
                 finalize_call(b["booking_id"], t, "timer_expired")
         except Exception as e: log.warning("watchdog error: %s",e)
@@ -1647,13 +1577,6 @@ def startup():
             col("recharges").create_index("recharge_id", unique=True)
             col("direct_calls").create_index("call_id", unique=True)
             col("notifications").create_index([("user_id",1),("created_at",-1)])
-            col("bookings").create_index([("status",1),("scheduled_start",1)])
-            col("bookings").create_index([("status",1),("scheduled_end",1)])
-            col("bookings").create_index([("user_id",1),("status",1)])
-            col("bookings").create_index([("host_id",1),("status",1)])
-            col("withdrawals").create_index([("withdrawal_id",1)], unique=True)
-            col("withdrawals").create_index([("status",1),("created_at",-1)])
-            col("recharges").create_index([("status",1),("created_at",-1)])
         except Exception as e: log.warning("index setup: %s",e)
     if db is not None:
         remove_dummy_hosts()
