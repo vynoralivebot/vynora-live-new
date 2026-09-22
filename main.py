@@ -9,7 +9,7 @@ try:
     import qrcode
 except Exception:
     qrcode = None
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, Query
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, Query, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
@@ -756,8 +756,24 @@ def bookings(user_id: int, role: str = "user"):
         b["_id"] = str(b["_id"]); arr.append(b)
     return arr
 
+def _send_booking_notifications(user_id, host_id, host_name, minutes, tokens, requested_start, booking_id, busy):
+    try:
+        notify_user(user_id, f"✅ <b>Booking request submitted</b>\n\nHost: {host_name}\nDuration: {minutes} min\nCharge: {tokens} Coins\n\nHost confirmation ka wait karein. Agar Host busy hai to aapko update milega.")
+    except Exception as e:
+        log.warning("booking user notification failed: %s", e)
+    try:
+        notify_user(host_id, f"📅 <b>New Slot Booking Request</b>\n\nUser: <code>{user_id}</code>\nDuration: {minutes} min\nRequested: {iso(requested_start)}\n\nVynora Live में जाकर Accept या Reject करें.")
+    except Exception as e:
+        log.warning("booking host notification failed: %s", e)
+    try:
+        # Booking activity belongs to Operations Group 3, not Finance Group 1.
+        notify_full(f"📅 NEW BOOKING REQUEST\nBooking: <code>{booking_id}</code>\nUser: {user_id}\nHost: {host_name} (<code>{host_id}</code>)\nDuration: {minutes} min\nCoins: {tokens}\nRequested: {iso(requested_start)}\nBusy: {'YES' if busy else 'NO'}")
+    except Exception as e:
+        log.warning("booking group notification failed: %s", e)
+
+
 @app.post("/api/book-slot")
-def book_slot(data: BookingModel):
+def book_slot(data: BookingModel, background_tasks: BackgroundTasks):
     require_user(data.user_id); h=host_or_404(data.host_id)
     plan=next((p for p in get_booking_plans() if p["minutes"]==int(data.minutes)),None)
     if not plan: raise HTTPException(400,"Invalid duration")
@@ -804,10 +820,13 @@ def book_slot(data: BookingModel):
     col("bookings").insert_one(doc)
     if is_demo:
         col("users").update_one({"user_id":uid(data.user_id)},{"$set":{"demo_booking_id":bid,"updated_at":now_ts()}})
-    notify_user(data.user_id, f"✅ <b>Booking request submitted</b>\n\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCharge: {plan['tokens']} Coins\n\nHost confirmation ka wait karein. Agar Host busy hai to aapko update milega.")
-    notify_user(data.host_id, f"📅 <b>New Slot Booking Request</b>\n\nUser: <code>{data.user_id}</code>\nDuration: {plan['minutes']} min\nRequested: {iso(start)}\n\nVynora Live में जाकर Accept या Reject करें.")
-    notify_full(f"📅 <b>NEW BOOKING REQUEST</b>\n\nUser: <code>{data.user_id}</code>\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy at request: {'YES' if busy else 'NO'}", [[{"text":"✅ Accept","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
-    notify_full(f"📅 NEW BOOKING\nBooking: <code>{bid}</code>\nUser: {data.user_id}\nHost: {data.host_id}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy: {busy}")
+    # Do not make the booking HTTP request wait for Telegram/Mongo notification calls.
+    # The booking is already safely stored above; notifications run after the response.
+    background_tasks.add_task(
+        _send_booking_notifications,
+        data.user_id, data.host_id, h.get('name','Host'),
+        plan['minutes'], plan['tokens'], start, bid, busy
+    )
     return {"status":"success","booking_id":bid,"busy":busy,"message":"Booking submitted"}
 
 @app.post("/api/booking/action")
