@@ -766,8 +766,19 @@ def book_slot(data: BookingModel):
         message = f"⚠️ <b>यह Host book नहीं किया जा सकता</b>\n\nयह Host <b>{h.get('country_name', host_country)}</b> से है। अभी केवल <b>India-based Hosts</b> की booking उपलब्ध है।\n\nकृपया India Host चुनें।"
         notify_user(data.user_id, message)
         raise HTTPException(403, "You cannot book a Host from another country")
-    if is_demo and bool(u.get("demo_used", False)):
-        raise HTTPException(409,"Demo already used. Demo offer is available only once per Telegram User ID.")
+    # Demo eligibility is determined ONLY by a demo call that actually connected
+    # on both sides. Do not trust the legacy users.demo_used flag by itself,
+    # because older deployments could mark it during booking/acceptance.
+    if is_demo:
+        connected_demo = col("bookings").find_one({
+            "user_id": uid(data.user_id),
+            "is_demo": True,
+            "call_started_at": {"$ne": None},
+            "user_joined_at": {"$ne": None},
+            "host_joined_at": {"$ne": None},
+        }, {"_id": 1})
+        if connected_demo:
+            raise HTTPException(409,"Demo already used. Demo offer is available only once per Telegram User ID.")
     if int(u.get("tokens",0)) < plan_tokens: raise HTTPException(400,"Insufficient tokens")
     # Reserve money immediately; refund on reject/cancel.
     reserved=col("users").update_one({"user_id":uid(data.user_id),"tokens":{"$gte":plan_tokens}}, {"$inc":{"tokens":-plan_tokens}})
@@ -1571,6 +1582,8 @@ def repair_demo_usage_flags():
                 "user_id": uid(uid_value),
                 "is_demo": True,
                 "call_started_at": {"$ne": None},
+                "user_joined_at": {"$ne": None},
+                "host_joined_at": {"$ne": None},
             }, {"_id": 1})
             if not started:
                 col("users").update_one(
