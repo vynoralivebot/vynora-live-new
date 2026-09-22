@@ -14,6 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from bson import ObjectId
 
 try:
@@ -32,10 +33,22 @@ log = logging.getLogger("vynora")
 BASE = Path(__file__).resolve().parent
 ADMIN_IDS = {int(x.strip()) for x in os.getenv("ADMIN_IDS", "7778606261,7001825467").split(",") if x.strip().isdigit()}
 HOST_SHARE = float(os.getenv("HOST_SHARE", "0.60"))
-GROUP_1_ID = os.getenv("GROUP_1_ID", "")
-GROUP_2_ID = os.getenv("GROUP_2_ID", "")
-GROUP_3_ID = os.getenv("GROUP_3_ID", "")
+GROUP_1_ID = "-1004416497653"  # Finance / Recharge
+GROUP_2_ID = "-1004308956522"  # New User Registration
+GROUP_3_ID = "-1004372884553"  # Operations
 BOT_TOKEN = os.getenv("BOT_TOKEN", "")
+
+def validate_group_ids():
+    # Group routing is strict: G1=Finance, G2=New Users, G3=Operations.
+    ids={"GROUP_1_ID":GROUP_1_ID,"GROUP_2_ID":GROUP_2_ID,"GROUP_3_ID":GROUP_3_ID}
+    if not all(ids.values()):
+        missing=[k for k,v in ids.items() if not v]
+        raise RuntimeError("Missing Telegram group ID(s): " + ", ".join(missing))
+    vals=list(ids.values())
+    if len(set(vals)) != 3:
+        raise RuntimeError("GROUP_1_ID, GROUP_2_ID and GROUP_3_ID must be three different Telegram chat IDs")
+    log.info("Telegram routing locked: Group1=Finance, Group2=New Users, Group3=Operations")
+
 MONGO_URI = os.getenv("MONGO_URI", os.getenv("MONGO_URL", ""))
 MONGO_DB = os.getenv("MONGO_DB", "vynora_live")
 AGORA_APP_ID = (os.getenv("AGORA_APP_ID") or os.getenv("AGORA_APPID") or os.getenv("AGORA_APP_ID_VALUE") or "").strip()
@@ -131,6 +144,7 @@ def public_host_view(h, u=None):
     return {
         "user_id": tid, "telegram_id": tid,
         "name": h.get("name") or u.get("name", "Host"),
+        "username": h.get("username") or u.get("username", ""),
         "photo_url": public_photo_url(tid, h) or public_photo_url(tid, u) or h.get("photo_url", ""),
         "online": bool(h.get("online")), "country": country,
         "country_name": h.get("country_name") or ("India" if country == "IN" else country),
@@ -368,8 +382,9 @@ def notify_new_user(u):
     notify_group(GROUP_2_ID, text)
 
 
-def notify_request(text, buttons=None):
-    notify_group(GROUP_1_ID, text, buttons)
+def notify_recharge_request(text, buttons=None):
+    # ONLY recharge requests go to Finance Group 1.
+    return notify_group(GROUP_1_ID, text, buttons)
 
 
 def notify_full(text):
@@ -663,7 +678,6 @@ def host_apply(data: HostApplyModel):
     if existing and existing.get("status") == "approved": raise HTTPException(400,"Already an approved host")
     col("hosts").update_one({"user_id":uid(data.user_id)}, {"$set":d}, upsert=True)
     text = f"🎙️ <b>HOST APPLICATION</b>\n\nName: {data.name}\nUser ID: <code>{data.user_id}</code>\nUsername: @{data.username.lstrip('@') or '-'}\nPhone: {data.phone or '-'}\nAge: {data.age or '-'}\nBio: {data.bio or '-'}"
-    notify_request(text, [[{"text":"✅ Approve Host","callback_data":f"approve_host:{data.user_id}"},{"text":"❌ Reject","callback_data":f"reject_host:{data.user_id}"}]])
     notify_full(text)
     return {"status":"success","message":"Host application submitted"}
 
@@ -792,7 +806,7 @@ def book_slot(data: BookingModel):
         col("users").update_one({"user_id":uid(data.user_id)},{"$set":{"demo_booking_id":bid,"updated_at":now_ts()}})
     notify_user(data.user_id, f"✅ <b>Booking request submitted</b>\n\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCharge: {plan['tokens']} Coins\n\nHost confirmation ka wait karein. Agar Host busy hai to aapko update milega.")
     notify_user(data.host_id, f"📅 <b>New Slot Booking Request</b>\n\nUser: <code>{data.user_id}</code>\nDuration: {plan['minutes']} min\nRequested: {iso(start)}\n\nVynora Live में जाकर Accept या Reject करें.")
-    notify_request(f"📅 <b>NEW BOOKING REQUEST</b>\n\nUser: <code>{data.user_id}</code>\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy at request: {'YES' if busy else 'NO'}", [[{"text":"✅ Accept","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
+    notify_full(f"📅 <b>NEW BOOKING REQUEST</b>\n\nUser: <code>{data.user_id}</code>\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy at request: {'YES' if busy else 'NO'}", [[{"text":"✅ Accept","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
     notify_full(f"📅 NEW BOOKING\nBooking: <code>{bid}</code>\nUser: {data.user_id}\nHost: {data.host_id}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy: {busy}")
     return {"status":"success","booking_id":bid,"busy":busy,"message":"Booking submitted"}
 
@@ -996,11 +1010,26 @@ def recharge(data: RechargeModel):
     require_user(data.user_id)
     plan=next((p for p in RECHARGE_PLANS if p["rupees"]==data.rupees and p["tokens"]==data.tokens),None)
     if not plan: raise HTTPException(400,"Invalid recharge plan")
+    utr=(data.utr or "").strip()[:100]
+    # Also recognize pending records created by older versions that had no dedupe key.
+    legacy=col("recharges").find_one({"user_id":uid(data.user_id),"utr":utr,"rupees":data.rupees,"tokens":data.tokens,"status":"pending"})
+    if legacy:
+        return {"status":"success","recharge_id":legacy["recharge_id"],"duplicate":True}
+    dedupe_key=f"{uid(data.user_id)}|{data.rupees}|{data.tokens}|{utr}"
+    existing=col("recharges").find_one({"recharge_dedupe_key":dedupe_key,"status":"pending"})
+    if existing:
+        return {"status":"success","recharge_id":existing["recharge_id"],"duplicate":True}
     rid=str(uuid.uuid4())
-    col("recharges").insert_one({"recharge_id":rid,"user_id":uid(data.user_id),"rupees":data.rupees,"tokens":data.tokens,"utr":data.utr,"screenshot_url":data.screenshot_url,"status":"pending","created_at":now_ts()})
-    text=f"💳 <b>RECHARGE REQUEST</b>\nID: <code>{rid}</code>\nUser: <code>{data.user_id}</code>\n₹{data.rupees} → {data.tokens} Coins\nUTR: {data.utr or '-'}"
-    notify_request(text,[[{"text":"✅ Approve","callback_data":f"approve_recharge:{rid}"},{"text":"❌ Reject","callback_data":f"reject_recharge:{rid}"}]])
-    notify_full(text)
+    doc={"recharge_id":rid,"recharge_dedupe_key":dedupe_key,"user_id":uid(data.user_id),"rupees":data.rupees,"tokens":data.tokens,"utr":utr,"screenshot_url":data.screenshot_url,"status":"pending","created_at":now_ts()}
+    try:
+        col("recharges").insert_one(doc)
+    except DuplicateKeyError:
+        existing=col("recharges").find_one({"recharge_dedupe_key":dedupe_key,"status":"pending"})
+        if existing:
+            return {"status":"success","recharge_id":existing["recharge_id"],"duplicate":True}
+        raise
+    text=f"💳 <b>RECHARGE REQUEST</b>\nID: <code>{rid}</code>\nUser: <code>{data.user_id}</code>\n₹{data.rupees} → {data.tokens} Coins\nUTR: {utr or '-'}"
+    notify_recharge_request(text,[[{"text":"✅ Approve","callback_data":f"approve_recharge:{rid}"},{"text":"❌ Reject","callback_data":f"reject_recharge:{rid}"}]])
     return {"status":"success","recharge_id":rid}
 
 @app.post("/api/recharge/submit")
@@ -1026,15 +1055,31 @@ async def recharge_submit(
     if len(photo_bytes) > 1200000:
         raise HTTPException(400, "Payment screenshot is too large. Please use an image below 1.2 MB.")
 
+    # Also recognize pending records created by older versions that had no dedupe key.
+    legacy = col("recharges").find_one({"user_id":uid(user_id),"utr":utr,"rupees":rupees,"tokens":tokens,"status":"pending"})
+    if legacy:
+        return {"status":"success", "recharge_id": legacy["recharge_id"], "duplicate": True}
+    dedupe_key = f"{uid(user_id)}|{rupees}|{tokens}|{utr}"
+    existing = col("recharges").find_one({"recharge_dedupe_key": dedupe_key, "status": "pending"})
+    if existing:
+        return {"status":"success", "recharge_id": existing["recharge_id"], "duplicate": True}
+
     rid = "RCH-" + uuid.uuid4().hex[:10].upper()
     mime = screenshot.content_type or "image/jpeg"
     data_uri = f"data:{mime};base64," + base64.b64encode(photo_bytes).decode("ascii")
-    col("recharges").insert_one({
-        "recharge_id": rid, "user_id": uid(user_id), "rupees": rupees, "tokens": tokens,
+    doc={
+        "recharge_id": rid, "recharge_dedupe_key": dedupe_key, "user_id": uid(user_id), "rupees": rupees, "tokens": tokens,
         "utr": utr, "screenshot_data": data_uri,
         "screenshot_filename": screenshot.filename or "payment.jpg",
         "screenshot_content_type": mime, "status": "pending", "created_at": now_ts()
-    })
+    }
+    try:
+        col("recharges").insert_one(doc)
+    except DuplicateKeyError:
+        existing = col("recharges").find_one({"recharge_dedupe_key": dedupe_key, "status": "pending"})
+        if existing:
+            return {"status":"success", "recharge_id": existing["recharge_id"], "duplicate": True}
+        raise
     text = (f"💳 <b>RECHARGE REQUEST</b>\nID: <code>{rid}</code>\n"
             f"User: <code>{uid(user_id)}</code>\n₹{rupees} → {tokens} Coins\n"
             f"UTR: <code>{esc_html(utr)}</code>")
@@ -1051,7 +1096,6 @@ async def recharge_submit(
         fallback = tg_send(GROUP_1_ID, f"🧾 <b>Recharge Action</b>\nID: <code>{rid}</code>\n₹{rupees} → {tokens} Coins", buttons) or {}
         if fallback.get("ok") and fallback.get("result", {}).get("message_id"):
             col("recharges").update_one({"recharge_id": rid}, {"$set": {"telegram_action_message_id": fallback["result"]["message_id"]}})
-    notify_full(f"RECHARGE REQUEST\nUser: {uid(user_id)}\n₹{rupees} → {tokens} Coins\nUTR: {utr}\nID: {rid}")
     return {"status":"success", "recharge_id":rid}
 
 @app.get("/api/recharge/screenshot/{recharge_id}")
@@ -1165,9 +1209,7 @@ def admin_overview(admin_id:int):
 def announcement(data: AnnouncementModel):
     if not is_admin(data.user_id): raise HTTPException(403,"Admin only")
     col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":data.message,"updated_at":now_ts()}},upsert=True)
-    notify_group(GROUP_1_ID,f"📢 <b>ANNOUNCEMENT</b>\n{data.message}")
-    notify_group(GROUP_2_ID,f"📢 <b>ANNOUNCEMENT</b>\n{data.message}")
-    notify_group(GROUP_3_ID,f"📢 <b>ANNOUNCEMENT</b>\n{data.message}")
+    notify_full(f"📢 <b>ANNOUNCEMENT</b>\n{data.message}")
     return {"status":"success"}
 
 @app.get("/api/announcement")
@@ -1210,7 +1252,7 @@ def withdraw(user_id:int, amount:float):
     if amount > float(h.get("available_earnings",0)): raise HTTPException(400,"Insufficient balance")
     created=now_ts(); wid=str(uuid.uuid4()); col("withdrawals").insert_one({"withdrawal_id":wid,"user_id":uid(user_id),"amount":amount,"status":"pending","created_at":created})
     col("hosts").update_one({"user_id":uid(user_id)},{"$inc":{"available_earnings":-amount}})
-    notify_request(f"💸 <b>WITHDRAWAL REQUEST</b>\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>\nRequested: {iso(created)}", [[{"text":"✅ Paid","callback_data":f"approve_withdraw:{wid}"},{"text":"❌ Reject","callback_data":f"reject_withdraw:{wid}"}]])
+    notify_full(f"💸 <b>WITHDRAWAL REQUEST</b>\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>\nRequested: {iso(created)}", [[{"text":"✅ Paid","callback_data":f"approve_withdraw:{wid}"},{"text":"❌ Reject","callback_data":f"reject_withdraw:{wid}"}]])
     notify_full(f"💸 WITHDRAWAL REQUEST\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>\nRequested: {iso(created)}")
     notify_user(user_id, f"💸 Withdrawal request submitted.\nAmount: ₹{amount}\nRequested: {iso(created)}")
     return {"status":"success","withdrawal_id":wid}
@@ -1336,12 +1378,12 @@ def admin_command(chat_id, from_id, text):
         elif cmd=="/setcountry" and len(args)>=2:
             target=int(args[0]); country=args[1].upper()[:2]; ensure_user(target); col("users").update_one({"user_id":target},{"$set":{"country":country,"updated_at":now_ts()}}); col("hosts").update_one({"user_id":target},{"$set":{"country":country,"country_name":country,"updated_at":now_ts()}}); tg_send(chat_id,f"🌍 Country set for <code>{target}</code>: <b>{country}</b>")
         elif cmd=="/offer" and args:
-            msg=" ".join(args); col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":msg,"updated_at":now_ts()}},upsert=True); [notify_group(g,f"🎁 <b>OFFER</b>\n{msg}") for g in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID) if g]; tg_send(chat_id,"✅ Offer sent")
+            msg=" ".join(args); col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":msg,"updated_at":now_ts()}},upsert=True); notify_full(f"🎁 <b>OFFER</b>\n{msg}"); tg_send(chat_id,"✅ Offer sent")
         elif cmd=="/clearannouncement":
             col("settings").update_one({"key":"announcement"},{"$set":{"message":"","updated_at":now_ts()}},upsert=True); tg_send(chat_id,"✅ Announcement cleared")
         elif cmd in ("/announce","/announcement") and args:
             msg=" ".join(args); col("settings").update_one({"key":"announcement"},{"$set":{"key":"announcement","message":msg,"updated_at":now_ts()}},upsert=True); 
-            for gid in (GROUP_1_ID,GROUP_2_ID,GROUP_3_ID): notify_group(gid,f"📢 <b>ANNOUNCEMENT</b>\n{msg}")
+            notify_full(f"📢 <b>ANNOUNCEMENT</b>\n{msg}")
             tg_send(chat_id,"✅ Announcement sent")
         elif cmd in ("/call","/calluser","/callhost") and args:
             target=int(args[0]); target_u=ensure_user(target)[0]
@@ -1533,7 +1575,6 @@ def finalize_call(booking_id, ended_at=None, reason="completed"):
         col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":refund}})
     col("hosts").update_one({"user_id":b["host_id"]},{"$inc":{"total_tokens":host_earned,"available_earnings":host_earned},"$set":{"updated_at":end}})
     report=(f"📊 <b>1v1 CALL COMPLETED</b>\n\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nBooked: {b['minutes']} min\nActual Connected: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins\nHost 60%: ₹{host_earned:.2f}\nPlatform 40%: ₹{platform_earned:.2f}\nStart: {iso(start)}\nEnd: {iso(end)}")
-    notify_request(report)
     notify_full(report)
     notify_user(b["user_id"],f"🟢 Call completed.\nActual connected time: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins")
     notify_user(b["host_id"],f"💰 Call completed.\nActual connected time: {round(actual/60,2)} min\nYour earning: ₹{host_earned:.2f}")
@@ -1568,6 +1609,7 @@ def call_watchdog():
 
 @app.on_event("startup")
 def startup():
+    validate_group_ids()
     log.info('Vynora startup: BOT_TOKEN=%s, MONGO=%s, GROUP1=%s, GROUP2=%s, GROUP3=%s, AGORA=%s', bool(BOT_TOKEN), bool(MONGO_URI), bool(GROUP_1_ID), bool(GROUP_2_ID), bool(GROUP_3_ID), bool(AGORA_APP_ID and AGORA_APP_CERTIFICATE))
     if db is not None:
         try:
@@ -1575,6 +1617,7 @@ def startup():
             col("hosts").create_index("user_id", unique=True)
             col("bookings").create_index("booking_id", unique=True)
             col("recharges").create_index("recharge_id", unique=True)
+            col("recharges").create_index("recharge_dedupe_key", unique=True, partialFilterExpression={"status":"pending"})
             col("direct_calls").create_index("call_id", unique=True)
             col("notifications").create_index([("user_id",1),("created_at",-1)])
         except Exception as e: log.warning("index setup: %s",e)
