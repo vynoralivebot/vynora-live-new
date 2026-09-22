@@ -1,5 +1,6 @@
 import os, time, uuid, threading, logging, base64, mimetypes, hmac, hashlib, json, urllib.parse, contextvars
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 from pathlib import Path
 from typing import Optional
 
@@ -194,7 +195,10 @@ def esc_html(value):
 
 
 def iso(ts):
-    return datetime.fromtimestamp(int(ts), tz=timezone.utc).isoformat()
+    return datetime.fromtimestamp(int(ts), tz=ZoneInfo("Asia/Kolkata")).isoformat()
+
+def ist_stamp(ts=None):
+    return datetime.fromtimestamp(int(ts or now_ts()), tz=ZoneInfo("Asia/Kolkata")).strftime("%d %b %Y, %I:%M:%S %p IST")
 
 
 def uid(v):
@@ -322,6 +326,7 @@ def notify_group(chat_id, text, buttons=None):
     if not chat_id:
         log.error('Telegram group notify skipped: group chat ID is missing')
         return False
+    text = f"{text}\n\n🕒 {ist_stamp()}"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML", "disable_web_page_preview": True}
     if buttons:
         payload["reply_markup"] = {"inline_keyboard": buttons}
@@ -1199,14 +1204,29 @@ def host_stats(host_id:int):
 
 @app.post("/api/withdraw")
 def withdraw(user_id:int, amount:float):
+    require_user(user_id)
     h=host_or_404(user_id)
+    if str(h.get("status","")).lower() != "approved": raise HTTPException(403,"Only approved hosts can withdraw")
     if amount < 700: raise HTTPException(400,"Minimum withdrawal is ₹700")
     if amount > float(h.get("available_earnings",0)): raise HTTPException(400,"Insufficient balance")
-    wid=str(uuid.uuid4()); col("withdrawals").insert_one({"withdrawal_id":wid,"user_id":uid(user_id),"amount":amount,"status":"pending","created_at":now_ts()})
+    created=now_ts(); wid=str(uuid.uuid4()); col("withdrawals").insert_one({"withdrawal_id":wid,"user_id":uid(user_id),"amount":amount,"status":"pending","created_at":created})
     col("hosts").update_one({"user_id":uid(user_id)},{"$inc":{"available_earnings":-amount}})
-    notify_request(f"💸 <b>WITHDRAWAL REQUEST</b>\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>", [[{"text":"✅ Paid","callback_data":f"approve_withdraw:{wid}"},{"text":"❌ Reject","callback_data":f"reject_withdraw:{wid}"}]])
-    notify_full(f"💸 WITHDRAWAL REQUEST\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>")
+    notify_request(f"💸 <b>WITHDRAWAL REQUEST</b>\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>\nRequested: {iso(created)}", [[{"text":"✅ Paid","callback_data":f"approve_withdraw:{wid}"},{"text":"❌ Reject","callback_data":f"reject_withdraw:{wid}"}]])
+    notify_full(f"💸 WITHDRAWAL REQUEST\nHost: {user_id}\nAmount: ₹{amount}\nID: <code>{wid}</code>\nRequested: {iso(created)}")
+    notify_user(user_id, f"💸 Withdrawal request submitted.\nAmount: ₹{amount}\nRequested: {iso(created)}")
     return {"status":"success","withdrawal_id":wid}
+
+@app.get("/api/withdraw/history/{user_id}")
+def withdrawal_history(user_id:int):
+    require_user(user_id)
+    h=host_or_404(user_id)
+    if str(h.get("status","")).lower() != "approved": raise HTTPException(403,"Only approved hosts can view withdrawal history")
+    rows=list(col("withdrawals").find({"user_id":uid(user_id)},{"_id":0}).sort("created_at",-1).limit(100))
+    for x in rows:
+        x["amount"]=float(x.get("amount",0) or 0)
+        x["created_at"]=int(x.get("created_at",0) or 0)
+        x["processed_at"]=int(x.get("processed_at",0) or 0) if x.get("processed_at") else None
+    return rows
 
 # ---------------- Telegram webhook / admin commands ----------------
 
@@ -1373,11 +1393,12 @@ def handle_update(upd):
                 w=col("withdrawals").find_one({"withdrawal_id":key,"status":"pending"})
                 if not w: return
                 ok=action=="approve_withdraw"
-                col("withdrawals").update_one({"withdrawal_id":key,"status":"pending"},{"$set":{"status":"paid" if ok else "rejected","processed_by":from_id,"processed_at":now_ts()}})
+                processed=now_ts()
+                col("withdrawals").update_one({"withdrawal_id":key,"status":"pending"},{"$set":{"status":"paid" if ok else "rejected","processed_by":from_id,"processed_at":processed}})
                 if not ok:
                     col("hosts").update_one({"user_id":w["user_id"]},{"$inc":{"available_earnings":float(w["amount"])}})
-                notify_user(w["user_id"], f"{'✅ Withdrawal paid.' if ok else '❌ Withdrawal rejected. Balance returned.'}")
-                notify_full(f"💸 WITHDRAWAL {'PAID' if ok else 'REJECTED'}\nHost: {w['user_id']}\nAmount: ₹{w['amount']}\nAdmin: {from_id}")
+                notify_user(w["user_id"], f"{'✅ Withdrawal paid.' if ok else '❌ Withdrawal rejected. Balance returned.'}\nAmount: ₹{w['amount']}\nProcessed: {iso(processed)}")
+                notify_full(f"💸 WITHDRAWAL {'PAID' if ok else 'REJECTED'}\nHost: {w['user_id']}\nAmount: ₹{w['amount']}\nAdmin: {from_id}\nProcessed: {iso(processed)}")
                 tg_send(chat_id,f"Withdrawal {'paid' if ok else 'rejected'}: <code>{key}</code>")
             elif action in ("accept_booking","reject_booking") and from_id in ADMIN_IDS:
                 # Admin can process a booking request too.
