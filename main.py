@@ -215,6 +215,18 @@ def agora_uid(telegram_user_id: int) -> int:
 def user_doc(user_id):
     return col("users").find_one({"user_id": uid(user_id)})
 
+def demo_is_used(user_id):
+    """A Demo is used ONLY if a Demo booking actually started with both sides connected.
+    Legacy users.demo_used is intentionally ignored for eligibility.
+    """
+    return bool(col("bookings").find_one({
+        "user_id": uid(user_id),
+        "is_demo": True,
+        "call_started_at": {"$ne": None},
+        "user_joined_at": {"$ne": None},
+        "host_joined_at": {"$ne": None},
+    }, {"_id": 1}))
+
 
 def ensure_user(user_id, name="", username="", country="IN"):
     user_id = uid(user_id)
@@ -511,7 +523,7 @@ def notifications(user_id:int):
 def notifications_read(user_id:int):
     require_user(user_id); col("notifications").update_many({"user_id":uid(user_id),"read":False},{"$set":{"read":True}}); return {"status":"success"}
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health():
     mongo_ok = False
     if mongo:
@@ -532,14 +544,14 @@ def start(data: StartModel):
     if created:
         notify_new_user(u)
     return {"status": "success", "new_user": created, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u),
-            "demo_used": bool(u.get("demo_used", False))}}
+            "demo_used": demo_is_used(data.user_id)}}
 
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
     u = require_user(user_id)
     h = host_doc(user_id)
     return {"user": {"user_id": int(u["user_id"]), "name": u.get("name"), "username": u.get("username"), "tokens": int(u.get("tokens",0)), "country": u.get("country", "IN"), "photo_url": public_photo_url(user_id, u),
-            "demo_used": bool(u.get("demo_used", False))}, "host": private_host_view(h), "is_admin": is_admin(user_id)}
+            "demo_used": demo_is_used(user_id)}, "host": private_host_view(h), "is_admin": is_admin(user_id)}
 
 @app.post("/api/profile/photo")
 def set_photo(data: PhotoModel):
@@ -769,16 +781,8 @@ def book_slot(data: BookingModel):
     # Demo eligibility is determined ONLY by a demo call that actually connected
     # on both sides. Do not trust the legacy users.demo_used flag by itself,
     # because older deployments could mark it during booking/acceptance.
-    if is_demo:
-        connected_demo = col("bookings").find_one({
-            "user_id": uid(data.user_id),
-            "is_demo": True,
-            "call_started_at": {"$ne": None},
-            "user_joined_at": {"$ne": None},
-            "host_joined_at": {"$ne": None},
-        }, {"_id": 1})
-        if connected_demo:
-            raise HTTPException(409,"Demo already used. Demo offer is available only once per Telegram User ID.")
+    if is_demo and demo_is_used(data.user_id):
+        raise HTTPException(409, "Demo already used. Demo offer is available only once per Telegram User ID.")
     if int(u.get("tokens",0)) < plan_tokens: raise HTTPException(400,"Insufficient tokens")
     # Reserve money immediately; refund on reject/cancel.
     reserved=col("users").update_one({"user_id":uid(data.user_id),"tokens":{"$gte":plan_tokens}}, {"$inc":{"tokens":-plan_tokens}})
@@ -865,12 +869,13 @@ def call_connect(data: CallJoinModel):
         changed=col("bookings").update_one({"booking_id":data.booking_id,"call_started_at":None},{"$set":{"status":"calling","call_started_at":start,"scheduled_end":end,"updated_at":start}})
         if changed.modified_count:
             if bool(fresh.get("is_demo")):
-                marked=col("users").update_one(
-                    {"user_id":uid(fresh["user_id"]),"demo_used":{"$ne":True}},
-                    {"$set":{"demo_used":True,"demo_used_at":start}}
+                # This is only a legacy/audit marker. Demo eligibility is NEVER
+                # decided from users.demo_used; it is decided from the booking
+                # having call_started_at + both join timestamps.
+                col("users").update_one(
+                    {"user_id":uid(fresh["user_id"])},
+                    {"$set":{"demo_used":True,"demo_used_at":start,"demo_booking_id":data.booking_id}}
                 )
-                if marked.modified_count != 1:
-                    log.warning("Demo booking %s started but demo_used was already set for user %s", data.booking_id, fresh["user_id"])
             notify_full(f"📹 <b>CALL STARTED</b>\nBooking: <code>{data.booking_id}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nDuration: {b['minutes']} min\nConnected: {iso(start)}")
         fresh=col("bookings").find_one({"booking_id":data.booking_id})
     return {"status":"connected","booking":{k:fresh.get(k) for k in ["booking_id","minutes","tokens","status","call_started_at","scheduled_end","user_joined_at","host_joined_at"]}}
@@ -1051,7 +1056,7 @@ async def recharge_submit(
         {"text":"❌ Reject", "callback_data":f"reject_recharge:{rid}"}
     ]]
     # Group 1 gets the actual payment screenshot with the approve/reject buttons on the same message.
-    sent_photo = tg_send_photo(GROUP_1_ID, photo_bytes, screenshot.filename or "payment.jpg", text, buttons)
+    sent_photo = tg_send_photo(GROUP_1_ID, photo_bytes, screenshot.filename or "payment.jpg", text + f"\n\n🕒 {ist_stamp()}", buttons)
     if sent_photo and sent_photo.get("message_id"):
         col("recharges").update_one({"recharge_id": rid}, {"$set": {"telegram_screenshot_message_id": sent_photo["message_id"]}})
     else:
