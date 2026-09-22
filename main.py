@@ -472,6 +472,29 @@ class CallEndModel(BaseModel):
 def root():
     return FileResponse(BASE / "index.html", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
 
+# Public branding assets used by the Telegram Mini App. These explicit routes are
+# required because FastAPI is not serving the repository root as a static folder.
+@app.get("/vynora-icon.png")
+def vynora_icon():
+    path = BASE / "vynora-icon.png"
+    if not path.exists():
+        raise HTTPException(404, "Vynora icon not found")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control":"no-store, max-age=0"})
+
+@app.get("/vynora-banner.png")
+def vynora_banner():
+    path = BASE / "vynora-banner.png"
+    if not path.exists():
+        raise HTTPException(404, "Vynora banner not found")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control":"no-store, max-age=0"})
+
+@app.get("/favicon.ico")
+def favicon():
+    path = BASE / "favicon.ico"
+    if not path.exists():
+        raise HTTPException(404, "Favicon not found")
+    return FileResponse(path, media_type="image/x-icon", headers={"Cache-Control":"no-store, max-age=0"})
+
 @app.get("/api/notifications/{user_id}")
 def notifications(user_id:int):
     require_user(user_id)
