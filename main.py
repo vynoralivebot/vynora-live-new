@@ -163,7 +163,7 @@ def verify_telegram_init_data(init_data: str):
 @app.middleware("http")
 async def telegram_webapp_auth(request: Request, call_next):
     path=request.url.path
-    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info"):
+    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info") and not path.startswith("/api/profile/photo/"):
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
         if verified is None:
             return Response(content=json.dumps({"detail":"Valid Telegram Mini App session is required"}), status_code=401, media_type="application/json")
