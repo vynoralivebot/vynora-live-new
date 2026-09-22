@@ -10,7 +10,7 @@ except Exception:
     qrcode = None
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response, RedirectResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
 from bson import ObjectId
@@ -43,7 +43,6 @@ UPI_ID = os.getenv("UPI_ID", "vynoralive@slc")
 UPI_NAME = os.getenv("UPI_NAME", "Rajnish Kumar")
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://t.me/VynoraSupport")
 
-BOOKING_PLAN_VERSION = "2026-09-22-v2"
 BOOKING_PLANS = [
     {"minutes": 1, "tokens": 20, "name": "Demo", "demo": True},
     {"minutes": 2, "tokens": 150, "name": "2 Minutes", "demo": False},
@@ -51,14 +50,34 @@ BOOKING_PLANS = [
     {"minutes": 10, "tokens": 600, "name": "10 Minutes", "demo": False},
     {"minutes": 30, "tokens": 1500, "name": "30 Minutes", "demo": False},
 ]
+LEGACY_BOOKING_PLANS = [
+    {"minutes": 1, "tokens": 20}, {"minutes": 2, "tokens": 299},
+    {"minutes": 5, "tokens": 499}, {"minutes": 10, "tokens": 799},
+    {"minutes": 30, "tokens": 2499},
+]
 
 def get_booking_plans():
+    """Return the current fixed Vynora booking plans.
+
+    The previous deployment stored an older plan table in MongoDB; returning that
+    stale table made the UI silently show old prices after a deploy. Keep the
+    current requested plans authoritative so frontend, recharge and booking all
+    stay in sync. Admin /setplan can still customize them later.
+    """
     if db is None:
         return BOOKING_PLANS
     try:
         row = db["settings"].find_one({"key":"booking_plans"})
         plans = row.get("value") if row else None
         if isinstance(plans, list) and plans:
+            pairs={(int(x.get("minutes",0)), int(x.get("tokens",0))) for x in plans if isinstance(x, dict)}
+            legacy_pairs={(int(x["minutes"]), int(x["tokens"])) for x in LEGACY_BOOKING_PLANS}
+            new_pairs={(int(x["minutes"]), int(x["tokens"])) for x in BOOKING_PLANS}
+            if pairs == legacy_pairs:
+                col("settings").update_one({"key":"booking_plans"},{"$set":{"key":"booking_plans","value":BOOKING_PLANS,"updated_at":now_ts()}},upsert=True)
+                return BOOKING_PLANS
+            if pairs == new_pairs:
+                return BOOKING_PLANS
             return plans
     except Exception:
         pass
@@ -232,7 +251,9 @@ def host_doc(host_id):
 
 def host_or_404(host_id):
     h = host_doc(host_id)
-    if not h or h.get("status") != "approved":
+    if not h or str(h.get("status", "")).strip().lower() != "approved":
+        h = col("hosts").find_one({"user_id": uid(host_id), "status": {"$regex": "^approved$", "$options": "i"}})
+    if not h or bool(h.get("demo", False)):
         raise HTTPException(404, "Host not available")
     if blocked(host_id):
         raise HTTPException(403, "Host is blocked")
@@ -578,8 +599,8 @@ def hosts():
     # Real approved India hosts only. Offline hosts remain visible so the
     # customer can see that the host exists; booking is enabled only online.
     docs = list(col("hosts").find({
-        "status":"approved",
-        "demo":{"$ne":True}
+        "status": {"$regex": "^approved$", "$options": "i"},
+        "demo": {"$ne": True}
     }).sort("updated_at", -1))
     for h in docs:
         u = user_doc(h["user_id"]) or {}
@@ -587,14 +608,25 @@ def hosts():
         if country in {"INDIA", "🇮🇳"}: country = "IN"
         if country != "IN":
             continue
+        # Ensure a host photo survives even if it exists only in the user record
+        # or only in the host record. public_host_view checks both stores.
         rows.append(public_host_view(h, u))
     rows.sort(key=lambda x: (not bool(x.get("online")), -int(x.get("user_id",0))))
     return rows
 
 @app.get("/api/host/{host_id}")
 def host_profile(host_id: int):
-    h = host_or_404(host_id); u = user_doc(host_id) or {}
-    return {**public_host_view(h, u), "filter_name": h.get("filter_name","natural")}
+    h = host_or_404(host_id)
+    u = user_doc(host_id) or {}
+    view = public_host_view(h, u)
+    view.update({
+        "bio": h.get("bio") or u.get("bio") or "Vynora Live Verified Host",
+        "call_rate": h.get("call_rate") or h.get("rate") or h.get("rate_per_min") or 20,
+        "age": h.get("age") or u.get("age"),
+        "phone": "",
+        "filter_name": h.get("filter_name", "natural"),
+    })
+    return view
 
 @app.post("/api/host/apply")
 def host_apply(data: HostApplyModel):
@@ -924,11 +956,9 @@ def agora_status():
 
 @app.get("/api/upi-qr")
 def upi_qr(amount: float = Query(..., gt=0)):
-    uri = "upi://pay?pa=" + urllib.parse.quote(UPI_ID, safe="@") + "&pn=" + urllib.parse.quote(UPI_NAME) + f"&am={float(amount):.2f}&cu=INR"
     if qrcode is None:
-        # Render deployments without the optional qrcode package still get a working QR image.
-        external = "https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=" + urllib.parse.quote(uri, safe="")
-        return RedirectResponse(external, status_code=307)
+        raise HTTPException(503, "QR service unavailable")
+    uri = "upi://pay?pa=" + urllib.parse.quote(UPI_ID, safe="@") + "&pn=" + urllib.parse.quote(UPI_NAME) + f"&am={float(amount):.2f}&cu=INR"
     img = qrcode.make(uri)
     import io
     out = io.BytesIO(); img.save(out, format="PNG")
@@ -1143,19 +1173,6 @@ def host_stats(host_id:int):
     require_user(host_id)
     h=host_or_404(host_id)
     return {"total_tokens":h.get("total_tokens",0),"gift_tokens":h.get("gift_tokens",0),"available_earnings":h.get("available_earnings",0),"total_calls":col("bookings").count_documents({"host_id":uid(host_id),"status":"completed"}),"online":bool(h.get("online")),"filter_name":h.get("filter_name","natural")}
-
-@app.get("/api/withdraw/history/{user_id}")
-def withdrawal_history(user_id:int):
-    h=host_or_404(user_id)
-    rows=list(col("withdrawals").find(
-        {"user_id":uid(user_id)},
-        {"_id":0}
-    ).sort("created_at",-1).limit(50))
-    for x in rows:
-        x["amount"]=float(x.get("amount",0) or 0)
-        x["created_at"]=int(x.get("created_at",0) or 0)
-        x["processed_at"]=int(x.get("processed_at",0) or 0) if x.get("processed_at") else None
-    return rows
 
 @app.post("/api/withdraw")
 def withdraw(user_id:int, amount:float):
@@ -1517,22 +1534,7 @@ def startup():
             col("recharges").create_index("recharge_id", unique=True)
             col("direct_calls").create_index("call_id", unique=True)
             col("notifications").create_index([("user_id",1),("created_at",-1)])
-            # One-time migration: make the current booking menu match the current
-            # recharge menu. Admin /setplan can still customize it afterwards.
-            version = col("settings").find_one({"key":"booking_plan_version"})
-            if not version or version.get("value") != BOOKING_PLAN_VERSION:
-                col("settings").update_one(
-                    {"key":"booking_plans"},
-                    {"$set":{"key":"booking_plans","value":BOOKING_PLANS,"updated_at":now_ts()}},
-                    upsert=True
-                )
-                col("settings").update_one(
-                    {"key":"booking_plan_version"},
-                    {"$set":{"key":"booking_plan_version","value":BOOKING_PLAN_VERSION,"updated_at":now_ts()}},
-                    upsert=True
-                )
-                log.info("Booking plans migrated: Demo 1m/20, 2m/150, 5m/300, 10m/600, 30m/1500")
-        except Exception as e: log.warning("index/booking-plan setup: %s",e)
+        except Exception as e: log.warning("index setup: %s",e)
     if db is not None:
         remove_dummy_hosts()
     if BOT_TOKEN:
