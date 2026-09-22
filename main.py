@@ -10,7 +10,7 @@ except Exception:
     qrcode = None
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, Response, RedirectResponse
 from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
 from bson import ObjectId
@@ -924,9 +924,11 @@ def agora_status():
 
 @app.get("/api/upi-qr")
 def upi_qr(amount: float = Query(..., gt=0)):
-    if qrcode is None:
-        raise HTTPException(503, "QR service unavailable")
     uri = "upi://pay?pa=" + urllib.parse.quote(UPI_ID, safe="@") + "&pn=" + urllib.parse.quote(UPI_NAME) + f"&am={float(amount):.2f}&cu=INR"
+    if qrcode is None:
+        # Render deployments without the optional qrcode package still get a working QR image.
+        external = "https://api.qrserver.com/v1/create-qr-code/?size=260x260&data=" + urllib.parse.quote(uri, safe="")
+        return RedirectResponse(external, status_code=307)
     img = qrcode.make(uri)
     import io
     out = io.BytesIO(); img.save(out, format="PNG")
