@@ -14,7 +14,7 @@
 </style>
 </head>
 <body>
-<div id="bootLoading" class="boot-loading"><div class="boot-loading-box"><div class="boot-loading-logo" aria-label="Vynora">V</div><h2 style="margin:0 0 8px">Vynora Live</h2><div class="muted">⏳ Vynora Live खुल रहा है…</div><div class="small muted" style="margin-top:8px">आपका account data background में load हो रहा है।</div></div></div>
+<div id="bootLoading" class="boot-loading"><div class="boot-loading-box"><div class="boot-loading-logo" aria-label="Vynora">V</div><h2 style="margin:0 0 8px">Vynora Live</h2><div class="muted">Vynora Live खुल रहा है…</div><div class="small muted" style="margin-top:8px">Account data background में load होगा।</div></div></div>
 <div class="app">
   <div class="top"><div class="brand"><span class="v-logo" aria-label="Vynora">V</span>Vynora <span>Live</span></div><div class="balance">🪙 <span id="topTokens">0</span></div></div>
 
@@ -142,10 +142,12 @@ async function boot(){
       user_id:Number(s.user_id),name:'User',username:'',country:'IN'
     }));
 
-    // Keep the first screen fast: give the essential API a short window.
-    // If MongoDB/Render is slow, the app shell still opens and retries in the background.
+    // IMPORTANT: never keep the user behind a long loading screen.
+    // Open the complete app shell almost immediately; account data continues in background.
+    const fastOpen=setTimeout(()=>{ if(loader) loader.classList.add('hidden'); },800);
     try{
       const [cfg,start]=await Promise.all([cfgPromise,startPromise]);
+      clearTimeout(fastOpen);
       config=cfg;
       $('upiId').textContent=config.upi_id||'vynoralive@slc';
       $('upiName').textContent=config.upi_name||'Rajnish Kumar';
@@ -154,13 +156,15 @@ async function boot(){
       renderProfile();
       renderHome();
       renderWallet();
+      if(loader) loader.classList.add('hidden');
     }catch(e){
       console.warn('Initial data delayed:',e);
+      // Do not remove or replace any app options; only hide the loading cover.
       renderProfile();
       renderHome();
       renderWallet();
-      toast('App खुल गया है — account data background में load हो रहा है।');
-      setTimeout(retryStartupData,1500);
+      if(loader) loader.classList.add('hidden');
+      setTimeout(retryStartupData,800);
     }
 
     // Never make hosts/announcement block the first screen.
