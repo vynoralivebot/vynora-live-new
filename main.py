@@ -514,6 +514,18 @@ class CallEndModel(BaseModel):
 def root():
     return FileResponse(BASE / "index.html", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
 
+@app.get("/vynora-icon.png")
+def vynora_icon():
+    return FileResponse(BASE / "vynora-icon.png", media_type="image/png", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
+
+@app.get("/vynora-banner.png")
+def vynora_banner():
+    return FileResponse(BASE / "vynora-banner.png", media_type="image/png", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
+
+@app.get("/favicon.ico")
+def favicon():
+    return FileResponse(BASE / "vynora-icon.png", media_type="image/png", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
+
 @app.get("/api/notifications/{user_id}")
 def notifications(user_id:int):
     require_user(user_id)
