@@ -9,17 +9,17 @@
 <script src="https://download.agora.io/sdk/release/AgoraRTC_N-4.20.0.js"></script>
 <style>
 :root{--bg:#090712;--card:#151126;--card2:#1c1634;--text:#f7f4ff;--muted:#a9a2bd;--primary:#8b5cf6;--primary2:#ec4899;--green:#35d07f;--red:#ff5c75;--line:#2b2344;--gold:#f5c451;--shadow:0 16px 40px rgba(0,0,0,.28)}
-*{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh;padding-bottom:82px}button,input,select,textarea{font:inherit}button{border:0;cursor:pointer}.app{max-width:720px;margin:auto;padding:14px}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.brand{font-weight:900;font-size:22px;letter-spacing:.2px}.brand span{color:#c084fc}.balance{background:linear-gradient(135deg,#211745,#30205a);border:1px solid #4c3678;border-radius:16px;padding:8px 12px;font-weight:800}.card{background:linear-gradient(180deg,var(--card),#110d20);border:1px solid var(--line);border-radius:20px;padding:15px;margin:12px 0;box-shadow:var(--shadow)}.hero{background:linear-gradient(135deg,#27124f,#17203f 55%,#311335);border:1px solid #49316b;padding:20px;border-radius:24px}.hero h1{margin:0 0 7px;font-size:25px}.hero p{margin:0;color:#c9c1db;line-height:1.5}.row{display:flex;gap:10px;align-items:center}.between{display:flex;align-items:center;justify-content:space-between;gap:10px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.muted{color:var(--muted)}.small{font-size:12px}.title{font-size:17px;font-weight:900;margin:18px 0 10px}.btn{background:linear-gradient(135deg,var(--primary),var(--primary2));color:white;padding:12px 15px;border-radius:14px;font-weight:800;width:100%}.btn.secondary{background:#211a37;border:1px solid #3a2e59}.btn.green{background:linear-gradient(135deg,#1fa968,#2ddf91)}.btn.red{background:linear-gradient(135deg,#dc3757,#ff6a7e)}.btn.gold{background:linear-gradient(135deg,#c58b1b,#f4ca55);color:#1c1404}.btn:disabled{opacity:.45}.pill{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#241b3d;color:#d7cced;border:1px solid #3a2d59}.online{color:#62f19c}.offline{color:#9690a3}.host{display:flex;gap:12px;align-items:center}.avatar{width:58px;height:58px;border-radius:17px;object-fit:cover;background:#282039;display:grid;place-items:center;font-size:24px;flex:0 0 auto}.host-info{min-width:0;flex:1}.host-name{font-weight:900;font-size:16px}.host-user{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.actions{display:flex;gap:8px;margin-top:11px}.actions .btn{flex:1}.notice{background:#1b1430;border:1px solid #4a356d;padding:12px;border-radius:15px;margin:10px 0;line-height:1.45}.empty{text-align:center;padding:25px;color:var(--muted)}.nav{position:fixed;z-index:20;left:0;right:0;bottom:0;background:rgba(12,9,22,.95);backdrop-filter:blur(15px);border-top:1px solid var(--line);padding:8px max(8px,env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));display:flex;justify-content:center}.navin{max-width:720px;width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}.nav button{background:transparent;color:#8e879f;padding:7px 3px;border-radius:12px;font-size:11px;font-weight:800}.nav button.active{background:#21183b;color:white}.nav b{display:block;font-size:19px;margin-bottom:2px}.page{display:none}.page.active{display:block}.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:none;align-items:flex-end}.modal.show{display:flex}.sheet{width:100%;max-width:720px;margin:auto;background:#110d20;border:1px solid #33284c;border-radius:25px 25px 0 0;padding:17px;max-height:90vh;overflow:auto}.field{margin:10px 0}.field label{display:block;font-size:12px;color:#aaa2bc;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;background:#19142b;color:white;border:1px solid #3b3055;border-radius:13px;padding:12px;outline:none}.field textarea{min-height:90px;resize:vertical}.duration{padding:11px;border-radius:13px;background:#19142b;border:1px solid #34294e;color:#ddd;text-align:center;font-weight:800}.duration.sel{border-color:#a855f7;background:#2a1a4d;color:white}.toast{position:fixed;z-index:100;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);opacity:0;background:#211a32;border:1px solid #493967;padding:12px 15px;border-radius:14px;max-width:90%;transition:.2s;pointer-events:none}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.call{position:fixed;inset:0;background:#050408;z-index:80;display:none}.call.show{display:block}.remote{position:absolute;inset:0}.remote>div{width:100%;height:100%}.local{position:absolute;right:14px;top:52px;width:118px;height:165px;border-radius:16px;overflow:hidden;background:#17121f;border:1px solid #514463;z-index:3}.local>div{width:100%;height:100%}.calltop{position:absolute;z-index:4;left:15px;right:15px;top:15px;display:flex;justify-content:space-between;align-items:center}.callbadge{background:rgba(0,0,0,.45);backdrop-filter:blur(8px);padding:8px 11px;border-radius:12px}.callbottom{position:absolute;z-index:4;left:15px;right:15px;bottom:calc(20px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:12px}.circle{width:55px;height:55px;border-radius:50%;display:grid;place-items:center;background:#2a2434;color:white;font-size:21px}.circle.end{background:#e33d58}.timer{font-size:18px;font-weight:900}.hidden{display:none!important}.stat{padding:13px;border-radius:15px;background:#18132a;border:1px solid #2e2644}.stat strong{font-size:20px;display:block}.recharge-plan{padding:13px;border-radius:15px;background:#19142b;border:1px solid #34294e;text-align:center}.recharge-plan.sel{border-color:#9b5cff;background:#2a1b4a}.history{padding:12px;border-bottom:1px solid #2a2340}.history:last-child{border-bottom:0}.status{font-size:11px;font-weight:900}.status.completed,.status.accepted,.status.scheduled,.status.calling{color:#61e998}.status.rejected,.status.cancelled{color:#ff7086}.status.pending{color:#f5c451}.announcement{border-color:#6943a0;background:linear-gradient(135deg,#24153f,#1b1530)}
+*{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh;padding-bottom:82px}button,input,select,textarea{font:inherit}button{border:0;cursor:pointer}button.card,button.recharge-plan,button.duration{color:#f7f4ff !important}button.card b,button.recharge-plan b{color:#fff !important}button.card .muted{color:#c7c1d6 !important}.app{max-width:720px;margin:auto;padding:14px}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.brand{font-weight:900;font-size:22px;letter-spacing:.2px}.brand span{color:#c084fc}.balance{background:linear-gradient(135deg,#211745,#30205a);border:1px solid #4c3678;border-radius:16px;padding:8px 12px;font-weight:800}.card{background:linear-gradient(180deg,var(--card),#110d20);border:1px solid var(--line);border-radius:20px;padding:15px;margin:12px 0;box-shadow:var(--shadow)}.hero{background:linear-gradient(135deg,#27124f,#17203f 55%,#311335);border:1px solid #49316b;padding:20px;border-radius:24px}.hero h1{margin:0 0 7px;font-size:25px}.hero p{margin:0;color:#c9c1db;line-height:1.5}.row{display:flex;gap:10px;align-items:center}.between{display:flex;align-items:center;justify-content:space-between;gap:10px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.muted{color:var(--muted)}.small{font-size:12px}.title{font-size:17px;font-weight:900;margin:18px 0 10px}.btn{background:linear-gradient(135deg,var(--primary),var(--primary2));color:white;padding:12px 15px;border-radius:14px;font-weight:800;width:100%}.btn.secondary{background:#211a37;border:1px solid #3a2e59}.btn.green{background:linear-gradient(135deg,#1fa968,#2ddf91)}.btn.red{background:linear-gradient(135deg,#dc3757,#ff6a7e)}.btn.gold{background:linear-gradient(135deg,#c58b1b,#f4ca55);color:#1c1404}.btn:disabled{opacity:.45}.pill{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#241b3d;color:#d7cced;border:1px solid #3a2d59}.online{color:#62f19c}.offline{color:#9690a3}.host{display:flex;gap:12px;align-items:center}.avatar{width:58px;height:58px;border-radius:17px;object-fit:cover;background:#282039;display:grid;place-items:center;font-size:24px;flex:0 0 auto}.host-info{min-width:0;flex:1}.host-name{font-weight:900;font-size:16px}.host-user{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.actions{display:flex;gap:8px;margin-top:11px}.actions .btn{flex:1}.notice{background:#1b1430;border:1px solid #4a356d;padding:12px;border-radius:15px;margin:10px 0;line-height:1.45}.empty{text-align:center;padding:25px;color:var(--muted)}.nav{position:fixed;z-index:20;left:0;right:0;bottom:0;background:rgba(12,9,22,.95);backdrop-filter:blur(15px);border-top:1px solid var(--line);padding:8px max(8px,env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));display:flex;justify-content:center}.navin{max-width:720px;width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}.nav button{background:transparent;color:#8e879f;padding:7px 3px;border-radius:12px;font-size:11px;font-weight:800}.nav button.active{background:#21183b;color:white}.nav b{display:block;font-size:19px;margin-bottom:2px}.page{display:none}.page.active{display:block}.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:none;align-items:flex-end}.modal.show{display:flex}.sheet{width:100%;max-width:720px;margin:auto;background:#110d20;border:1px solid #33284c;border-radius:25px 25px 0 0;padding:17px;max-height:90vh;overflow:auto}.field{margin:10px 0}.field label{display:block;font-size:12px;color:#aaa2bc;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;background:#19142b;color:white;border:1px solid #3b3055;border-radius:13px;padding:12px;outline:none}.field textarea{min-height:90px;resize:vertical}.duration{padding:11px;border-radius:13px;background:#19142b;border:1px solid #34294e;color:#ddd;text-align:center;font-weight:800}.duration.sel{border-color:#a855f7;background:#2a1a4d;color:white}.toast{position:fixed;z-index:100;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);opacity:0;background:#211a32;border:1px solid #493967;padding:12px 15px;border-radius:14px;max-width:90%;transition:.2s;pointer-events:none}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.call{position:fixed;inset:0;background:#050408;z-index:80;display:none}.call.show{display:block}.remote{position:absolute;inset:0}.remote>div{width:100%;height:100%}.local{position:absolute;right:14px;top:52px;width:118px;height:165px;border-radius:16px;overflow:hidden;background:#17121f;border:1px solid #514463;z-index:3}.local>div{width:100%;height:100%}.calltop{position:absolute;z-index:4;left:15px;right:15px;top:15px;display:flex;justify-content:space-between;align-items:center}.callbadge{background:rgba(0,0,0,.45);backdrop-filter:blur(8px);padding:8px 11px;border-radius:12px}.callbottom{position:absolute;z-index:4;left:15px;right:15px;bottom:calc(20px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:12px}.circle{width:55px;height:55px;border-radius:50%;display:grid;place-items:center;background:#2a2434;color:white;font-size:21px}.circle.end{background:#e33d58}.timer{font-size:18px;font-weight:900}.hidden{display:none!important}.stat{padding:13px;border-radius:15px;background:#18132a;border:1px solid #2e2644}.stat strong{font-size:20px;display:block}.recharge-plan{padding:13px;border-radius:15px;background:#19142b;border:1px solid #34294e;text-align:center}.recharge-plan.sel{border-color:#9b5cff;background:#2a1b4a}.history{padding:12px;border-bottom:1px solid #2a2340}.history:last-child{border-bottom:0}.status{font-size:11px;font-weight:900}.status.completed,.status.accepted,.status.scheduled,.status.calling{color:#61e998}.status.rejected,.status.cancelled{color:#ff7086}.status.pending{color:#f5c451}.announcement{border-color:#6943a0;background:linear-gradient(135deg,#24153f,#1b1530)}
 @media(min-width:600px){.grid{grid-template-columns:repeat(3,1fr)}}
 </style>
 </head>
 <body>
 <div class="app">
-  <div class="top"><div class="brand"><img src="/vynora-icon.png?v=3" style="width:34px;height:34px;border-radius:10px;vertical-align:middle;margin-right:7px" alt="Vynora Live"> Vynora <span>Live</span></div><div class="balance">🪙 <span id="topTokens">0</span></div></div>
+  <div class="top"><div class="brand"><img src="/vynora-icon.png" style="width:34px;height:34px;border-radius:10px;vertical-align:middle;margin-right:7px" alt="Vynora Live"> Vynora <span>Live</span></div><div class="balance">🪙 <span id="topTokens">0</span></div></div>
 
   <section id="home" class="page active">
     <div id="announcement" class="notice announcement hidden"></div>
-    <div class="hero"><img src="/vynora-banner.png?v=3" style="width:100%;max-height:220px;object-fit:cover;border-radius:18px;margin-bottom:12px" alt="Vynora Live"><h1>Private 1-to-1 Video Call</h1><p>India-based Real Host चुनें, slot book करें और secure private video call करें.</p><div class="actions"><button class="btn" onclick="go('hosts')">🎥 Find Host</button><button class="btn secondary" onclick="go('wallet')">🪙 Recharge</button></div></div>
+    <div class="hero"><img src="/vynora-banner.png" style="width:100%;max-height:220px;object-fit:cover;border-radius:18px;margin-bottom:12px" alt="Vynora Live"><h1>Private 1-to-1 Video Call</h1><p>India-based Real Host चुनें, slot book करें और secure private video call करें.</p><div class="actions"><button class="btn" onclick="go('hosts')">🎥 Find Host</button><button class="btn secondary" onclick="go('wallet')">🪙 Recharge</button></div></div>
     <div id="demoHome" class="card hidden"></div><div class="title">Quick Access</div>
     <div class="grid">
       <button class="card" onclick="go('hosts')">🎥<br><b>Hosts</b><br><span class="small muted">Online hosts</span></button>
@@ -61,7 +61,18 @@
 const API='';
 function getTG(){return window.Telegram?.WebApp||null}
 let initData='';
-function syncTelegramSession(){try{const w=getTG();if(w){try{w.ready();w.expand();w.setHeaderColor?.('#090712');w.setBackgroundColor?.('#090712')}catch(e){}initData=(w.initData||'').trim()}}catch(e){initData=''}return initData}
+let launchToken='';
+function syncTelegramSession(){
+  try{
+    const w=getTG();
+    if(w){
+      try{w.ready();w.expand();w.setHeaderColor?.('#090712');w.setBackgroundColor?.('#090712')}catch(e){}
+      initData=(w.initData||'').trim();
+    }
+  }catch(e){initData=''}
+  try{launchToken=(new URLSearchParams(window.location.search||'').get('vynora_launch')||'').trim()}catch(e){launchToken=''}
+  return initData||launchToken;
+}
 syncTelegramSession();
 let me=null,config=null,hosts=[],selectedHost=null,selectedMinutes=1,selectedRecharge=null,selectedBooking=null;
 let agoraClient=null,localTracks=[],callPoll=null,callTimerInterval=null,currentCallBooking=null,currentCallId=null,currentCallType=null,micOn=true,camOn=true;
@@ -71,36 +82,34 @@ function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&l
 function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>$('toast').classList.remove('show'),3000)}
 function fmtTime(ts){if(!ts)return '-';return new Date(Number(ts)*1000).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}
 function fmtDur(sec){sec=Math.max(0,Math.floor(sec||0));return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
-function api(path,opt={}){const h=new Headers(opt.headers||{});const session=syncTelegramSession();if(session)h.set('X-Telegram-Init-Data',session);return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.detail||d.message||`HTTP ${r.status}`);return d})}
+function api(path,opt={}){
+  const h=new Headers(opt.headers||{});
+  syncTelegramSession();
+  if(initData)h.set('X-Telegram-Init-Data',initData);
+  if(launchToken)h.set('X-Vynora-Launch-Token',launchToken);
+  return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(d.detail||d.message||`HTTP ${r.status}`);return d})
+}
 function jsonApi(path,body){return api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}
 function openModal(html){$('sheet').innerHTML=html;$('modal').classList.add('show')}
 function closeModal(){$('modal').classList.remove('show');$('sheet').innerHTML=''}
 $('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()})
-function go(page){
-  const protectedPage=['hosts','bookings','wallet','profile'].includes(page);
-  if(protectedPage && !me){syncTelegramSession();toast(initData?'❌ Telegram session initialize नहीं हुआ. App को bot के Open Vynora Live button से दोबारा खोलें.':'❌ Vynora Live को Telegram Mini App के अंदर से खोलें.');return}
-  document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(page).classList.add('active');document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===page));if(page==='hosts')loadHosts();if(page==='bookings')loadBookings();if(page==='wallet')renderWallet();if(page==='profile')renderProfile();window.scrollTo(0,0)
-}
+function go(page){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(page).classList.add('active');document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===page));if(page==='hosts')loadHosts();if(page==='bookings')loadBookings();if(page==='wallet')renderWallet();if(page==='profile')renderProfile();window.scrollTo(0,0)}
 function photo(url,name){return url?`<img class="avatar" src="${esc(url)}" onerror="this.outerHTML='<div class=avatar>👤</div>'">`:`<div class="avatar">${esc((name||'U').slice(0,1).toUpperCase())}</div>`}
 
-async function waitForTelegramSession(timeoutMs=10000){
-  const started=Date.now();
-  while(Date.now()-started<timeoutMs){
-    if(syncTelegramSession()) return true;
-    await new Promise(r=>setTimeout(r,150));
-  }
-  return false;
-}
-
 async function boot(){
-  const ready=await waitForTelegramSession();
-  if(!ready){toast('❌ Valid Telegram Mini App session नहीं मिला. Bot के Open Vynora Live button से app खोलें.');return}
+  syncTelegramSession();
   try{
+    if(!initData && !launchToken){
+      toast('❌ Vynora Live को Telegram Mini App के Open Vynora Live button से खोलें.');
+      return;
+    }
     config=await api('/api/config');
     $('upiId').textContent=config.upi_id||'vynoralive@slc';$('upiName').textContent=config.upi_name||'Rajnish Kumar';
-    const tg=getTG();
-    const u=tg?.initDataUnsafe?.user||{};
-    const start=await jsonApi('/api/start',{user_id:Number(u.id||0),name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN'});
+    const session=await api('/api/session');
+    const tg=getTG(); const u=tg?.initDataUnsafe?.user||{};
+    const userId=Number(session.user_id||u.id||0);
+    if(!userId) throw new Error('Telegram user session could not be identified');
+    const start=await jsonApi('/api/start',{user_id:userId,name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN'});
     me=start.user;
     await refreshUser();
     await loadAnnouncement();
@@ -112,8 +121,13 @@ async function boot(){
     setInterval(pollIncoming,5000);
   }catch(e){toast('❌ '+e.message)}
 }
-async function refreshUser(){const tg=getTG();const u=tg?.initDataUnsafe?.user||{};const d=await api('/api/user/'+Number(u.id));me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
-function updateBalance(){$('topTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN');$('walletTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN')}
+async function refreshUser(){
+  const session=await api('/api/session');
+  const tg=getTG(); const u=tg?.initDataUnsafe?.user||{};
+  const id=Number(session.user_id||u.id||0);
+  if(!id) throw new Error('Telegram user session could not be identified');
+  const d=await api('/api/user/'+id);me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()
+}
 async function loadAnnouncement(){try{const d=await api('/api/announcement');if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}catch(e){}try{const b=await api('/api/banner');if(b.text){const x=document.querySelector('.hero p');if(x)x.textContent=b.text}if(b.image_data){const img=document.querySelector('.hero img');if(img)img.src=b.image_data}}catch(e){}}
 function renderHome(){
   if(me?.demo_used){$('demoHome').classList.add('hidden')}else{$('demoHome').classList.remove('hidden');$('demoHome').innerHTML='<div class="between"><b>🎁 First-Use Free Demo</b><span class="pill">20 Seconds · FREE</span></div><p class="small muted">पहली बार केवल एक Free Demo Call. Demo paid booking से अलग है और 20 seconds का है.</p><button class="btn green" onclick="openDemoHostPicker()">🎁 Start Free Demo</button>'}
@@ -122,7 +136,6 @@ function renderHome(){
 }
 
 async function loadHosts(){
-  if(!me){$('hostList').innerHTML='<div class="empty">❌ Telegram Mini App session required. Please reopen Vynora Live from the bot.</div>';return}
   try{hosts=await api('/api/hosts');renderHosts()}catch(e){$('hostList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}
 }
 function renderHosts(){
@@ -151,10 +164,7 @@ function openBooking(hostId){
 function selectDuration(el){document.querySelectorAll('.duration').forEach(x=>x.classList.remove('sel'));el.classList.add('sel');selectedMinutes=Number(el.dataset.min);$('bookCost').textContent=Number(el.dataset.token)+' Coins'}
 async function submitBooking(){try{const t=$('bookTime').value;if(!t)throw new Error('Date & time चुनें');const ts=Math.floor(new Date(t).getTime()/1000);const plan=(config.booking_plans||[]).find(p=>Number(p.minutes)===selectedMinutes);if(!plan)throw new Error('Invalid duration');if(Number(me.tokens)<Number(plan.tokens))throw new Error('Insufficient Coins. पहले recharge करें.');const d=await jsonApi('/api/book-slot',{user_id:me.user_id,host_id:selectedHost.user_id,minutes:selectedMinutes,requested_start:ts});closeModal();await refreshUser();toast('✅ Booking request भेज दिया गया');go('bookings');await loadBookings()}catch(e){toast('❌ '+e.message)}}
 
-async function loadBookings(){
-  if(!me){$('bookingList').innerHTML='<div class="empty">❌ Telegram Mini App session required. Please reopen Vynora Live from the bot.</div>';return}
-  try{const user=await api('/api/bookings?user_id='+Number(me.user_id)+'&role=user');let arr=user;if(me?.host?.status==='approved'){const hb=await api('/api/bookings?user_id='+Number(me.user_id)+'&role=host');arr=[...arr,...hb.map(x=>({...x,__host:true}))]}renderBookings(arr)}catch(e){$('bookingList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}
-}
+async function loadBookings(){try{const role=me?.host?.status==='approved'?'user':'user';const user=await api('/api/bookings?user_id='+me.user_id+'&role=user');let arr=user;if(me?.host?.status==='approved'){const hb=await api('/api/bookings?user_id='+me.user_id+'&role=host');arr=[...arr,...hb.map(x=>({...x,__host:true}))]}renderBookings(arr)}catch(e){$('bookingList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}}
 function renderBookings(arr){
   if(!arr.length){$('bookingList').innerHTML='<div class="empty">अभी कोई booking नहीं है.</div>';return}
   $('bookingList').innerHTML=arr.map(b=>{const isHost=b.__host;const title=isHost?`User #${b.user_id}`:`Host #${b.host_id}`;let buttons='';
@@ -242,19 +252,14 @@ async function leaveDirectCall(){const id=currentCallId;try{if(id)await api('/ap
 async function checkDirectForCall(){if(!me)return;try{const d=await api('/api/direct-call/pending/'+me.user_id);if(d.active&&!currentCallId){const c=d.call;if(c.status==='ringing'){openModal(`<div style="text-align:center"><div style="font-size:45px">👑</div><h2>Admin Call</h2><p>VYNORA SUPER ADMIN wants to speak with you.</p><div class="notice">Free call · No coins · No time limit</div><button class="btn green" onclick="closeModal();startDirectCall('${c.call_id}','${c.channel}')">📞 Accept Admin Call</button></div>`);}}}catch(e){}}
 
 setInterval(()=>{if(me)checkDirectForCall()},5000);
-
-// Telegram can expose WebApp slightly after the document script is evaluated.
-// Keep a small fallback loader and always read WebApp dynamically (never from a stale reference).
 (function ensureTelegramSDK(){
   if(window.Telegram?.WebApp){boot();return}
-  const existing=document.querySelector('script[data-vynora-tg-sdk]');
-  if(!existing){
-    const sc=document.createElement('script');
-    sc.src='https://telegram.org/js/telegram-web-app.js';
-    sc.async=false; sc.dataset.vynoraTgSdk='1';
-    sc.onload=()=>boot(); sc.onerror=()=>boot();
-    document.head.appendChild(sc);
-  }else{boot()}
+  const sc=document.createElement('script');
+  sc.src='https://telegram.org/js/telegram-web-app.js?63';
+  sc.async=false;
+  sc.onload=()=>boot();
+  sc.onerror=()=>boot();
+  document.head.appendChild(sc);
 })();
 </script>
 </body>
