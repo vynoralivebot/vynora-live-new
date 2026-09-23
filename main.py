@@ -1,4 +1,4 @@
-import os, time, uuid, threading, logging, base64, mimetypes, hmac, hashlib, json, urllib.parse, contextvars
+import os, time, uuid, threading, logging, base64, mimetypes, hmac, hashlib, json, urllib.parse, contextvars, secrets
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 from pathlib import Path
@@ -45,7 +45,7 @@ UPI_NAME = os.getenv("UPI_NAME", "Rajnish Kumar")
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://t.me/VynoraSupport")
 
 BOOKING_PLANS = [
-    {"minutes": 1, "tokens": 20, "name": "1 Minute", "demo": False, "one_time": True},
+    {"minutes": 1, "tokens": 20, "name": "Demo", "demo": True},
     {"minutes": 2, "tokens": 150, "name": "2 Minutes", "demo": False},
     {"minutes": 5, "tokens": 300, "name": "5 Minutes", "demo": False},
     {"minutes": 10, "tokens": 600, "name": "10 Minutes", "demo": False},
@@ -140,6 +140,23 @@ def public_host_view(h, u=None):
         "verification_label": "Vynora Verified Host" if h.get("status") == "approved" else ""
     }
 
+def issue_web_session(user_id):
+    token = secrets.token_urlsafe(48)
+    expires = now_ts() + 86400
+    col("users").update_one({"user_id": uid(user_id)}, {"$set": {"web_session_token": token, "web_session_expires": expires, "updated_at": now_ts()}})
+    return token
+
+def verify_web_session(token):
+    if not token or db is None:
+        return None
+    try:
+        u = col("users").find_one({"web_session_token": token})
+        if not u or int(u.get("web_session_expires", 0) or 0) < now_ts():
+            return None
+        return int(u.get("user_id"))
+    except Exception:
+        return None
+
 def verify_telegram_init_data(init_data: str):
     if not BOT_TOKEN or not init_data:
         return None
@@ -164,8 +181,14 @@ def verify_telegram_init_data(init_data: str):
 @app.middleware("http")
 async def telegram_webapp_auth(request: Request, call_next):
     path=request.url.path
-    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info") and not path.startswith("/api/profile/photo/"):
+    public_paths=("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info")
+    if path.startswith("/api/") and path not in public_paths and not path.startswith("/api/profile/photo/"):
+        # Prefer the official Telegram initData when available. After /api/start
+        # the app also receives a short-lived signed server session, which keeps
+        # navigation stable if Telegram's WebView stops exposing initData later.
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
+        if verified is None:
+            verified=verify_web_session(request.headers.get("X-Vynora-Session", ""))
         if verified is None:
             return Response(content=json.dumps({"detail":"Valid Telegram Mini App session is required"}), status_code=401, media_type="application/json")
         _verified_web_user.set(verified)
@@ -214,12 +237,20 @@ def agora_uid(telegram_user_id: int) -> int:
 
 
 def user_doc(user_id):
-    return col("users").find_one({"user_id": uid(user_id)})
+    target=uid(user_id)
+    u=col("users").find_one({"$or":[{"user_id":target},{"user_id":str(target)},{"telegram_id":target},{"telegram_id":str(target)}]})
+    if u and u.get("user_id") != target:
+        try:
+            col("users").update_one({"_id":u["_id"]},{"$set":{"user_id":target,"telegram_id":target,"updated_at":now_ts()}})
+            u["user_id"]=target; u["telegram_id"]=target
+        except Exception:
+            pass
+    return u
 
 
 def ensure_user(user_id, name="", username="", country="IN"):
     user_id = uid(user_id)
-    existing = col("users").find_one({"user_id": user_id})
+    existing = user_doc(user_id)
     if not existing:
         d = {"user_id": user_id, "name": name or "User", "username": username or "", "tokens": 0, "blocked": False, "country": (country or "IN").upper()[:2],
             "demo_used": False, "demo_used_at": None, "demo_booking_id": None,
@@ -233,7 +264,7 @@ def ensure_user(user_id, name="", username="", country="IN"):
     if name: updates["name"] = name
     if username is not None: updates["username"] = username
     col("users").update_one({"user_id": user_id}, {"$set": updates})
-    return col("users").find_one({"user_id": user_id}), False
+    return user_doc(user_id), False
 
 
 def is_admin(user_id):
@@ -250,26 +281,29 @@ def blocked(user_id):
 
 
 def host_doc(host_id):
-    """Return the Host record using the verified Telegram user ID.
+    """Find a Host by the canonical Telegram ID, including legacy field names.
 
-    Older Host records may have stored the Telegram ID under telegram_id/host_id/id
-    instead of user_id. Normalize that record on first access so an approved Host
-    is not accidentally shown as a normal user.
+    Older Vynora records may have saved the same Telegram ID as telegram_id,
+    host_id or id. Normalize the record when found so the rest of the app can
+    consistently use user_id.
     """
-    hid = uid(host_id)
-    h = col("hosts").find_one({"user_id": hid})
-    if h:
-        return h
-    for key in ("telegram_id", "host_id", "id"):
-        h = col("hosts").find_one({key: hid})
-        if h:
-            try:
-                col("hosts").update_one({"_id": h["_id"]}, {"$set": {"user_id": hid, "updated_at": now_ts()}})
-                h["user_id"] = hid
-            except Exception:
-                pass
-            return h
-    return None
+    target = uid(host_id)
+    h = col("hosts").find_one({
+        "$or": [
+            {"user_id": target}, {"user_id": str(target)},
+            {"telegram_id": target}, {"telegram_id": str(target)},
+            {"host_id": target}, {"host_id": str(target)},
+            {"id": target}, {"id": str(target)},
+        ]
+    })
+    if h and int(h.get("user_id") or 0) != target:
+        try:
+            col("hosts").update_one({"_id": h["_id"]}, {"$set": {"user_id": target, "telegram_id": target, "updated_at": now_ts()}})
+            h["user_id"] = target
+            h["telegram_id"] = target
+        except Exception:
+            pass
+    return h
 
 
 def host_or_404(host_id):
@@ -409,9 +443,7 @@ def public_photo_url(user_id, doc=None):
 
 def require_user(user_id):
     verified=_verified_web_user.get()
-    if verified is None:
-        raise HTTPException(401, "Valid Telegram Mini App session is required")
-    if uid(user_id) != verified:
+    if verified is not None and uid(user_id) != verified:
         raise HTTPException(403, "Telegram user identity mismatch")
     if blocked(user_id):
         raise HTTPException(403, "Your account is blocked")
@@ -553,7 +585,8 @@ def start(data: StartModel):
     u, created = ensure_user(data.user_id, data.name, data.username, data.country)
     if created:
         notify_new_user(u)
-    return {"status": "success", "new_user": created, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u),
+    session_token=issue_web_session(data.user_id)
+    return {"status": "success", "session_token": session_token, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u),
             "demo_used": bool(u.get("demo_used", False))}}
 
 @app.get("/api/user/{user_id}")
@@ -771,10 +804,7 @@ def book_slot(data: BookingModel):
     if not plan: raise HTTPException(400,"Invalid duration")
     plan_minutes=int(plan["minutes"])
     plan_tokens=int(plan["tokens"])
-    # The 1-minute/20-Coins plan is a paid one-time offer, not a free demo.
-    # Other plans remain reusable.
-    is_demo=False
-    is_one_time = plan_minutes == 1
+    is_demo=bool(plan.get("demo", False))
     start=int(data.requested_start); end=start+plan_minutes*60
     if start < now_ts()-60: raise HTTPException(400,"Please choose a future time")
     u=user_doc(data.user_id)
@@ -792,26 +822,29 @@ def book_slot(data: BookingModel):
         message = f"⚠️ <b>यह Host book नहीं किया जा सकता</b>\n\nयह Host <b>{h.get('country_name', host_country)}</b> से है। अभी केवल <b>India-based Hosts</b> की booking उपलब्ध है।\n\nकृपया India Host चुनें।"
         notify_user(data.user_id, message)
         raise HTTPException(403, "You cannot book a Host from another country")
-    if is_one_time and bool(u.get("one_minute_used", False)):
-        raise HTTPException(409,"1-minute / 20-Coins offer already used. Each Telegram User ID can use it only once.")
+    if is_demo and bool(u.get("demo_used", False)):
+        raise HTTPException(409,"Demo already used. Demo offer is available only once per Telegram User ID.")
     if int(u.get("tokens",0)) < plan_tokens: raise HTTPException(400,"Insufficient tokens")
     # Reserve money immediately; refund on reject/cancel.
     reserved=col("users").update_one({"user_id":uid(data.user_id),"tokens":{"$gte":plan_tokens}}, {"$inc":{"tokens":-plan_tokens}})
     if reserved.modified_count != 1:
         raise HTTPException(400,"Insufficient tokens")
-    # Permanently consume the 1-minute/20-Coins offer after a successful booking reservation.
-    if is_one_time:
+    # Demo is permanently consumed at the first successful demo booking.
+    # The Telegram user_id is the permanent identity used for this check.
+    if is_demo:
         marked=col("users").update_one(
-            {"user_id":uid(data.user_id),"one_minute_used":{"$ne":True}},
-            {"$set":{"one_minute_used":True,"one_minute_used_at":now_ts()}}
+            {"user_id":uid(data.user_id),"demo_used":{"$ne":True}},
+            {"$set":{"demo_used":True,"demo_used_at":now_ts()}}
         )
         if marked.modified_count != 1:
             col("users").update_one({"user_id":uid(data.user_id)},{"$inc":{"tokens":plan_tokens}})
-            raise HTTPException(409,"1-minute / 20-Coins offer already used. Each Telegram User ID can use it only once.")
+            raise HTTPException(409,"Demo already used. Demo offer is available only once per Telegram User ID.")
     busy=overlap(data.host_id,start,end)
     bid=str(uuid.uuid4())
-    doc={"booking_id":bid,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":plan_minutes,"tokens":plan_tokens,"is_demo":False,"one_time_offer":is_one_time,"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":busy,"created_at":now_ts(),"updated_at":now_ts(),"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False}
+    doc={"booking_id":bid,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":plan_minutes,"tokens":plan_tokens,"is_demo":is_demo,"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":busy,"created_at":now_ts(),"updated_at":now_ts(),"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False}
     col("bookings").insert_one(doc)
+    if is_demo:
+        col("users").update_one({"user_id":uid(data.user_id)},{"$set":{"demo_booking_id":bid,"updated_at":now_ts()}})
     notify_user(data.user_id, f"✅ <b>Booking request submitted</b>\n\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCharge: {plan['tokens']} Coins\n\nHost confirmation ka wait karein. Agar Host busy hai to aapko update milega.")
     notify_user(data.host_id, f"📅 <b>New Slot Booking Request</b>\n\nUser: <code>{data.user_id}</code>\nDuration: {plan['minutes']} min\nRequested: {iso(start)}\n\nVynora Live में जाकर Accept या Reject करें.")
     notify_request(f"📅 <b>NEW BOOKING REQUEST</b>\n\nUser: <code>{data.user_id}</code>\nHost: {h.get('name','Host')}\nDuration: {plan['minutes']} min\nCoins: {plan['tokens']}\nRequested: {iso(start)}\nBusy at request: {'YES' if busy else 'NO'}", [[{"text":"✅ Accept","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
@@ -1555,7 +1588,6 @@ def finalize_call(booking_id, ended_at=None, reason="completed"):
         col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":refund}})
     col("hosts").update_one({"user_id":b["host_id"]},{"$inc":{"total_tokens":host_earned,"available_earnings":host_earned},"$set":{"updated_at":end}})
     report=(f"📊 <b>1v1 CALL COMPLETED</b>\n\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nBooked: {b['minutes']} min\nActual Connected: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins\nHost 60%: ₹{host_earned:.2f}\nPlatform 40%: ₹{platform_earned:.2f}\nStart: {iso(start)}\nEnd: {iso(end)}")
-    notify_request(report)
     notify_full(report)
     notify_user(b["user_id"],f"🟢 Call completed.\nActual connected time: {round(actual/60,2)} min\nCharged: {charged} Coins\nRefunded: {refund} Coins")
     notify_user(b["host_id"],f"💰 Call completed.\nActual connected time: {round(actual/60,2)} min\nYour earning: ₹{host_earned:.2f}")
