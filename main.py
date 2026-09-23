@@ -176,7 +176,7 @@ async def telegram_webapp_auth(request: Request, call_next):
     return response
 
 if MONGO_URI:
-    mongo = MongoClient(MONGO_URI, serverSelectionTimeoutMS=8000)
+    mongo = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000, connectTimeoutMS=3000, socketTimeoutMS=5000, retryWrites=True)
     db = mongo[MONGO_DB]
 else:
     mongo = None
@@ -557,8 +557,9 @@ def start(data: StartModel):
     u, created = ensure_user(data.user_id, data.name, data.username, data.country)
     if created:
         notify_new_user(u)
-    return {"status": "success", "new_user": created, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u),
-            "demo_used": bool(u.get("demo_used", False))}}
+    h=col("hosts").find_one({"user_id": int(data.user_id)})
+    user_payload={"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u), "demo_used": bool(u.get("demo_used", False)), "host": public_host_view(h) if h else None, "is_admin": int(data.user_id) in ADMIN_IDS}
+    return {"status": "success", "new_user": created, "user": user_payload}
 
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
