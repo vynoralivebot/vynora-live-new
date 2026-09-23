@@ -479,6 +479,30 @@ class CallEndModel(BaseModel):
 def root():
     return FileResponse(BASE / "index.html", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
 
+# Static branding assets. The app is served from FastAPI, so repository-root
+# image files need explicit routes instead of relying on a static directory.
+@app.get("/vynora-icon.png")
+def vynora_icon():
+    path = BASE / "vynora-icon.png"
+    if not path.exists():
+        raise HTTPException(404, "Vynora icon not found")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control":"public, max-age=3600"})
+
+@app.get("/vynora-banner.png")
+def vynora_banner():
+    path = BASE / "vynora-banner.png"
+    if not path.exists():
+        raise HTTPException(404, "Vynora banner not found")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control":"public, max-age=3600"})
+
+@app.get("/favicon.ico")
+def favicon():
+    path = BASE / "favicon.ico"
+    if not path.exists():
+        # Keep the browser request harmless if favicon is absent.
+        raise HTTPException(404, "Favicon not found")
+    return FileResponse(path, media_type="image/x-icon", headers={"Cache-Control":"public, max-age=3600"})
+
 @app.get("/api/notifications/{user_id}")
 def notifications(user_id:int):
     require_user(user_id)
@@ -491,7 +515,7 @@ def notifications(user_id:int):
 def notifications_read(user_id:int):
     require_user(user_id); col("notifications").update_many({"user_id":uid(user_id),"read":False},{"$set":{"read":True}}); return {"status":"success"}
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health():
     mongo_ok = False
     if mongo:
