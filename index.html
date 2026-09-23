@@ -162,27 +162,29 @@ async function initAgora(channel){
   if(!window.AgoraRTC)throw new Error('Agora SDK load नहीं हुआ');
   await cleanupAgora(false);let st;try{st=await api('/api/agora-status')}catch(e){st=null}if(st&&!st.configured){throw new Error('Agora setup incomplete: '+(st.message||'Render environment variables check करें'))}let td;try{td=await api('/api/agora-token?channelName='+encodeURIComponent(channel)+'&uid='+me.user_id+'&role=publisher&booking_id='+encodeURIComponent(currentCallBooking||''))}catch(e){throw new Error(errorText(e.message))}
   agoraClient=AgoraRTC.createClient({mode:'rtc',codec:'vp8'});
+  // Do not wait for the other participant's video/audio media before
+  // registering this participant as connected. Agora can deliver media a
+  // little later (camera permission, network, device startup, etc.). The
+  // backend starts the paid timer only after BOTH browsers have joined Agora
+  // and called /api/call/connect. This removes the false "call connect"
+  // failure while preserving the exact two-person timer rule.
   let remoteJoined=false;
-  let remoteMedia=false;
-  const maybeResolveRemote=()=>{
-    if(remoteJoined && remoteMedia && remoteMediaReadyResolve){
-      const r=remoteMediaReadyResolve;remoteMediaReadyResolve=null;r();
-    }
-  };
-  const remoteReady=new Promise((resolve,reject)=>{
-    remoteMediaReadyResolve=resolve;
-    setTimeout(()=>{if(remoteMediaReadyResolve){remoteMediaReadyResolve=null;reject(new Error('दूसरा participant अभी video call में connect नहीं हुआ।'))}},45000)
+  agoraClient.on('user-joined',(user)=>{
+    remoteJoined=true;
+    $('callState').textContent='Participant connected • starting when both are ready…';
   });
-  agoraClient.on('user-joined',(user)=>{remoteJoined=true;$('callState').textContent='Participant connected • waiting for media…';maybeResolveRemote()});
   agoraClient.on('user-published',async(user,mediaType)=>{
     try{
       await agoraClient.subscribe(user,mediaType);
-      if(mediaType==='video'&&user.videoTrack){user.videoTrack.play('remoteVideo');remoteMedia=true}
-      if(mediaType==='audio'&&user.audioTrack){user.audioTrack.play();remoteMedia=true}
-      maybeResolveRemote();
+      if(mediaType==='video'&&user.videoTrack){user.videoTrack.play('remoteVideo')}
+      if(mediaType==='audio'&&user.audioTrack){user.audioTrack.play()}
     }catch(e){logCallError(e)}
   });
-  agoraClient.on('user-left',()=>{remoteJoined=false;remoteMedia=false;if(!currentCallBooking)return;$('callState').textContent='Participant disconnected…'});
+  agoraClient.on('user-left',()=>{
+    remoteJoined=false;
+    if(!currentCallBooking)return;
+    $('callState').textContent='Participant disconnected…';
+  });
   agoraClient.on('connection-state-change',(cur,prev,reason)=>{
     if(cur==='DISCONNECTED'||cur==='FAILED'){$('callState').textContent='Connection lost'}
   });
@@ -190,9 +192,10 @@ async function initAgora(channel){
   let mic,cam;try{mic=await AgoraRTC.createMicrophoneAudioTrack();cam=await AgoraRTC.createCameraVideoTrack()}catch(e){throw new Error('Camera/Microphone permission दें और फिर Call Join करें')}
   localTracks=[mic,cam];micOn=true;camOn=true;cam.play('localVideo');await agoraClient.publish([mic,cam]);$('micBtn').textContent='🎙️';$('camBtn').textContent='📹';
   $('callState').textContent='Waiting for both participants…';
-  await remoteReady;
-  // IMPORTANT: call/connect is sent only after this browser has joined Agora,
-  // published local media, and received the other participant's media.
+  // This browser has now joined Agora and published its local tracks.
+  // Register immediately; the server will start the paid timer only when the
+  // OTHER participant has also registered. We intentionally do not wait for
+  // remote video/audio here because media can arrive after the Agora join.
   await jsonApi('/api/call/connect',{booking_id:id,user_id:me.user_id});
 }
 function startCallPolling(id){clearInterval(callPoll);callPoll=setInterval(async()=>{try{const d=await api('/api/call/state/'+id+'?user_id='+me.user_id);const b=d.booking;if(b.call_started_at){$('callState').textContent='Connected • timer active';const elapsed=Math.floor(Date.now()/1000)-Number(b.call_started_at);$('callTimer').textContent=fmtDur(elapsed);if(b.scheduled_end&&Date.now()/1000>=Number(b.scheduled_end)){await leaveCall(true)}}else if(b.user_joined_at&&b.host_joined_at){$('callState').textContent='Starting timer…'}else{$('callState').textContent='Waiting for both participants…'}}catch(e){}},1000)}
