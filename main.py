@@ -1523,7 +1523,7 @@ def handle_update(upd):
         name=(from_user.get("first_name","")+" "+from_user.get("last_name","")).strip() or "User"; username=from_user.get("username","")
         u,created=ensure_user(from_id,name,username)
         if created: notify_new_user(u)
-        tg_send(chat_id, f"🎉 <b>VYNORA LIVE में आपका स्वागत है! 💜</b>\n\nनमस्ते {name} 👋\n\nयहाँ आप अपनी पसंद के Host के साथ\n📅 1-to-1 Video Call Slot Book कर सकते हैं।\n\n✨ Host चुनें → Slot Book करें → Confirmation पाएँ → Call करें\n\n💰 UPI/QR से Recharge करें और Coins से Slot Book करें।\n\n🔐 Secure • Private • 1-to-1 Calling\n\n👇 शुरू करने के लिए नीचे दिए बटन पर क्लिक करें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":web_app_url(from_id)}}]])
+        tg_send(chat_id, f"🎉 <b>VYNORA LIVE में आपका स्वागत है! 💜</b>\n\nनमस्ते {name} 👋\n\nयहाँ आप अपनी पसंद के Host के साथ\n📅 1-to-1 Video Call Slot Book कर सकते हैं।\n\n✨ Host चुनें → Slot Book करें → Confirmation पाएँ → Call करें\n\n🎁 <b>पहली बार 20 सेकंड का Free Demo Call</b> उपलब्ध है।\nFree Demo के लिए कोई Coin नहीं कटेगा।\n\n💰 UPI/QR से Recharge करें और Coins से Paid Slot Book करें।\n\n🔐 Secure • Private • 1-to-1 Calling\n\n⏳ App पहली बार खुलने में <b>10–15 सेकंड</b> लग सकते हैं, कृपया थोड़ा wait करें।\n\n👇 शुरू करने के लिए नीचे दिए button पर क्लिक करें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":web_app_url(from_id)}}],[{"text":"💬 Paid Video Call Group","url":"https://t.me/Paidvideocallchat"}]])
         return
     # Normal users do not have Telegram commands. They use the Mini App.
     # Super Admin commands remain available below.
