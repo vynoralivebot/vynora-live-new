@@ -14,7 +14,7 @@
 </style>
 </head>
 <body>
-<div id="bootLoading" class="boot-loading"><div class="boot-loading-box"><div class="boot-loading-logo" aria-label="Vynora">V</div><h2 style="margin:0 0 8px">Vynora Live</h2><div class="muted">⏳ App load हो रहा है… कृपया 10–15 सेकंड प्रतीक्षा करें।</div><div class="small muted" style="margin-top:8px">पहली बार खुलने में थोड़ा extra time लग सकता है।</div></div></div>
+<div id="bootLoading" class="boot-loading"><div class="boot-loading-box"><div class="boot-loading-logo" aria-label="Vynora">V</div><h2 style="margin:0 0 8px">Vynora Live</h2><div class="muted">⏳ Vynora Live खुल रहा है…</div><div class="small muted" style="margin-top:8px">आपका account data background में load हो रहा है।</div></div></div>
 <div class="app">
   <div class="top"><div class="brand"><span class="v-logo" aria-label="Vynora">V</span>Vynora <span>Live</span></div><div class="balance">🪙 <span id="topTokens">0</span></div></div>
 
@@ -110,66 +110,56 @@ function photo(url,name){return url?`<img class="avatar" src="${esc(url)}" onerr
 async function boot(){
   syncTelegramSession();
   const loader=$('bootLoading');
-
   try{
     if(!initData && !launchToken){
       toast('❌ Vynora Live को Telegram Mini App के Open Vynora Live button से खोलें.');
       return;
     }
 
-    // Only essential startup requests are awaited.
-    const [cfg,session]=await Promise.all([
-      api('/api/config'),
-      api('/api/session')
-    ]);
-
-    config=cfg;
-    $('upiId').textContent=config.upi_id||'vynoralive@slc';
-    $('upiName').textContent=config.upi_name||'Rajnish Kumar';
-
+    // Telegram already gives us the verified user ID in initDataUnsafe.
+    // Avoid an extra /api/session round-trip during startup.
     const tg=getTG();
     const u=tg?.initDataUnsafe?.user||{};
-    const userId=Number(session.user_id||u.id||0);
+    const userId=Number(u.id||0);
 
-    if(!userId){
-      throw new Error('Telegram user session could not be identified');
-    }
+    if(!userId && !launchToken) throw new Error('Telegram user session could not be identified');
 
-    const start=await jsonApi('/api/start',{
+    const cfgPromise=api('/api/config');
+    const startPromise=userId ? jsonApi('/api/start',{
       user_id:userId,
       name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',
       username:u.username||'',
       country:'IN'
-    });
+    }) : api('/api/session').then(s=>jsonApi('/api/start',{
+      user_id:Number(s.user_id),name:'User',username:'',country:'IN'
+    }));
+
+    // Only one Mongo-backed user request is needed at startup.
+    const [cfg,start]=await Promise.all([cfgPromise,startPromise]);
+    config=cfg;
+    $('upiId').textContent=config.upi_id||'vynoralive@slc';
+    $('upiName').textContent=config.upi_name||'Rajnish Kumar';
 
     me=start.user;
-
-    // No duplicate /api/session call.
-    await refreshUser(userId);
-
-    // Show the usable UI before non-essential data loads.
+    updateBalance();
     renderProfile();
     renderHome();
     renderWallet();
 
+    // Never make hosts/announcement block the first screen.
     if(loader) loader.classList.add('hidden');
-
-    // Hosts and announcement load in the background.
-    Promise.allSettled([
-      loadAnnouncement(),
-      loadHosts()
-    ]);
+    Promise.allSettled([loadAnnouncement(),loadHosts()]);
 
     pollIncoming();
-    setInterval(pollIncoming,5000);
-
+    clearInterval(window.__incomingPoll);
+    window.__incomingPoll=setInterval(pollIncoming,5000);
   }catch(e){
     toast('❌ '+e.message);
-  }finally{
-    // A secondary request can never keep the boot screen stuck.
-    if(loader) setTimeout(()=>loader.classList.add('hidden'),150);
+    // Do not leave the user staring at a loader indefinitely.
+    if(loader) loader.classList.add('hidden');
   }
 }
+
 function updateBalance(){
   const tokens=Number(me?.tokens||0);
   const top=document.getElementById('topTokens');
