@@ -140,6 +140,35 @@ def public_host_view(h, u=None):
         "verification_label": "Vynora Verified Host" if h.get("status") == "approved" else ""
     }
 
+def signed_webapp_url(user_id, ttl=86400):
+    """Create a server-signed Mini App launch URL for Telegram bot buttons.
+
+    This is a secure fallback for Telegram WebViews that expose no initData: the
+    bot itself creates the URL, and the backend verifies the signature before
+    accepting the Telegram user identity.
+    """
+    base = os.getenv("WEB_APP_URL", "https://vynora-live-new.onrender.com").rstrip("/")
+    uid_value = int(user_id)
+    exp = now_ts() + int(ttl)
+    payload = f"{uid_value}:{exp}"
+    sig = hmac.new(BOT_TOKEN.encode(), payload.encode(), hashlib.sha256).hexdigest()
+    return f"{base}/?tg_uid={uid_value}&tg_exp={exp}&tg_sig={sig}"
+
+def verify_signed_launch(uid_value, exp_value, sig_value):
+    if not BOT_TOKEN or not uid_value or not exp_value or not sig_value:
+        return None
+    try:
+        uid_int = int(uid_value); exp_int = int(exp_value)
+        if exp_int < now_ts() or exp_int - now_ts() > 172800:
+            return None
+        payload = f"{uid_int}:{exp_int}"
+        expected = hmac.new(BOT_TOKEN.encode(), payload.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected, str(sig_value)):
+            return None
+        return uid_int
+    except Exception:
+        return None
+
 def issue_web_session(user_id):
     token = secrets.token_urlsafe(48)
     expires = now_ts() + 86400
@@ -189,6 +218,12 @@ async def telegram_webapp_auth(request: Request, call_next):
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
         if verified is None:
             verified=verify_web_session(request.headers.get("X-Vynora-Session", ""))
+        if verified is None:
+            verified=verify_signed_launch(
+                request.headers.get("X-Vynora-TG-UID") or request.query_params.get("tg_uid"),
+                request.headers.get("X-Vynora-TG-EXP") or request.query_params.get("tg_exp"),
+                request.headers.get("X-Vynora-TG-SIG") or request.query_params.get("tg_sig")
+            )
         if verified is None:
             return Response(content=json.dumps({"detail":"Valid Telegram Mini App session is required"}), status_code=401, media_type="application/json")
         _verified_web_user.set(verified)
@@ -972,7 +1007,7 @@ def call_remind(booking_id:str, user_id:int):
     b=col("bookings").find_one({"booking_id":booking_id})
     if not b or uid(user_id) not in (b["user_id"],b["host_id"]): raise HTTPException(403,"Not allowed")
     if b.get("status") not in ("scheduled","calling"): raise HTTPException(400,"Call is not active")
-    notify_user(b["user_id"],"📹 आपका Host अभी available है। Vynora Live खोलकर video call join करें.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+    notify_user(b["user_id"],"📹 आपका Host अभी available है। Vynora Live खोलकर video call join करें.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":signed_webapp_url(b["user_id"])}}]])
     return {"status":"success"}
 
 
@@ -1157,7 +1192,7 @@ def direct_call(data: DirectCallModel):
         "👑 <b>VYNORA SUPER ADMIN CALL</b>\n\n"
         "Super Admin wants to speak with you immediately.\n"
         "This is a free Admin call — no coins and no time limit.",
-        [[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]]
+        [[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":signed_webapp_url(data.target_id)}}]]
     )
     notify_full(f"👑 ADMIN DIRECT CALL\nAdmin: {data.admin_id}\nTarget: {data.target_id}\nCall: <code>{cid}</code>\nFree: YES")
     return {"status":"success","call_id":cid,"channel":channel,"target":target.get("name","User")}
@@ -1403,7 +1438,7 @@ def admin_command(chat_id, from_id, text):
             cid=str(uuid.uuid4()); channel=f"admin_call_{cid}"
             col("direct_calls").insert_one({"call_id":cid,"type":"admin_direct","admin_id":from_id,"target_id":target,"channel":channel,"status":"ringing","created_at":now_ts()})
             tg_send(chat_id,f"📞 Calling <code>{target}</code>\nCall: <code>{cid}</code>\n💰 Free • No time limit")
-            notify_user(target,"👑 <b>VYNORA SUPER ADMIN CALL</b>\n\nSuper Admin wants to speak with you immediately.\n💰 Free — no coins, no time limit.",[[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+            notify_user(target,"👑 <b>VYNORA SUPER ADMIN CALL</b>\n\nSuper Admin wants to speak with you immediately.\n💰 Free — no coins, no time limit.",[[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":signed_webapp_url(data.target_id)}}]])
             notify_full(f"👑 ADMIN DIRECT CALL\nAdmin: {from_id}\nTarget: {target}\nCall: <code>{cid}</code>\nFree: YES")
         elif cmd=="/stats":
             tg_send(chat_id,f"📊 Users: {col('users').count_documents({})}\nHosts: {col('hosts').count_documents({'status':'approved'})}\nPending Hosts: {col('hosts').count_documents({'status':'pending'})}\nBookings: {col('bookings').count_documents({})}\nCompleted Calls: {col('bookings').count_documents({'status':'completed'})}")
@@ -1477,13 +1512,13 @@ def handle_update(upd):
         name=(from_user.get("first_name","")+" "+from_user.get("last_name","")).strip() or "User"; username=from_user.get("username","")
         u,created=ensure_user(from_id,name,username)
         if created: notify_new_user(u)
-        tg_send(chat_id, f"🎉 <b>VYNORA LIVE में आपका स्वागत है! 💜</b>\n\nनमस्ते {name} 👋\n\nयहाँ आप अपनी पसंद के Host के साथ\n📅 1-to-1 Video Call Slot Book कर सकते हैं।\n\n✨ Host चुनें → Slot Book करें → Confirmation पाएँ → Call करें\n\n💰 UPI/QR से Recharge करें और Coins से Slot Book करें।\n\n🔐 Secure • Private • 1-to-1 Calling\n\n👇 शुरू करने के लिए नीचे दिए बटन पर क्लिक करें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+        tg_send(chat_id, f"🎉 <b>VYNORA LIVE में आपका स्वागत है! 💜</b>\n\nनमस्ते {name} 👋\n\nयहाँ आप अपनी पसंद के Host के साथ\n📅 1-to-1 Video Call Slot Book कर सकते हैं।\n\n✨ Host चुनें → Slot Book करें → Confirmation पाएँ → Call करें\n\n💰 UPI/QR से Recharge करें और Coins से Slot Book करें।\n\n🔐 Secure • Private • 1-to-1 Calling\n\n👇 शुरू करने के लिए नीचे दिए बटन पर क्लिक करें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":signed_webapp_url(from_id)}}]])
         return
     # Normal users do not have Telegram commands. They use the Mini App.
     # Super Admin commands remain available below.
     if text.startswith("/") and admin_command(chat_id,from_id,text): return
     if text.startswith("/"):
-        tg_send(chat_id, "👋 App खोलने के लिए नीचे <b>Open Vynora Live</b> button का इस्तेमाल करें.", [[{"text":"🚀 Open Vynora Live","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+        tg_send(chat_id, "👋 App खोलने के लिए नीचे <b>Open Vynora Live</b> button का इस्तेमाल करें.", [[{"text":"🚀 Open Vynora Live","web_app":{"url":signed_webapp_url(from_id)}}]])
         return
 
 
@@ -1605,8 +1640,8 @@ def call_watchdog():
             # Send the actual call-time Telegram reminder once.
             for b in col("bookings").find({"status":"scheduled","scheduled_start":{"$lte":t},"call_started_at":None,"call_reminded_at":{"$exists":False}}):
                 col("bookings").update_one({"booking_id":b["booking_id"],"call_reminded_at":{"$exists":False}},{"$set":{"call_reminded_at":t}})
-                notify_user(b["user_id"],f"📹 <b>Your Host is ready now</b>\nJoin your {b['minutes']}-minute video call in Vynora Live.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
-                notify_user(b["host_id"],f"📹 <b>Your scheduled call is ready</b>\nUser: <code>{b['user_id']}</code>\nJoin now to start the paid timer when both connect.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+                notify_user(b["user_id"],f"📹 <b>Your Host is ready now</b>\nJoin your {b['minutes']}-minute video call in Vynora Live.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":signed_webapp_url(b["user_id"])}}]])
+                notify_user(b["host_id"],f"📹 <b>Your scheduled call is ready</b>\nUser: <code>{b['user_id']}</code>\nJoin now to start the paid timer when both connect.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":signed_webapp_url(b["host_id"])}}]])
                 notify_full(f"📹 CALL READY\nBooking: {b['booking_id']}\nUser: {b['user_id']}\nHost: {b['host_id']}")
             for b in col("bookings").find({"status":"scheduled","scheduled_start":{"$lte":t}}):
                 if t >= int(b.get("scheduled_start",t)) + int(b.get("minutes",1))*60:
