@@ -59,10 +59,9 @@
 
 <script>
 const API='';
-const tg=window.Telegram?.WebApp;
-try{tg?.ready();tg?.expand();tg?.setHeaderColor?.('#090712');tg?.setBackgroundColor?.('#090712')}catch(e){}
+function getTG(){return window.Telegram?.WebApp||null}
 let initData='';
-function syncTelegramSession(){try{initData=(window.Telegram?.WebApp?.initData||'').trim()}catch(e){initData=''}return initData}
+function syncTelegramSession(){try{const w=getTG();if(w){try{w.ready();w.expand();w.setHeaderColor?.('#090712');w.setBackgroundColor?.('#090712')}catch(e){}initData=(w.initData||'').trim()}}catch(e){initData=''}return initData}
 syncTelegramSession();
 let me=null,config=null,hosts=[],selectedHost=null,selectedMinutes=1,selectedRecharge=null,selectedBooking=null;
 let agoraClient=null,localTracks=[],callPoll=null,callTimerInterval=null,currentCallBooking=null,currentCallId=null,currentCallType=null,micOn=true,camOn=true;
@@ -84,10 +83,9 @@ function go(page){
 }
 function photo(url,name){return url?`<img class="avatar" src="${esc(url)}" onerror="this.outerHTML='<div class=avatar>👤</div>'">`:`<div class="avatar">${esc((name||'U').slice(0,1).toUpperCase())}</div>`}
 
-async function waitForTelegramSession(timeoutMs=5000){
+async function waitForTelegramSession(timeoutMs=10000){
   const started=Date.now();
   while(Date.now()-started<timeoutMs){
-    try{tg?.ready();tg?.expand();}catch(e){}
     if(syncTelegramSession()) return true;
     await new Promise(r=>setTimeout(r,150));
   }
@@ -100,6 +98,7 @@ async function boot(){
   try{
     config=await api('/api/config');
     $('upiId').textContent=config.upi_id||'vynoralive@slc';$('upiName').textContent=config.upi_name||'Rajnish Kumar';
+    const tg=getTG();
     const u=tg?.initDataUnsafe?.user||{};
     const start=await jsonApi('/api/start',{user_id:Number(u.id||0),name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN'});
     me=start.user;
@@ -113,7 +112,7 @@ async function boot(){
     setInterval(pollIncoming,5000);
   }catch(e){toast('❌ '+e.message)}
 }
-async function refreshUser(){const u=tg?.initDataUnsafe?.user||{};const d=await api('/api/user/'+Number(u.id));me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
+async function refreshUser(){const tg=getTG();const u=tg?.initDataUnsafe?.user||{};const d=await api('/api/user/'+Number(u.id));me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
 function updateBalance(){$('topTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN');$('walletTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN')}
 async function loadAnnouncement(){try{const d=await api('/api/announcement');if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}catch(e){}try{const b=await api('/api/banner');if(b.text){const x=document.querySelector('.hero p');if(x)x.textContent=b.text}if(b.image_data){const img=document.querySelector('.hero img');if(img)img.src=b.image_data}}catch(e){}}
 function renderHome(){
@@ -243,7 +242,20 @@ async function leaveDirectCall(){const id=currentCallId;try{if(id)await api('/ap
 async function checkDirectForCall(){if(!me)return;try{const d=await api('/api/direct-call/pending/'+me.user_id);if(d.active&&!currentCallId){const c=d.call;if(c.status==='ringing'){openModal(`<div style="text-align:center"><div style="font-size:45px">👑</div><h2>Admin Call</h2><p>VYNORA SUPER ADMIN wants to speak with you.</p><div class="notice">Free call · No coins · No time limit</div><button class="btn green" onclick="closeModal();startDirectCall('${c.call_id}','${c.channel}')">📞 Accept Admin Call</button></div>`);}}}catch(e){}}
 
 setInterval(()=>{if(me)checkDirectForCall()},5000);
-boot();
+
+// Telegram can expose WebApp slightly after the document script is evaluated.
+// Keep a small fallback loader and always read WebApp dynamically (never from a stale reference).
+(function ensureTelegramSDK(){
+  if(window.Telegram?.WebApp){boot();return}
+  const existing=document.querySelector('script[data-vynora-tg-sdk]');
+  if(!existing){
+    const sc=document.createElement('script');
+    sc.src='https://telegram.org/js/telegram-web-app.js';
+    sc.async=false; sc.dataset.vynoraTgSdk='1';
+    sc.onload=()=>boot(); sc.onerror=()=>boot();
+    document.head.appendChild(sc);
+  }else{boot()}
+})();
 </script>
 </body>
 </html>
