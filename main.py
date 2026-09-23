@@ -160,11 +160,42 @@ def verify_telegram_init_data(init_data: str):
     except Exception:
         return None
 
+def make_vynora_auth_token(user_id: int, ttl: int = 600):
+    payload={"uid":int(user_id),"exp":now_ts()+int(ttl)}
+    raw=base64.urlsafe_b64encode(json.dumps(payload,separators=(",",":"),sort_keys=True).encode()).decode().rstrip("=")
+    sig=hmac.new(BOT_TOKEN.encode(), raw.encode(), hashlib.sha256).hexdigest()
+    return raw+"."+sig
+
+def verify_vynora_auth_token(token: str):
+    if not BOT_TOKEN or not token or "." not in token:
+        return None
+    try:
+        raw,sig=token.rsplit(".",1)
+        expected=hmac.new(BOT_TOKEN.encode(), raw.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(expected,sig):
+            return None
+        padded=raw+"="*((4-len(raw)%4)%4)
+        payload=json.loads(base64.urlsafe_b64decode(padded.encode()).decode())
+        uid=int(payload.get("uid",0)); exp=int(payload.get("exp",0))
+        if not uid or not exp or now_ts()>exp:
+            return None
+        return uid
+    except Exception:
+        return None
+
+def web_app_url(user_id: int):
+    base=os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com").rstrip("/")
+    token=make_vynora_auth_token(int(user_id))
+    sep="&" if "?" in base else "?"
+    return base+sep+urllib.parse.urlencode({"vynora_auth":token})
+
 @app.middleware("http")
 async def telegram_webapp_auth(request: Request, call_next):
     path=request.url.path
     if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info") and not path.startswith("/api/profile/photo/"):
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
+        if verified is None:
+            verified=verify_vynora_auth_token(request.headers.get("X-Vynora-Auth-Token", "") or request.query_params.get("vynora_auth", ""))
         if verified is None:
             return Response(content=json.dumps({"detail":"Valid Telegram Mini App session is required"}), status_code=401, media_type="application/json")
         _verified_web_user.set(verified)
@@ -538,13 +569,16 @@ def config():
 @app.post("/api/start")
 def start(data: StartModel):
     verified=_verified_web_user.get()
-    if verified is None or verified != uid(data.user_id):
+    if verified is None:
         raise HTTPException(401,"Telegram identity verification failed")
-    u, created = ensure_user(data.user_id, data.name, data.username, data.country)
+    if data.user_id and int(data.user_id) != int(verified):
+        raise HTTPException(401,"Telegram identity verification failed")
+    effective_id=int(verified)
+    u, created = ensure_user(effective_id, data.name, data.username, data.country)
     if created:
         notify_new_user(u)
-    return {"status": "success", "new_user": created, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u),
-            "demo_used": demo_is_used(data.user_id)}}
+    return {"status": "success", "new_user": created, "user": {"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(effective_id, u),
+            "demo_used": demo_is_used(effective_id)}}
 
 @app.get("/api/user/{user_id}")
 def get_user(user_id: int):
@@ -931,7 +965,7 @@ def call_remind(booking_id:str, user_id:int):
     b=col("bookings").find_one({"booking_id":booking_id})
     if not b or uid(user_id) not in (b["user_id"],b["host_id"]): raise HTTPException(403,"Not allowed")
     if b.get("status") not in ("scheduled","calling"): raise HTTPException(400,"Call is not active")
-    notify_user(b["user_id"],"📹 आपका Host अभी available है। Vynora Live खोलकर video call join करें.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+    notify_user(b["user_id"],"📹 आपका Host अभी available है। Vynora Live खोलकर video call join करें.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":web_app_url(int(b["user_id"]))}}]])
     return {"status":"success"}
 
 
@@ -1114,7 +1148,7 @@ def direct_call(data: DirectCallModel):
         "👑 <b>VYNORA SUPER ADMIN CALL</b>\n\n"
         "Super Admin wants to speak with you immediately.\n"
         "This is a free Admin call — no coins and no time limit.",
-        [[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]]
+        [[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":web_app_url(int(target))}}]]
     )
     notify_full(f"👑 ADMIN DIRECT CALL\nAdmin: {data.admin_id}\nTarget: {data.target_id}\nCall: <code>{cid}</code>\nFree: YES")
     return {"status":"success","call_id":cid,"channel":channel,"target":target.get("name","User")}
@@ -1277,35 +1311,22 @@ def admin_command(chat_id, from_id, text):
             if h and h.get("status")=="blocked": col("hosts").update_one({"user_id":target},{"$set":{"status":"approved"}})
             tg_send(chat_id,f"✅ Unblocked <code>{target}</code>"); notify_user(target,"✅ आपका account unblock कर दिया गया है।"); notify_full(f"✅ UNBLOCKED\nAdmin: {from_id}\nUser: {target}")
         elif cmd in ("/approverecharge","/rejectrecharge") and args:
-            rid=args[0]
-            ok=cmd=="/approverecharge"; status="approved" if ok else "rejected"
-            # Atomic state transition: only the first admin action can process a pending recharge.
-            r=col("recharges").find_one_and_update(
-                {"recharge_id":rid,"status":"pending"},
-                {"$set":{"status":status,"approved_by":from_id,"approved_at":now_ts()}},
-                return_document=ReturnDocument.BEFORE
-            )
+            rid=args[0]; r=col("recharges").find_one({"recharge_id":rid,"status":"pending"})
             if not r: raise ValueError("Recharge request not found or already processed")
+            ok=cmd=="/approverecharge"; status="approved" if ok else "rejected"
+            col("recharges").update_one({"recharge_id":rid,"status":"pending"},{"$set":{"status":status,"approved_by":from_id,"approved_at":now_ts()}})
             if ok:
-                col("users").update_one({"user_id":r["user_id"]},{"$inc":{"tokens":int(r["tokens"])}},upsert=True)
-                notify_user(r["user_id"],f"✅ Recharge approved. {r['tokens']} Coins added.")
-            else:
-                notify_user(r["user_id"],"❌ Recharge rejected. Contact support.")
+                col("users").update_one({"user_id":r["user_id"]},{"$inc":{"tokens":r["tokens"]}}); notify_user(r["user_id"],f"✅ Recharge approved. {r['tokens']} Coins added.")
+            else: notify_user(r["user_id"],"❌ Recharge rejected. Contact support.")
             remove_recharge_screenshot(rid)
             tg_send(chat_id,f"Recharge {status}: <code>{rid}</code>\n🗑️ Payment screenshot deleted"); notify_full(f"RECHARGE {status.upper()}\nUser: {r['user_id']}\n₹{r['rupees']} → {r['tokens']} Coins\nAdmin: {from_id}\nScreenshot: DELETED")
         elif cmd in ("/approvebooking","/rejectbooking") and args:
-            bid=args[0]; ok=cmd=="/approvebooking"; status="accepted" if ok else "rejected"
-            b=col("bookings").find_one_and_update(
-                {"booking_id":bid,"status":{"$in":["pending","accepted"]} if not ok else {"$in":["pending"]}},
-                {"$set":{"status":status,"updated_at":now_ts()}},
-                return_document=ReturnDocument.BEFORE
-            )
-            if not b: raise ValueError("Booking not found or already processed")
-            if ok:
-                notify_user(b["user_id"],"✅ Booking accepted. Host/admin will schedule the call.")
-            else:
-                col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":int(b.get("tokens",0))}})
-                notify_user(b["user_id"],f"❌ Booking rejected. {b['tokens']} Coins refunded.")
+            bid=args[0]; b=col("bookings").find_one({"booking_id":bid})
+            if not b: raise ValueError("Booking not found")
+            ok=cmd=="/approvebooking"; status="accepted" if ok else "rejected"
+            col("bookings").update_one({"booking_id":bid},{"$set":{"status":status,"updated_at":now_ts()}})
+            if ok: notify_user(b["user_id"],"✅ Booking accepted. Host/admin will schedule the call.")
+            else: col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":b["tokens"]}}); notify_user(b["user_id"],f"❌ Booking rejected. {b['tokens']} Coins refunded.")
             tg_send(chat_id,f"Booking {status}: <code>{bid}</code>"); notify_full(f"BOOKING {status.upper()}\nBooking: {bid}\nUser: {b['user_id']}\nHost: {b['host_id']}\nAdmin: {from_id}")
         elif cmd in ("/approvewithdrawal","/rejectwithdrawal") and args:
             wid=args[0]; w=col("withdrawals").find_one({"withdrawal_id":wid,"status":"pending"})
@@ -1370,7 +1391,7 @@ def admin_command(chat_id, from_id, text):
             cid=str(uuid.uuid4()); channel=f"admin_call_{cid}"
             col("direct_calls").insert_one({"call_id":cid,"type":"admin_direct","admin_id":from_id,"target_id":target,"channel":channel,"status":"ringing","created_at":now_ts()})
             tg_send(chat_id,f"📞 Calling <code>{target}</code>\nCall: <code>{cid}</code>\n💰 Free • No time limit")
-            notify_user(target,"👑 <b>VYNORA SUPER ADMIN CALL</b>\n\nSuper Admin wants to speak with you immediately.\n💰 Free — no coins, no time limit.",[[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+            notify_user(target,"👑 <b>VYNORA SUPER ADMIN CALL</b>\n\nSuper Admin wants to speak with you immediately.\n💰 Free — no coins, no time limit.",[[{"text":"📞 JOIN ADMIN CALL","web_app":{"url":web_app_url(int(target))}}]])
             notify_full(f"👑 ADMIN DIRECT CALL\nAdmin: {from_id}\nTarget: {target}\nCall: <code>{cid}</code>\nFree: YES")
         elif cmd=="/stats":
             tg_send(chat_id,f"📊 Users: {col('users').count_documents({})}\nHosts: {col('hosts').count_documents({'status':'approved'})}\nPending Hosts: {col('hosts').count_documents({'status':'pending'})}\nBookings: {col('bookings').count_documents({})}\nCompleted Calls: {col('bookings').count_documents({'status':'completed'})}")
@@ -1444,13 +1465,13 @@ def handle_update(upd):
         name=(from_user.get("first_name","")+" "+from_user.get("last_name","")).strip() or "User"; username=from_user.get("username","")
         u,created=ensure_user(from_id,name,username)
         if created: notify_new_user(u)
-        tg_send(chat_id, f"🎉 <b>VYNORA LIVE में आपका स्वागत है! 💜</b>\n\nनमस्ते {name} 👋\n\nयहाँ आप अपनी पसंद के Host के साथ\n📅 1-to-1 Video Call Slot Book कर सकते हैं।\n\n✨ Host चुनें → Slot Book करें → Confirmation पाएँ → Call करें\n\n💰 UPI/QR से Recharge करें और Coins से Slot Book करें।\n\n🔐 Secure • Private • 1-to-1 Calling\n\n👇 शुरू करने के लिए नीचे दिए बटन पर क्लिक करें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+        tg_send(chat_id, f"🎉 <b>VYNORA LIVE में आपका स्वागत है! 💜</b>\n\nनमस्ते {name} 👋\n\nयहाँ आप अपनी पसंद के Host के साथ\n📅 1-to-1 Video Call Slot Book कर सकते हैं।\n\n✨ Host चुनें → Slot Book करें → Confirmation पाएँ → Call करें\n\n💰 UPI/QR से Recharge करें और Coins से Slot Book करें।\n\n🔐 Secure • Private • 1-to-1 Calling\n\n👇 शुरू करने के लिए नीचे दिए बटन पर क्लिक करें।",[[{"text":"🚀 Open Vynora Live","web_app":{"url":web_app_url(from_id)}}]])
         return
     # Normal users do not have Telegram commands. They use the Mini App.
     # Super Admin commands remain available below.
     if text.startswith("/") and admin_command(chat_id,from_id,text): return
     if text.startswith("/"):
-        tg_send(chat_id, "👋 App खोलने के लिए नीचे <b>Open Vynora Live</b> button का इस्तेमाल करें.", [[{"text":"🚀 Open Vynora Live","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+        tg_send(chat_id, "👋 App खोलने के लिए नीचे <b>Open Vynora Live</b> button का इस्तेमाल करें.", [[{"text":"🚀 Open Vynora Live","web_app":{"url":web_app_url(from_id)}}]])
         return
 
 
@@ -1572,8 +1593,8 @@ def call_watchdog():
             # Send the actual call-time Telegram reminder once.
             for b in col("bookings").find({"status":"scheduled","scheduled_start":{"$lte":t},"call_started_at":None,"call_reminded_at":{"$exists":False}}):
                 col("bookings").update_one({"booking_id":b["booking_id"],"call_reminded_at":{"$exists":False}},{"$set":{"call_reminded_at":t}})
-                notify_user(b["user_id"],f"📹 <b>Your Host is ready now</b>\nJoin your {b['minutes']}-minute video call in Vynora Live.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
-                notify_user(b["host_id"],f"📹 <b>Your scheduled call is ready</b>\nUser: <code>{b['user_id']}</code>\nJoin now to start the paid timer when both connect.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
+                notify_user(b["user_id"],f"📹 <b>Your Host is ready now</b>\nJoin your {b['minutes']}-minute video call in Vynora Live.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":web_app_url(int(b["user_id"]))}}]])
+                notify_user(b["host_id"],f"📹 <b>Your scheduled call is ready</b>\nUser: <code>{b['user_id']}</code>\nJoin now to start the paid timer when both connect.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":web_app_url(int(b["host_id"]))}}]])
                 notify_full(f"📹 CALL READY\nBooking: {b['booking_id']}\nUser: {b['user_id']}\nHost: {b['host_id']}")
             for b in col("bookings").find({"status":"scheduled","scheduled_start":{"$lte":t}}):
                 if t >= int(b.get("scheduled_start",t)) + int(b.get("minutes",1))*60:
