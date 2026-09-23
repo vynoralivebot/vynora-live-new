@@ -1647,6 +1647,91 @@ def finalize_call(booking_id, ended_at=None, reason="completed"):
     return fresh
 
 
+
+# ============================================================
+# 24-HOUR AUTOMATIC CLEANUP
+# ============================================================
+
+CLEANUP_INTERVAL_SECONDS = 24 * 60 * 60
+CLEANUP_AFTER_SECONDS = 24 * 60 * 60
+
+
+def cleanup_old_temporary_data():
+    """
+    Remove only temporary/expired data older than 24 hours.
+
+    Protected:
+    - users
+    - hosts
+    - recharge/payment records
+    - withdrawals
+    - earnings
+    - completed booking history
+    - active/calling bookings
+    """
+
+    if db is None:
+        return
+
+    now = now_ts()
+    cutoff = now - CLEANUP_AFTER_SECONDS
+
+    try:
+        # Expired/cancelled/rejected booking requests are temporary
+        # after they have been inactive for at least 24 hours.
+        booking_result = col("bookings").delete_many({
+            "status": {
+                "$in": ["expired", "cancelled", "rejected"]
+            },
+            "$or": [
+                {"updated_at": {"$lt": cutoff}},
+                {"time": {"$lt": cutoff}}
+            ]
+        })
+
+        # Direct admin-call records are temporary call-session data.
+        # Only terminal states older than 24 hours are removed.
+        call_result = col("direct_calls").delete_many({
+            "status": {
+                "$in": ["completed", "cancelled", "expired", "rejected"]
+            },
+            "$or": [
+                {"updated_at": {"$lt": cutoff}},
+                {"ended_at": {"$lt": cutoff}},
+                {"created_at": {"$lt": cutoff}}
+            ]
+        })
+
+        # Notifications are UI/temporary records.
+        notification_result = col("notifications").delete_many({
+            "created_at": {"$lt": cutoff}
+        })
+
+        log.info(
+            "24H cleanup completed | bookings=%s calls=%s notifications=%s",
+            booking_result.deleted_count,
+            call_result.deleted_count,
+            notification_result.deleted_count
+        )
+
+    except Exception as e:
+        log.exception("24H cleanup failed: %s", e)
+
+
+def cleanup_worker():
+    """
+    Run cleanup once when the server starts, then approximately
+    every 24 hours.
+    """
+    while True:
+        try:
+            cleanup_old_temporary_data()
+        except Exception as e:
+            log.exception("cleanup worker error: %s", e)
+
+        time.sleep(CLEANUP_INTERVAL_SECONDS)
+
+
 def call_watchdog():
     while True:
         try:
@@ -1690,6 +1775,12 @@ def startup():
         threading.Thread(target=set_telegram_webhook, daemon=True).start()
     if db is not None:
         threading.Thread(target=call_watchdog, daemon=True).start()
+    if db is not None:
+        threading.Thread(
+            target=cleanup_worker,
+            daemon=True,
+            name="vynora-cleanup"
+        ).start()
 
 if __name__ == "__main__":
     import uvicorn
