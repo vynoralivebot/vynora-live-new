@@ -109,29 +109,65 @@ function photo(url,name){return url?`<img class="avatar" src="${esc(url)}" onerr
 
 async function boot(){
   syncTelegramSession();
+  const loader=$('bootLoading');
+
   try{
     if(!initData && !launchToken){
       toast('❌ Vynora Live को Telegram Mini App के Open Vynora Live button से खोलें.');
       return;
     }
-    const [cfg,session]=await Promise.all([api('/api/config'),api('/api/session')]);
+
+    // Only essential startup requests are awaited.
+    const [cfg,session]=await Promise.all([
+      api('/api/config'),
+      api('/api/session')
+    ]);
+
     config=cfg;
-    $('upiId').textContent=config.upi_id||'vynoralive@slc';$('upiName').textContent=config.upi_name||'Rajnish Kumar';
-    const tg=getTG(); const u=tg?.initDataUnsafe?.user||{};
+    $('upiId').textContent=config.upi_id||'vynoralive@slc';
+    $('upiName').textContent=config.upi_name||'Rajnish Kumar';
+
+    const tg=getTG();
+    const u=tg?.initDataUnsafe?.user||{};
     const userId=Number(session.user_id||u.id||0);
-    if(!userId) throw new Error('Telegram user session could not be identified');
-    const start=await jsonApi('/api/start',{user_id:userId,name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN'});
+
+    if(!userId){
+      throw new Error('Telegram user session could not be identified');
+    }
+
+    const start=await jsonApi('/api/start',{
+      user_id:userId,
+      name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',
+      username:u.username||'',
+      country:'IN'
+    });
+
     me=start.user;
-    await refreshUser();
-    await Promise.all([loadAnnouncement(),loadHosts()]);
+
+    // No duplicate /api/session call.
+    await refreshUser(userId);
+
+    // Show the usable UI before non-essential data loads.
     renderProfile();
     renderHome();
     renderWallet();
+
+    if(loader) loader.classList.add('hidden');
+
+    // Hosts and announcement load in the background.
+    Promise.allSettled([
+      loadAnnouncement(),
+      loadHosts()
+    ]);
+
     pollIncoming();
     setInterval(pollIncoming,5000);
-  }catch(e){toast('❌ '+e.message)}finally{
-    const loader=$('bootLoading');
-    if(loader) setTimeout(()=>loader.classList.add('hidden'),300);
+
+  }catch(e){
+    toast('❌ '+e.message);
+  }finally{
+    // A secondary request can never keep the boot screen stuck.
+    if(loader) setTimeout(()=>loader.classList.add('hidden'),150);
   }
 }
 function updateBalance(){
@@ -142,16 +178,29 @@ function updateBalance(){
   if(wallet) wallet.textContent=tokens.toLocaleString('en-IN');
 }
 
-async function refreshUser(){
-  const session=await api('/api/session');
-  const tg=getTG(); const u=tg?.initDataUnsafe?.user||{};
-  const id=Number(session.user_id||u.id||0);
-  if(!id) throw new Error('Telegram user session could not be identified');
-  const d=await api('/api/user/'+id);me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()
+async function refreshUser(userId=null){
+  const tg=getTG();
+  const u=tg?.initDataUnsafe?.user||{};
+
+  const id=Number(
+    userId||u.id||me?.user_id||me?.id||0
+  );
+
+  if(!id){
+    throw new Error('Telegram user session could not be identified');
+  }
+
+  const d=await api('/api/user/'+id);
+
+  me=d.user;
+  me.host=d.host;
+  me.is_admin=d.is_admin;
+
+  updateBalance();
 }
 async function loadAnnouncement(){try{const d=await api('/api/announcement');if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}catch(e){}}
 function renderHome(){
-  if(me?.demo_used){$('demoHome').classList.add('hidden')}else{$('demoHome').classList.remove('hidden');$('demoHome').innerHTML='<div class="between"><b>🎁 First-Use Free Demo</b><span class="pill">20 Seconds · FREE</span></div><p class="small muted">🎉 पहली बार आपके लिए 20 सेकंड का <b>Free Demo Call</b> उपलब्ध है। Demo paid booking से अलग है और कोई Coin नहीं कटेगा.</p><p class="small muted">⏳ App पहली बार खुलने में 10–15 सेकंड लग सकते हैं, कृपया थोड़ा wait करें.</p><button class="btn green" onclick="openDemoHostPicker()">🎁 Start Free Demo</button>'}
+  if(me?.demo_used){$('demoHome').classList.add('hidden')}else{$('demoHome').classList.remove('hidden');$('demoHome').innerHTML='<div class="between"><b>🎁 First-Use Free Demo</b><span class="pill">20 Seconds · FREE</span></div><p class="small muted">🎉 पहली बार आपके लिए 20 सेकंड का <b>Free Demo Call</b> उपलब्ध है। Demo paid booking से अलग है और कोई Coin नहीं कटेगा.</p><p class="small muted">⏳ App जल्दी खुलेगा; बाकी data background में load होगा.</p><button class="btn green" onclick="openDemoHostPicker()">🎁 Start Free Demo</button>'}
   if(me?.host?.status==='approved'){$('hostHome').classList.remove('hidden');$('hostHome').innerHTML=`<div class="between"><b>🎙️ Host Dashboard</b><span class="pill ${me.host.online?'online':'offline'}">${me.host.online?'🟢 ONLINE':'⚫ OFFLINE'}</span></div><p class="small muted">Earnings: ₹${Number(me.host.available_earnings||0).toFixed(2)} · Calls: ${Number(me.host.total_tokens||0)}</p><div class="actions"><button class="btn ${me.host.online?'red':'green'}" onclick="toggleHostOnline()">${me.host.online?'GO OFFLINE':'GO ONLINE'}</button><button class="btn secondary" onclick="go('bookings')">Bookings</button></div>`}
   if(me?.is_admin){$('adminHome').classList.remove('hidden');$('adminHome').innerHTML='<b>👑 VYNORA LIVE — VERIFIED SUPER ADMIN</b><p class="small muted">Admin dashboard Profile में उपलब्ध है.</p><button class="btn" onclick="go(\'profile\');renderAdmin()">Open Admin</button>'}
 }
