@@ -15,11 +15,11 @@
 </head>
 <body>
 <div class="app">
-  <div class="top"><div class="brand"><img src="/vynora-icon.png" style="width:34px;height:34px;border-radius:10px;vertical-align:middle;margin-right:7px" alt="Vynora Live"> Vynora <span>Live</span></div><div class="balance">🪙 <span id="topTokens">0</span></div></div>
+  <div class="top"><div class="brand"><img src="/vynora-icon.png?v=20260923" style="width:34px;height:34px;border-radius:10px;vertical-align:middle;margin-right:7px" alt="Vynora Live"> Vynora <span>Live</span></div><div class="balance">🪙 <span id="topTokens">0</span></div></div>
 
   <section id="home" class="page active">
     <div id="announcement" class="notice announcement hidden"></div>
-    <div class="hero"><img src="/vynora-banner.png" style="width:100%;max-height:220px;object-fit:cover;border-radius:18px;margin-bottom:12px" alt="Vynora Live"><h1>Private 1-to-1 Video Call</h1><p>India-based Real Host चुनें, slot book करें और secure private video call करें.</p><div class="actions"><button class="btn" onclick="go('hosts')">🎥 Find Host</button><button class="btn secondary" onclick="go('wallet')">🪙 Recharge</button></div></div>
+    <div class="hero"><img src="/vynora-banner.png?v=20260923" style="width:100%;max-height:220px;object-fit:cover;border-radius:18px;margin-bottom:12px" alt="Vynora Live"><h1>Private 1-to-1 Video Call</h1><p>India-based Real Host चुनें, slot book करें और secure private video call करें.</p><div class="actions"><button class="btn" onclick="go('hosts')">🎥 Find Host</button><button class="btn secondary" onclick="go('wallet')">🪙 Recharge</button></div></div>
     <div id="demoHome" class="card hidden"></div><div class="title">Quick Access</div>
     <div class="grid">
       <button class="card" onclick="go('hosts')">🎥<br><b>Hosts</b><br><span class="small muted">Online hosts</span></button>
@@ -121,6 +121,14 @@ async function boot(){
     setInterval(pollIncoming,5000);
   }catch(e){toast('❌ '+e.message)}
 }
+function updateBalance(){
+  const tokens=Number(me?.tokens||0);
+  const top=document.getElementById('topTokens');
+  const wallet=document.getElementById('walletTokens');
+  if(top) top.textContent=tokens.toLocaleString('en-IN');
+  if(wallet) wallet.textContent=tokens.toLocaleString('en-IN');
+}
+
 async function refreshUser(){
   const session=await api('/api/session');
   const tg=getTG(); const u=tg?.initDataUnsafe?.user||{};
@@ -207,7 +215,7 @@ function openIncomingBooking(b){openModal(`<div style="text-align:center"><div s
 function cancelIncoming(){toast('Call request dismissed. Booking remains available.')}
 
 async function renderWallet(){
-  if(!config)return;updateBalance();$('upiId').textContent=config.upi_id;$('upiName').textContent=config.upi_name;$('rechargePlans').innerHTML=config.recharge_plans.map(p=>`<button class="recharge-plan" onclick="openRecharge(${p.rupees},${p.tokens})"><b>₹${p.rupees}</b><br><span class="small">${p.tokens} Coins</span></button>`).join('');
+  if(!config)return;updateBalance();$('upiId').textContent=config.upi_id;$('upiName').textContent=config.upi_name;const rechargePlans=Array.isArray(config.recharge_plans)&&config.recharge_plans.length?config.recharge_plans:[{rupees:50,tokens:50},{rupees:150,tokens:150},{rupees:300,tokens:300},{rupees:600,tokens:600},{rupees:1500,tokens:1500}];$('rechargePlans').innerHTML=rechargePlans.map(p=>`<button class="recharge-plan" onclick="openRecharge(${p.rupees},${p.tokens})"><b>₹${p.rupees}</b><br><span class="small">${p.tokens} Coins</span></button>`).join('');
   if(me?.host?.status==='approved'){$('withdrawBox').innerHTML=`<div class="card"><div class="grid"><div class="stat"><span class="muted small">Available</span><strong>₹${Number(me.host.available_earnings||0).toFixed(2)}</strong></div><div class="stat"><span class="muted small">Host Share</span><strong>60%</strong></div></div><div class="field"><label>UPI ID</label><input id="hostUpi" placeholder="yourname@bank" value="${esc(me.host.upi_id||'')}"></div><button class="btn secondary" onclick="saveHostUpi()">💳 Save / Update UPI</button><div class="field"><label>Withdrawal Amount (minimum ₹700)</label><input id="withdrawAmount" type="number" min="700" step="1" placeholder="700"></div><button class="btn gold" onclick="withdraw()">💸 Request Withdrawal</button><div class="actions"><button class="btn secondary" onclick="loadEarningsHistory()">📜 Earnings History</button><button class="btn secondary" onclick="loadWithdrawalHistory()">💸 Withdrawal History</button></div></div>`}else $('withdrawBox').innerHTML='<div class="notice">Host earnings और withdrawal के लिए approved Host बनें.</div>';
   $('withdrawBox').insertAdjacentHTML('beforeend','<div class="title">📜 Wallet / Transaction History</div><button class="btn secondary" onclick="loadWalletHistory()">View Complete Wallet History</button>');
 }
