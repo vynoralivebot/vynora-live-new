@@ -176,7 +176,7 @@ async def telegram_webapp_auth(request: Request, call_next):
     return response
 
 if MONGO_URI:
-    mongo = MongoClient(MONGO_URI, serverSelectionTimeoutMS=3000, connectTimeoutMS=3000, socketTimeoutMS=5000, retryWrites=True)
+    mongo = MongoClient(MONGO_URI, serverSelectionTimeoutMS=2000, connectTimeoutMS=2000, socketTimeoutMS=3000, waitQueueTimeoutMS=2000, retryWrites=True)
     db = mongo[MONGO_DB]
 else:
     mongo = None
@@ -1755,11 +1755,12 @@ def call_watchdog():
         time.sleep(5)
 
 
-@app.on_event("startup")
-def startup():
-    ensure_final_indexes()
-    log.info('Vynora startup: BOT_TOKEN=%s, MONGO=%s, GROUP1=%s, GROUP2=%s, GROUP3=%s, AGORA=%s', bool(BOT_TOKEN), bool(MONGO_URI), bool(GROUP_1_ID), bool(GROUP_2_ID), bool(GROUP_3_ID), bool(AGORA_APP_ID and AGORA_APP_CERTIFICATE))
-    if db is not None:
+def background_db_init():
+    """Initialize indexes/legacy cleanup without blocking HTTP startup."""
+    if db is None:
+        return
+    try:
+        ensure_final_indexes()
         try:
             col("users").create_index("user_id", unique=True)
             col("hosts").create_index("user_id", unique=True)
@@ -1767,21 +1768,26 @@ def startup():
             col("recharges").create_index("recharge_id", unique=True)
             col("direct_calls").create_index("call_id", unique=True)
             col("notifications").create_index([("user_id",1),("created_at",-1)])
-        except Exception as e: log.warning("index setup: %s",e)
-    if db is not None:
+        except Exception as e:
+            log.warning("index setup: %s", e)
         remove_dummy_hosts()
+    except Exception as e:
+        log.warning("background DB init failed: %s", e)
+
+
+@app.on_event("startup")
+def startup():
+    # IMPORTANT: do not perform MongoDB operations on the Uvicorn startup path.
+    # Render must be able to accept HTTP requests immediately even when MongoDB
+    # is slow/unreachable.
+    log.info('Vynora startup: BOT_TOKEN=%s, MONGO=%s, GROUP1=%s, GROUP2=%s, GROUP3=%s, AGORA=%s', bool(BOT_TOKEN), bool(MONGO_URI), bool(GROUP_1_ID), bool(GROUP_2_ID), bool(GROUP_3_ID), bool(AGORA_APP_ID and AGORA_APP_CERTIFICATE))
+    if db is not None:
+        threading.Thread(target=background_db_init, daemon=True, name="vynora-db-init").start()
     if BOT_TOKEN:
-        # Webhook replaces long polling. Telegram does not allow getUpdates while
-        # an outgoing webhook is configured.
-        threading.Thread(target=set_telegram_webhook, daemon=True).start()
+        threading.Thread(target=set_telegram_webhook, daemon=True, name="vynora-webhook").start()
     if db is not None:
-        threading.Thread(target=call_watchdog, daemon=True).start()
-    if db is not None:
-        threading.Thread(
-            target=cleanup_worker,
-            daemon=True,
-            name="vynora-cleanup"
-        ).start()
+        threading.Thread(target=call_watchdog, daemon=True, name="vynora-watchdog").start()
+        threading.Thread(target=cleanup_worker, daemon=True, name="vynora-cleanup").start()
 
 if __name__ == "__main__":
     import uvicorn
