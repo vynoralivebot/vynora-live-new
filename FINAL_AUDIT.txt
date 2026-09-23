@@ -110,32 +110,20 @@ Required visible items:
 
 ------------------------------------------------------------------------
 
-5. FIRST-USE DEMO
+5. 1-MINUTE INTRODUCTORY CALL
 
-The first-use demo is a separate flow from paid Host calls.
+The FREE Demo has been removed.
 
 Required behavior:
 
-1.  New user opens Vynora Live.
-2.  User becomes eligible for the first-use Demo Call.
-3.  Demo can be used only once.
-4.  Demo is recorded in the database.
-5.  Demo does not become normal paid Host earning.
-6.  Demo should exercise the real call experience:
-    -   Incoming call
-    -   Accept / decline
-    -   Camera
-    -   Microphone
-    -   Agora connection
-    -   Timer
-    -   End call
-7.  After the demo, normal paid booking is available.
-8.  Demo and paid booking records must remain distinguishable.
-
-IMPORTANT: The current plan table contains a 1-minute plan named Demo
-with 20 tokens in the latest backend snapshot. Do not silently change
-this pricing/semantics while editing the UI. If the intended Demo is
-free, that must be explicitly changed in the backend as well.
+1. The 1-minute plan costs 20 Coins.
+2. It is a normal paid call, not a FREE Demo.
+3. One Telegram User ID can receive the 1-minute / 20-Coins call only once.
+4. After that first 1-minute call actually connects, the same user must not be allowed to book another 1-minute / 20-Coins call.
+5. The 2, 5, 10 and 30 minute plans remain available according to the current pricing table.
+6. The rule must be enforced by the backend; hiding/disabling the button in the frontend alone is not sufficient.
+7. Old MongoDB `demo` flags must not recreate a FREE Demo option.
+8. Existing legacy demo records may remain for audit/history, but they must not create a new FREE Demo offer.
 
 ------------------------------------------------------------------------
 
@@ -641,13 +629,14 @@ Test A — New User
 -   Confirm new-user notification goes ONLY to Group 2
 -   Confirm no recharge/call notification goes to Group 2
 
-Test B — Demo
+Test B — 1-Minute Introductory Call
 
--   New user gets Demo eligibility
--   Start demo
--   Host/user call screen works
+-   1-minute plan shows 20 Coins, not FREE
+-   First eligible user can book it once
+-   User must have sufficient Coins
+-   After the call actually connects, the same user cannot book 1-minute / 20-Coins again
+-   2/5/10/30-minute plans remain available
 -   Timer waits for both participants
--   Demo cannot be claimed again
 
 Test C — Recharge
 
