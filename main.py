@@ -165,7 +165,7 @@ def verify_telegram_init_data(init_data: str):
 @app.middleware("http")
 async def telegram_webapp_auth(request: Request, call_next):
     path=request.url.path
-    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/telegram/webhook","/api/telegram/webhook-info") and not path.startswith("/api/profile/photo/"):
+    if path.startswith("/api/") and path not in ("/api/config","/api/health","/api/agora-status","/api/upi-qr","/api/telegram/webhook","/api/telegram/webhook-info") and not path.startswith("/api/profile/photo/"):
         verified=verify_telegram_init_data(request.headers.get("X-Telegram-Init-Data", ""))
         if verified is None:
             verified=verify_launch_token(request.headers.get("X-Vynora-Launch-Token", ""))
@@ -514,17 +514,9 @@ class CallEndModel(BaseModel):
 def root():
     return FileResponse(BASE / "index.html", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
 
-@app.get("/vynora-icon.png")
-def vynora_icon():
-    return FileResponse(BASE / "vynora-icon.png", media_type="image/png", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
-
-@app.get("/vynora-banner.png")
-def vynora_banner():
-    return FileResponse(BASE / "vynora-banner.png", media_type="image/png", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
-
 @app.get("/favicon.ico")
 def favicon():
-    return FileResponse(BASE / "vynora-icon.png", media_type="image/png", headers={"Cache-Control":"no-store, no-cache, must-revalidate, max-age=0"})
+    return FileResponse(BASE / "favicon.ico", media_type="image/x-icon", headers={"Cache-Control":"public, max-age=86400"})
 
 @app.get("/api/notifications/{user_id}")
 def notifications(user_id:int):
