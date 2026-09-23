@@ -13,15 +13,15 @@
 :root{--bg:#090712;--card:#151126;--card2:#1c1634;--text:#f7f4ff;--muted:#a9a2bd;--primary:#8b5cf6;--primary2:#ec4899;--green:#35d07f;--red:#ff5c75;--line:#2b2344;--gold:#f5c451;--shadow:0 16px 40px rgba(0,0,0,.28)}
 *{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh;padding-bottom:82px}button,input,select,textarea{font:inherit}button.card{color:#f7f4ff;text-align:center}button.recharge-plan{color:#f7f4ff}button{border:0;cursor:pointer}.app{max-width:720px;margin:auto;padding:14px}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.brand{display:flex;align-items:center;gap:9px;font-weight:950;font-size:22px;letter-spacing:.2px}.vlogo{width:34px;height:34px;filter:drop-shadow(0 0 9px rgba(236,72,153,.45))}.brand-text{background:linear-gradient(90deg,#fff,#c084fc 55%,#ec4899);-webkit-background-clip:text;background-clip:text;color:transparent}.brand span{color:#c084fc}.balance{background:linear-gradient(135deg,#211745,#30205a);border:1px solid #4c3678;border-radius:16px;padding:8px 12px;font-weight:800}.card{background:linear-gradient(180deg,#1a2440,#121a30);border:1px solid #344663;border-radius:20px;padding:15px;margin:12px 0;box-shadow:var(--shadow)}.hero{background:linear-gradient(135deg,#27124f,#17203f 55%,#311335);border:1px solid #49316b;padding:20px;border-radius:24px}.hero-banner{width:100%;height:auto;display:block;border-radius:20px;border:1px solid #49316b;box-shadow:0 12px 32px rgba(0,0,0,.28);object-fit:contain;background:#0b0715}.hero-actions{margin-top:10px}.hero h1{margin:0 0 7px;font-size:25px}.hero p{margin:0;color:#c9c1db;line-height:1.5}.row{display:flex;gap:10px;align-items:center}.between{display:flex;align-items:center;justify-content:space-between;gap:10px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.muted{color:var(--muted)}.small{font-size:12px}.title{font-size:17px;font-weight:900;margin:18px 0 10px}.btn{background:linear-gradient(135deg,var(--primary),var(--primary2));color:white;padding:12px 15px;border-radius:14px;font-weight:800;width:100%}.btn.secondary{background:#211a37;border:1px solid #3a2e59}.btn.green{background:linear-gradient(135deg,#1fa968,#2ddf91)}.btn.red{background:linear-gradient(135deg,#dc3757,#ff6a7e)}.btn.gold{background:linear-gradient(135deg,#c58b1b,#f4ca55);color:#1c1404}.btn:disabled{opacity:.45}.pill{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#241b3d;color:#d7cced;border:1px solid #3a2d59}.online{color:#62f19c}.offline{color:#9690a3}.host{display:flex;gap:12px;align-items:center}.avatar{width:58px;height:58px;border-radius:17px;object-fit:cover;background:#282039;display:grid;place-items:center;font-size:24px;flex:0 0 auto}.host-info{min-width:0;flex:1}.host-name{font-weight:900;font-size:16px}.host-user{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.actions{display:flex;gap:8px;margin-top:11px}.actions .btn{flex:1}.notice{background:#1b1430;border:1px solid #4a356d;padding:12px;border-radius:15px;margin:10px 0;line-height:1.45}.empty{text-align:center;padding:25px;color:var(--muted)}.nav{position:fixed;z-index:20;left:0;right:0;bottom:0;background:rgba(12,9,22,.95);backdrop-filter:blur(15px);border-top:1px solid var(--line);padding:8px max(8px,env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));display:flex;justify-content:center}.navin{max-width:720px;width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}.nav button{background:transparent;color:#c7c1d6;padding:7px 3px;border-radius:12px;font-size:11px;font-weight:800}.nav button.active{background:#2a2050;color:white;border:1px solid #7048a8;box-shadow:0 0 14px rgba(168,85,247,.22)}.nav b{display:block;font-size:19px;margin-bottom:2px}.page{display:none}.page.active{display:block}.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:none;align-items:flex-end}.modal.show{display:flex}.sheet{width:100%;max-width:720px;margin:auto;background:#110d20;border:1px solid #33284c;border-radius:25px 25px 0 0;padding:17px;max-height:90vh;overflow:auto}.field{margin:10px 0}.field label{display:block;font-size:12px;color:#aaa2bc;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;background:#202d49;color:#ffffff;border:1px solid #3b3055;border-radius:13px;padding:12px;outline:none}.field textarea{min-height:90px;resize:vertical}.duration{padding:11px;border-radius:13px;background:#19142b;border:1px solid #34294e;color:#ddd;text-align:center;font-weight:800}.duration.sel{border-color:#a855f7;background:#2a1a4d;color:white}.toast{position:fixed;z-index:100;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);opacity:0;background:#211a32;border:1px solid #493967;padding:12px 15px;border-radius:14px;max-width:90%;transition:.2s;pointer-events:none}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.call{position:fixed;inset:0;background:#050408;z-index:80;display:none}.call.show{display:block}.remote{position:absolute;inset:0}.remote>div{width:100%;height:100%}.local{position:absolute;right:14px;top:52px;width:118px;height:165px;border-radius:16px;overflow:hidden;background:#17121f;border:1px solid #514463;z-index:3}.local>div{width:100%;height:100%}.calltop{position:absolute;z-index:4;left:15px;right:15px;top:15px;display:flex;justify-content:space-between;align-items:center}.callbadge{background:rgba(0,0,0,.45);backdrop-filter:blur(8px);padding:8px 11px;border-radius:12px}.callbottom{position:absolute;z-index:4;left:15px;right:15px;bottom:calc(20px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:12px}.circle{width:55px;height:55px;border-radius:50%;display:grid;place-items:center;background:#2a2434;color:white;font-size:21px}.circle.end{background:#e33d58}.timer{font-size:18px;font-weight:900}.hidden{display:none!important}.stat{padding:13px;border-radius:15px;background:#202d49;border:1px solid #48607f;color:#f7f4ff}.stat strong{font-size:20px;display:block}.recharge-plan{padding:13px;border-radius:15px;background:#202d49;border:1px solid #48607f;text-align:center;color:#f7f4ff;box-shadow:0 0 0 1px rgba(96,165,250,.05),0 8px 22px rgba(0,0,0,.22)}.recharge-plan.sel{border-color:#9b5cff;background:#2a1b4a}.gift{padding:13px;border-radius:16px;background:#19142b;border:1px solid #34294e;text-align:center}.gift .emoji{font-size:29px}.history{padding:12px;border-bottom:1px solid #2a2340}.history:last-child{border-bottom:0}.status{font-size:11px;font-weight:900}.status.completed,.status.accepted,.status.scheduled,.status.calling{color:#61e998}.status.rejected,.status.cancelled{color:#ff7086}.status.pending{color:#f5c451}.announcement{border-color:#6943a0;background:linear-gradient(135deg,#24153f,#1b1530)}
 .qrbox{margin:14px auto;padding:15px;width:max-content;max-width:100%;background:#fff;border:2px solid #7c3aed;border-radius:20px;box-shadow:0 0 25px rgba(139,92,246,.35);text-align:center}.qrbox img{display:block;width:220px;height:220px;max-width:100%;object-fit:contain;margin:auto}.qrtitle{color:#111;font-weight:950;font-size:12px;letter-spacing:1.5px;margin-bottom:8px}.verified{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:4px 8px;border-radius:999px;background:#103b2b;color:#6ff3aa;border:1px solid #2aa56d;font-size:11px;font-weight:900}.profile-avatar{width:72px;height:72px;border-radius:20px;object-fit:cover;background:#263858;border:2px solid #4b6387}.photo-preview{max-width:110px;max-height:110px;border-radius:16px;margin-top:8px;border:2px solid #4b6387}.modal .avatar{margin:auto;width:88px;height:88px;border-radius:22px}.recharge-plan b,.card b,.title,.section-title{color:#fff}.safe-note{background:#1b2a43;border:1px solid #466083;color:#eef4ff;padding:12px;border-radius:14px}.host-real{border-color:#3e6a8e;box-shadow:0 0 0 1px rgba(80,180,255,.08),0 12px 30px rgba(0,0,0,.24)}@media(min-width:600px){.grid{grid-template-columns:repeat(3,1fr)}}
-.logo-fallback{display:flex;align-items:center;justify-content:center;border-radius:50%;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:#fff;font-weight:950;font-size:23px;box-shadow:0 0 14px rgba(236,72,153,.45)}.banner-fallback{min-height:190px;display:flex;flex-direction:column;justify-content:center;align-items:flex-start;gap:8px;padding:22px;background:radial-gradient(circle at 85% 20%,#ec4899 0,#5b21b6 35%,#120d2b 80%);color:#fff}.banner-fallback b{font-size:30px}.banner-fallback strong{font-size:24px}.banner-fallback span{color:#ddd0f3}.vlogo.logo-fallback{width:34px;height:34px;flex:0 0 34px}</style>
+</style>
 </head>
 <body>
 <div class="app">
-  <div class="top"><div class="brand"><img class="vlogo" src="/vynora-icon.png?v=final1" alt="Vynora Live logo" loading="eager" onerror="vynoraLogoFallback(this)"><span class="brand-text">Vynora Live</span></div><div class="balance">🪙 <span id="topTokens">0</span></div></div>
+  <div class="top"><div class="brand"><img class="vlogo" src="/vynora-icon.png" alt="Vynora Live logo" loading="eager"><span class="brand-text">Vynora Live</span></div><div class="balance">🪙 <span id="topTokens">0</span></div></div>
 
   <section id="home" class="page active">
     <div id="announcement" class="notice announcement hidden"></div>
-    <div class="hero"><img class="hero-banner" src="/vynora-banner.png?v=final1" alt="Vynora Live private video call banner" loading="eager" onerror="vynoraBannerFallback(this)"><div class="actions hero-actions"><button class="btn" onclick="go('hosts')">🎥 Find Host</button><button class="btn secondary" onclick="go('wallet')">🪙 Recharge</button></div></div>
+    <div class="hero"><img class="hero-banner" src="/vynora-banner.png" alt="Vynora Live private video call banner" loading="eager"><div class="actions hero-actions"><button class="btn" onclick="go('hosts')">🎥 Find Host</button><button class="btn secondary" onclick="go('wallet')">🪙 Recharge</button></div></div>
     <div class="title">Quick Access</div>
     <div class="grid">
       <button class="card" onclick="go('hosts')">🎥<br><b>Hosts</b><br><span class="small muted">Online hosts</span></button>
@@ -62,58 +62,43 @@
 <script>
 const API='';
 const tg=window.Telegram?.WebApp;
-const urlAuth=new URLSearchParams(location.search).get('vynora_auth')||'';
-function authUserId(){try{if(!urlAuth)return 0;const raw=urlAuth.split('.')[0];const pad=raw+'='.repeat((4-raw.length%4)%4);return Number(JSON.parse(atob(pad.replace(/-/g,'+').replace(/_/g,'/'))).uid||0)}catch(e){return 0}}
-const urlUserId=authUserId();
 try{tg?.ready();tg?.expand();tg?.setHeaderColor?.('#090712');tg?.setBackgroundColor?.('#090712')}catch(e){}
 let initData=tg?.initData||'';
 let me=null,config=null,hosts=[],selectedHost=null,selectedMinutes=1,selectedRecharge=null,selectedBooking=null;
 let agoraClient=null,localTracks=[],callPoll=null,callTimerInterval=null,currentCallBooking=null,currentCallId=null,currentCallType=null,micOn=true,camOn=true;
 
 function $(id){return document.getElementById(id)}
-function vynoraLogoFallback(img){
-  if(img.dataset.fallback){img.outerHTML='<div class="vlogo logo-fallback">V</div>';return}
-  img.dataset.fallback='1';img.src='https://raw.githubusercontent.com/vynoralivebot/vynora-live-new/main/vynora-icon.png';
-}
-function vynoraBannerFallback(img){
-  if(img.dataset.fallback){img.outerHTML='<div class="hero-banner banner-fallback"><b>VYNORA LIVE</b><strong>Private 1-to-1 Video Call</strong><span>Real People • Real Moments</span></div>';return}
-  img.dataset.fallback='1';img.src='https://raw.githubusercontent.com/vynoralivebot/vynora-live-new/main/vynora-banner.png';
-}
 function esc(v){return String(v??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');clearTimeout(window.__toast);window.__toast=setTimeout(()=>$('toast').classList.remove('show'),3000)}
 function fmtTime(ts){if(!ts)return '-';return new Date(Number(ts)*1000).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}
 function fmtDur(sec){sec=Math.max(0,Math.floor(sec||0));return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
 function errorText(v){if(v==null)return '';if(typeof v==='string')return v;if(Array.isArray(v))return v.map(x=>typeof x==='string'?x:(x?.msg||x?.detail||JSON.stringify(x))).join(', ');if(typeof v==='object')return v.msg||v.message||v.detail||JSON.stringify(v);return String(v)}
-function api(path,opt={}){initData=window.Telegram?.WebApp?.initData||initData||'';const h=new Headers(opt.headers||{});if(initData)h.set('X-Telegram-Init-Data',initData);if(urlAuth)h.set('X-Vynora-Auth-Token',urlAuth);return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(errorText(d.detail)||errorText(d.message)||`HTTP ${r.status}`);return d})}
+function api(path,opt={}){initData=tg?.initData||initData||'';const h=new Headers(opt.headers||{});if(initData)h.set('X-Telegram-Init-Data',initData);return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(errorText(d.detail)||errorText(d.message)||`HTTP ${r.status}`);return d})}
 function jsonApi(path,body){return api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}
 function openModal(html){$('sheet').innerHTML=html;$('modal').classList.add('show')}
 function closeModal(){$('modal').classList.remove('show');$('sheet').innerHTML=''}
 $('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()})
-function go(page){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(page).classList.add('active');document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===page));if(page==='hosts')loadHosts();if(page==='bookings')loadBookings();if(page==='wallet')renderWallet();if(page==='profile')renderProfile();window.scrollTo(0,0)}
+let hostsLoadedAt=0;
+async function go(page){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(page).classList.add('active');document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===page));if(page==='hosts'){if(!hosts.length||Date.now()-hostsLoadedAt>15000)await loadHosts()}if(page==='bookings')loadBookings();if(page==='wallet')renderWallet();if(page==='profile')renderProfile();window.scrollTo(0,0)}
 function photo(url,name){const u=url||'';return u?`<img class="avatar" src="${esc(u)}" loading="eager" onerror="this.onerror=null;this.outerHTML='<div class=avatar>👤</div>'">`:`<div class="avatar">${esc((name||'U').slice(0,1).toUpperCase())}</div>`}
 
 async function boot(){
-  try{tg?.ready();tg?.expand();tg?.setHeaderColor?.('#090712');tg?.setBackgroundColor?.('#090712')}catch(e){}
-  for(let i=0;i<12 && !initData;i++){try{initData=window.Telegram?.WebApp?.initData||initData||'';if(initData)break;window.Telegram?.WebApp?.ready?.();window.Telegram?.WebApp?.expand?.()}catch(e){} if(!initData)await new Promise(r=>setTimeout(r,250))}
-  if(!initData && !urlAuth){toast('⚠️ Telegram login नहीं मिला। Bot के /start → Open Vynora Live से खोलें।');return}
+  try{tg?.ready();tg?.expand();initData=tg?.initData||initData||'';await new Promise(r=>setTimeout(r,250));initData=tg?.initData||initData||'';}catch(e){}
+  if(!initData){toast('⚠️ Telegram session नहीं मिला। कृपया Bot में /start → Open Vynora Live से खोलें।');return}
   try{
-    config=await api('/api/config');
-    $('upiId').textContent=config.upi_id||'vynoralive@slc';$('upiName').textContent=config.upi_name||'Rajnish Kumar';
     const u=tg?.initDataUnsafe?.user||{};
-    const currentUserId=Number(u.id||urlUserId||0);
-    const start=await jsonApi('/api/start',{user_id:currentUserId,name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN',initData:initData});
+    const startBody={user_id:Number(u.id||0),name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN',initData:initData};
+    const [cfg,start]=await Promise.all([api('/api/config'),jsonApi('/api/start',startBody)]);
+    config=cfg;$('upiId').textContent=config.upi_id||'vynoralive@slc';$('upiName').textContent=config.upi_name||'Rajnish Kumar';
     me=start.user;
     await refreshUser();
-    await loadAnnouncement();
-    await loadHosts();
-    renderProfile();
-    renderHome();
-    renderWallet();
+    await Promise.all([loadAnnouncement(),loadHosts()]);
+    renderProfile();renderHome();renderWallet();
     pollIncoming();
-    setInterval(pollIncoming,5000);
+    setInterval(()=>{if(!document.hidden)pollIncoming()},5000);
   }catch(e){toast('❌ '+e.message)}
 }
-async function refreshUser(){const u=tg?.initDataUnsafe?.user||{};const currentUserId=Number(u.id||urlUserId||me?.user_id||0);const d=await api('/api/user/'+currentUserId);me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
+async function refreshUser(){const u=tg?.initDataUnsafe?.user||{};const d=await api('/api/user/'+Number(u.id));me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
 function updateBalance(){$('topTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN');$('walletTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN')}
 async function loadAnnouncement(){try{const d=await api('/api/announcement');if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}catch(e){}}
 function renderHome(){
@@ -122,7 +107,7 @@ function renderHome(){
 }
 
 async function loadHosts(){
-  try{hosts=await api('/api/hosts');renderHosts()}catch(e){$('hostList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}
+  try{hosts=await api('/api/hosts');hostsLoadedAt=Date.now();renderHosts()}catch(e){$('hostList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}
 }
 function renderHosts(){
   const real=hosts.filter(h=>String(h.country||'IN').toUpperCase()==='IN'&&!h.demo);
@@ -184,7 +169,7 @@ async function cleanupAgora(hide=true){clearInterval(callPoll);callPoll=null;cle
 async function endCurrentCall(){if(currentCallType==='admin'){await leaveDirectCall();toast('📞 Admin call ended');return}await leaveCall(true)}
 async function leaveCall(sendEnd){const id=currentCallBooking;try{if(sendEnd&&id&&currentCallType==='booking'){try{await jsonApi('/api/call/end',{user_id:me.user_id,booking_id:id})}catch(e){}}}finally{await cleanupAgora(true);$('callScreen').classList.remove('show');currentCallBooking=null;currentCallType=null;await refreshUser();if(id)await loadBookings();toast('📞 Call ended')}}
 
-async function pollIncoming(){if(!me)return;try{const p=await api('/api/call/pending/'+me.user_id);if(p.active&&!currentCallBooking){openIncomingBooking(p.booking)}}catch(e){}try{const d=await api('/api/direct-call/pending/'+me.user_id);if(d.active&&!currentCallId){openIncomingDirect(d.call)}}catch(e){}}
+async function pollIncoming(){if(!me)return;try{const [p,d]=await Promise.all([api('/api/call/pending/'+me.user_id),api('/api/direct-call/pending/'+me.user_id)]);if(p.active&&!currentCallBooking)openIncomingBooking(p.booking);if(d.active&&!currentCallId)openIncomingDirect(d.call)}catch(e){}}
 function openIncomingBooking(b){openModal(`<div style="text-align:center"><div style="font-size:45px">📹</div><h2>Incoming Video Call</h2><p class="muted">Scheduled Vynora Live call is ready.</p><div class="notice"><b>${b.minutes} minutes</b><br>Booking: <span class="small">${esc(b.booking_id)}</span></div><div class="actions"><button class="btn red" onclick="closeModal();cancelIncoming()">Reject</button><button class="btn green" onclick="closeModal();joinBooking('${b.booking_id}')">Accept & Join</button></div></div>`)}
 function cancelIncoming(){toast('Call request dismissed. Booking remains available.')}
 
@@ -223,8 +208,7 @@ async function leaveDirectCall(){const id=currentCallId;try{if(id)await api('/ap
 async function checkDirectForCall(){if(!me)return;try{const d=await api('/api/direct-call/pending/'+me.user_id);if(d.active&&!currentCallId){const c=d.call;if(c.status==='ringing'){openModal(`<div style="text-align:center"><div style="font-size:45px">👑</div><h2>Admin Call</h2><p>VYNORA SUPER ADMIN wants to speak with you.</p><div class="notice">Free call · No coins · No time limit</div><button class="btn green" onclick="closeModal();startDirectCall('${c.call_id}','${c.channel}')">📞 Accept Admin Call</button></div>`);}}}catch(e){}}
 
 async function syncHostStatus(){if(!me)return;try{const before=me.host?.status;await refreshUser();if(me.host?.status!==before){renderHome();renderProfile();await loadHosts();}}catch(e){}}
-setInterval(()=>{if(me)checkDirectForCall()},5000);
-setInterval(()=>{if(me && me.host?.status!=='approved')syncHostStatus()},5000);
+setInterval(()=>{if(me && me.host?.status!=='approved'&&!document.hidden)syncHostStatus()},15000);
 try{document.addEventListener('visibilitychange',()=>{if(!document.hidden){try{tg?.ready();}catch(e){} initData=tg?.initData||initData||'';}})}catch(e){}
 boot();
 </script>
