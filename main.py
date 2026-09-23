@@ -45,7 +45,7 @@ SUPPORT_URL = os.getenv("SUPPORT_URL", "https://t.me/VynoraSupport")
 TELEGRAM_USER_MESSAGE_AUTO_DELETE_SECONDS = int(os.getenv("TELEGRAM_USER_MESSAGE_AUTO_DELETE_SECONDS", "90"))
 
 BOOKING_PLANS = [
-    {"minutes": 1, "tokens": 20, "name": "1 Minute", "demo": False},
+    {"minutes": 1, "tokens": 50, "name": "1 Minute", "demo": False},
     {"minutes": 2, "tokens": 150, "name": "2 Minutes", "demo": False},
     {"minutes": 5, "tokens": 300, "name": "5 Minutes", "demo": False},
     {"minutes": 10, "tokens": 600, "name": "10 Minutes", "demo": False},
@@ -59,7 +59,7 @@ def get_booking_plans():
 
 
 RECHARGE_PLANS = [
-    {"rupees": 20, "tokens": 20},
+    {"rupees": 50, "tokens": 50},
     {"rupees": 150, "tokens": 150},
     {"rupees": 300, "tokens": 300},
     {"rupees": 600, "tokens": 600},
@@ -98,7 +98,7 @@ def public_host_view(h, u=None):
         "name": h.get("name") or u.get("name", "Host"),
         "username": "",
         "bio": h.get("bio", ""),
-        "call_rate": "₹20/min starting",
+        "call_rate": "₹50/min starting",
         "available_slots": h.get("available_slots", []),
         "photo_url": public_photo_url(tid, h) or public_photo_url(tid, u) or h.get("photo_url", ""),
         "online": bool(h.get("online")), "country": country,
@@ -501,7 +501,7 @@ def health():
 
 @app.get("/api/config")
 def config():
-    return {"booking_plans": get_booking_plans(), "recharge_plans": RECHARGE_PLANS, "host_share": HOST_SHARE, "withdrawal_min": 700, "upi_id": UPI_ID, "upi_name": UPI_NAME, "support_url": SUPPORT_URL}
+    return {"booking_plans": get_booking_plans(), "recharge_plans": RECHARGE_PLANS, "demo_seconds": 20, "host_share": HOST_SHARE, "withdrawal_min": 700, "upi_id": UPI_ID, "upi_name": UPI_NAME, "support_url": SUPPORT_URL}
 
 @app.post("/api/start")
 def start(data: StartModel):
@@ -684,10 +684,10 @@ def demo_book(data: BookingModel):
     if start < now_ts()-60: raise HTTPException(400,"Please choose a future time")
     bid=str(uuid.uuid4())
     now=now_ts()
-    doc={"booking_id":bid,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":1,"tokens":0,"is_demo":True,"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":False,"created_at":now,"updated_at":now,"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False}
+    doc={"booking_id":bid,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":1,"duration_seconds":20,"tokens":0,"is_demo":True,"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":False,"created_at":now,"updated_at":now,"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False}
     col("bookings").insert_one(doc)
-    notify_user(data.host_id, f"🎁 <b>FREE DEMO REQUEST</b>\nUser: <code>{data.user_id}</code>\n1 minute\nPlease accept and schedule the demo call.", [[{"text":"✅ Accept Demo","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
-    notify_full(f"🎁 DEMO BOOKING REQUEST\nBooking: <code>{bid}</code>\nUser: {data.user_id}\nHost: {data.host_id}\nDuration: 1 min")
+    notify_user(data.host_id, f"🎁 <b>FREE DEMO REQUEST</b>\nUser: <code>{data.user_id}</code>\n20 seconds\nPlease accept and schedule the demo call.", [[{"text":"✅ Accept Demo","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
+    notify_full(f"🎁 DEMO BOOKING REQUEST\nBooking: <code>{bid}</code>\nUser: {data.user_id}\nHost: {data.host_id}\nDuration: 20 sec")
     return {"status":"success","booking_id":bid,"demo":True}
 
 @app.post("/api/book-slot")
@@ -771,7 +771,7 @@ def schedule(data: ScheduleModel):
     b=col("bookings").find_one({"booking_id":data.booking_id,"host_id":uid(data.host_id)})
     if not b or b.get("status") not in ("accepted","scheduled"): raise HTTPException(404,"Booking not available for scheduling")
     if b.get("call_started_at"): raise HTTPException(400,"Call has already started")
-    start=int(data.scheduled_start); end=start+int(b["minutes"])*60
+    start=int(data.scheduled_start); duration_secs=int(b.get("duration_seconds") or int(b["minutes"])*60); end=start+duration_secs
     if start < now_ts(): raise HTTPException(400,"Schedule must be in the future")
     if overlap(data.host_id,start,end):
         # Allow the current booking itself but not another booking.
@@ -815,7 +815,7 @@ def call_connect(data: CallJoinModel):
     if fresh.get("call_started_at"):
         return {"status":"connected","booking":{k:fresh.get(k) for k in ["booking_id","minutes","tokens","is_demo","status","call_started_at","scheduled_end","user_joined_at","host_joined_at"]}}
     if fresh.get("user_joined_at") and fresh.get("host_joined_at"):
-        start=now_ts(); end=start+int(fresh["minutes"])*60
+        start=now_ts(); duration_secs=int(fresh.get("duration_seconds") or int(fresh["minutes"])*60); end=start+duration_secs
         changed=col("bookings").find_one_and_update(
             {"booking_id":data.booking_id,"call_started_at":None,"earnings_credited":{"$ne":True}},
             {"$set":{"status":"calling","call_started_at":start,"scheduled_end":end,"updated_at":start}},
@@ -1612,7 +1612,7 @@ def call_watchdog():
                 notify_user(b["host_id"],f"📹 <b>Your scheduled call is ready</b>\nUser: <code>{b['user_id']}</code>\nJoin now to start the paid timer when both connect.", [[{"text":"📹 JOIN VIDEO CALL","web_app":{"url":os.getenv("WEB_APP_URL","https://vynora-live-new.onrender.com")}}]])
                 notify_full(f"📹 CALL READY\nBooking: {b['booking_id']}\nUser: {b['user_id']}\nHost: {b['host_id']}")
             for b in col("bookings").find({"status":"scheduled","scheduled_start":{"$lte":t}}):
-                if t >= int(b.get("scheduled_start",t)) + int(b.get("minutes",1))*60:
+                if t >= int(b.get("scheduled_start",t)) + int(b.get("duration_seconds") or int(b.get("minutes",1))*60):
                     col("bookings").update_one({"booking_id":b["booking_id"],"status":"scheduled"},{"$set":{"status":"completed","call_ended_at":t,"actual_seconds":0,"charged_tokens":0,"refunded_tokens":b.get("tokens",0),"host_earned":0,"platform_earned":0,"earnings_credited":True,"completion_reason":"no_connect"}})
                     col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":int(b.get("tokens",0))}})
                     notify_full(f"📊 CALL MISSED / NO CONNECT\nBooking: {b['booking_id']}\nUser: {b['user_id']}\nHost: {b['host_id']}\nRefunded: {b['tokens']} Coins")
