@@ -65,6 +65,10 @@ const tg=window.Telegram?.WebApp;
 try{tg?.ready();tg?.expand();tg?.setHeaderColor?.('#090712');tg?.setBackgroundColor?.('#090712')}catch(e){}
 let initData=tg?.initData||'';
 let vynoraSession=localStorage.getItem('vynora_session')||'';
+const launchParams=new URLSearchParams(location.search);
+const launchUid=Number(launchParams.get('tg_uid')||0);
+const launchExp=launchParams.get('tg_exp')||'';
+const launchSig=launchParams.get('tg_sig')||'';
 let me=null,config=null,hosts=[],selectedHost=null,selectedMinutes=1,selectedRecharge=null,selectedBooking=null;
 let agoraClient=null,localTracks=[],callPoll=null,callTimerInterval=null,currentCallBooking=null,currentCallId=null,currentCallType=null,micOn=true,camOn=true;
 
@@ -74,7 +78,7 @@ function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');
 function fmtTime(ts){if(!ts)return '-';return new Date(Number(ts)*1000).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}
 function fmtDur(sec){sec=Math.max(0,Math.floor(sec||0));return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
 function errorText(v){if(v==null)return '';if(typeof v==='string')return v;if(Array.isArray(v))return v.map(x=>typeof x==='string'?x:(x?.msg||x?.detail||JSON.stringify(x))).join(', ');if(typeof v==='object')return v.msg||v.message||v.detail||JSON.stringify(v);return String(v)}
-function api(path,opt={}){initData=tg?.initData||initData||'';const h=new Headers(opt.headers||{});if(initData)h.set('X-Telegram-Init-Data',initData);if(vynoraSession)h.set('X-Vynora-Session',vynoraSession);return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(errorText(d.detail)||errorText(d.message)||`HTTP ${r.status}`);return d})}
+function api(path,opt={}){initData=tg?.initData||initData||'';const h=new Headers(opt.headers||{});if(initData)h.set('X-Telegram-Init-Data',initData);if(vynoraSession)h.set('X-Vynora-Session',vynoraSession);if(launchUid&&launchExp&&launchSig){h.set('X-Vynora-TG-UID',String(launchUid));h.set('X-Vynora-TG-EXP',launchExp);h.set('X-Vynora-TG-SIG',launchSig);}return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(errorText(d.detail)||errorText(d.message)||`HTTP ${r.status}`);return d})}
 function jsonApi(path,body){return api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}
 function openModal(html){$('sheet').innerHTML=html;$('modal').classList.add('show')}
 function closeModal(){$('modal').classList.remove('show');$('sheet').innerHTML=''}
@@ -90,12 +94,12 @@ async function boot(){
       await new Promise(r=>setTimeout(r,150));
       initData=tg?.initData||initData||'';
     }
-    if(!initData)throw new Error('Telegram Mini App session नहीं मिला। Bot में /start → Open Vynora Live से खोलें।');
     config=await api('/api/config');
     $('upiId').textContent=config.upi_id||'vynoralive@slc';$('upiName').textContent=config.upi_name||'Rajnish Kumar';
     const u=tg?.initDataUnsafe?.user||{};
-    if(!u.id)throw new Error('Telegram user identity नहीं मिली। App को Telegram Bot से दोबारा खोलें।');
-    const start=await jsonApi('/api/start',{user_id:Number(u.id),name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN',initData});
+    const resolvedUid=Number(u.id||launchUid||0);
+    if(!resolvedUid)throw new Error('Telegram user identity नहीं मिली। App को Bot के /start → Open Vynora Live से खोलें।');
+    const start=await jsonApi('/api/start',{user_id:resolvedUid,name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN',initData:initData||''});
     me=start.user;
     if(start.session_token){vynoraSession=start.session_token;localStorage.setItem('vynora_session',vynoraSession);}
     await refreshUser();
@@ -108,7 +112,7 @@ async function boot(){
     setInterval(pollIncoming,5000);
   }catch(e){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('home').classList.add('active');$('home').innerHTML='<div class="card"><h2>⚠️ Vynora Live</h2><p class="muted">'+esc(e.message)+'</p><button class="btn" onclick="location.reload()">↻ Reconnect Telegram</button></div>'; }
 }
-async function refreshUser(){const u=tg?.initDataUnsafe?.user||{};const d=await api('/api/user/'+Number(u.id));me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
+async function refreshUser(){const u=tg?.initDataUnsafe?.user||{};const d=await api('/api/user/'+Number(u.id||launchUid));me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
 function updateBalance(){$('topTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN');$('walletTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN')}
 async function loadAnnouncement(){try{const d=await api('/api/announcement');if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}catch(e){}}
 function renderHome(){
