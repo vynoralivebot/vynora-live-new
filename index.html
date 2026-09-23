@@ -64,6 +64,7 @@ const API='';
 const tg=window.Telegram?.WebApp;
 try{tg?.ready();tg?.expand();tg?.setHeaderColor?.('#090712');tg?.setBackgroundColor?.('#090712')}catch(e){}
 let initData=tg?.initData||'';
+let vynoraSession=localStorage.getItem('vynora_session')||'';
 let me=null,config=null,hosts=[],selectedHost=null,selectedMinutes=1,selectedRecharge=null,selectedBooking=null;
 let agoraClient=null,localTracks=[],callPoll=null,callTimerInterval=null,currentCallBooking=null,currentCallId=null,currentCallType=null,micOn=true,camOn=true;
 
@@ -73,12 +74,12 @@ function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');
 function fmtTime(ts){if(!ts)return '-';return new Date(Number(ts)*1000).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}
 function fmtDur(sec){sec=Math.max(0,Math.floor(sec||0));return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
 function errorText(v){if(v==null)return '';if(typeof v==='string')return v;if(Array.isArray(v))return v.map(x=>typeof x==='string'?x:(x?.msg||x?.detail||JSON.stringify(x))).join(', ');if(typeof v==='object')return v.msg||v.message||v.detail||JSON.stringify(v);return String(v)}
-function api(path,opt={}){initData=tg?.initData||initData||'';const h=new Headers(opt.headers||{});if(initData)h.set('X-Telegram-Init-Data',initData);return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(errorText(d.detail)||errorText(d.message)||`HTTP ${r.status}`);return d})}
+function api(path,opt={}){initData=tg?.initData||initData||'';const h=new Headers(opt.headers||{});if(initData)h.set('X-Telegram-Init-Data',initData);if(vynoraSession)h.set('X-Vynora-Session',vynoraSession);return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(errorText(d.detail)||errorText(d.message)||`HTTP ${r.status}`);return d})}
 function jsonApi(path,body){return api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}
 function openModal(html){$('sheet').innerHTML=html;$('modal').classList.add('show')}
 function closeModal(){$('modal').classList.remove('show');$('sheet').innerHTML=''}
 $('modal').addEventListener('click',e=>{if(e.target.id==='modal')closeModal()})
-function go(page){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(page).classList.add('active');document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===page));if(page==='hosts')loadHosts();if(page==='bookings')loadBookings();if(page==='wallet')renderWallet();if(page==='profile')renderProfile();window.scrollTo(0,0)}
+function go(page){if(!me){toast('⚠️ Telegram session अभी connect नहीं हुआ।');return}document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$(page).classList.add('active');document.querySelectorAll('[data-nav]').forEach(x=>x.classList.toggle('active',x.dataset.nav===page));if(page==='hosts')loadHosts();if(page==='bookings')loadBookings();if(page==='wallet')renderWallet();if(page==='profile')renderProfile();window.scrollTo(0,0)}
 function photo(url,name,id){const safeName=esc(name||'U');const letter=esc((name||'U').slice(0,1).toUpperCase());const photoId=Number(id||selectedHost?.user_id||me?.user_id||0);const fallback=`/api/profile/photo/${encodeURIComponent(String(photoId))}?v=${Date.now()}`;if(!url&&(!photoId||!name))return `<div class="avatar">${letter}</div>`;const src=String(url||fallback);return `<img class="avatar" src="${esc(src)}" loading="eager" alt="${safeName}" onerror="imgFallback(this,${photoId})">`}
 function imgFallback(el,id){if(!el||el.dataset.fallback==='1'){if(el){el.onerror=null;el.outerHTML='<div class="avatar">👤</div>'}return}el.dataset.fallback='1';el.src='/api/profile/photo/'+encodeURIComponent(String(id||0))+'?v='+Date.now();el.onerror=function(){this.onerror=null;this.outerHTML='<div class="avatar">👤</div>'}}
 
@@ -96,6 +97,7 @@ async function boot(){
     if(!u.id)throw new Error('Telegram user identity नहीं मिली। App को Telegram Bot से दोबारा खोलें।');
     const start=await jsonApi('/api/start',{user_id:Number(u.id),name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN',initData});
     me=start.user;
+    if(start.session_token){vynoraSession=start.session_token;localStorage.setItem('vynora_session',vynoraSession);}
     await refreshUser();
     await loadAnnouncement();
     await loadHosts();
@@ -104,7 +106,7 @@ async function boot(){
     renderWallet();
     pollIncoming();
     setInterval(pollIncoming,5000);
-  }catch(e){toast('❌ '+e.message)}
+  }catch(e){document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));$('home').classList.add('active');$('home').innerHTML='<div class="card"><h2>⚠️ Vynora Live</h2><p class="muted">'+esc(e.message)+'</p><button class="btn" onclick="location.reload()">↻ Reconnect Telegram</button></div>'; }
 }
 async function refreshUser(){const u=tg?.initDataUnsafe?.user||{};const d=await api('/api/user/'+Number(u.id));me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
 function updateBalance(){$('topTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN');$('walletTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN')}
@@ -115,7 +117,7 @@ function renderHome(){
 }
 
 async function loadHosts(){
-  try{hosts=await api('/api/hosts');renderHosts()}catch(e){$('hostList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}
+  try{hosts=await api('/api/hosts');renderHosts()}catch(e){$('hostList').innerHTML=`<div class="empty">❌ ${esc(e.message)}<br><button class="btn secondary" style="margin-top:12px" onclick="location.reload()">↻ Reconnect</button></div>`}
 }
 function renderHosts(){
   const real=hosts.filter(h=>isIndiaHost(h)&&!h.demo);
@@ -139,7 +141,7 @@ function openBooking(hostId){
 function selectDuration(el){document.querySelectorAll('.duration').forEach(x=>x.classList.remove('sel'));el.classList.add('sel');selectedMinutes=Number(el.dataset.min);$('bookCost').textContent=Number(el.dataset.token)+' Coins'}
 async function submitBooking(){try{const t=$('bookTime').value;if(!t)throw new Error('Date & time चुनें');const ts=Math.floor(new Date(t).getTime()/1000);const plan=(config.booking_plans||[]).find(p=>Number(p.minutes)===selectedMinutes);if(!plan)throw new Error('Invalid duration');if(Number(me.tokens)<Number(plan.tokens))throw new Error('Insufficient Coins. पहले recharge करें.');const d=await jsonApi('/api/book-slot',{user_id:me.user_id,host_id:selectedHost.user_id,minutes:selectedMinutes,requested_start:ts});closeModal();await refreshUser();toast('✅ Booking request भेज दिया गया');go('bookings');await loadBookings()}catch(e){toast('❌ '+e.message)}}
 
-async function loadBookings(){try{const role=me?.host?.status==='approved'?'user':'user';const user=await api('/api/bookings?user_id='+me.user_id+'&role=user');let arr=user;if(me?.host?.status==='approved'){const hb=await api('/api/bookings?user_id='+me.user_id+'&role=host');arr=[...arr,...hb.map(x=>({...x,__host:true}))]}renderBookings(arr)}catch(e){$('bookingList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}}
+async function loadBookings(){if(!me||!me.user_id){$('bookingList').innerHTML='<div class="empty">⚠️ Telegram session connect नहीं हुआ।<br><button class="btn secondary" style="margin-top:12px" onclick="location.reload()">↻ Reconnect</button></div>';return}try{const role=me?.host?.status==='approved'?'user':'user';const user=await api('/api/bookings?user_id='+me.user_id+'&role=user');let arr=user;if(me?.host?.status==='approved'){const hb=await api('/api/bookings?user_id='+me.user_id+'&role=host');arr=[...arr,...hb.map(x=>({...x,__host:true}))]}renderBookings(arr)}catch(e){$('bookingList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}}
 function renderBookings(arr){
   if(!arr.length){$('bookingList').innerHTML='<div class="empty">अभी कोई booking नहीं है.</div>';return}
   $('bookingList').innerHTML=arr.map(b=>{const isHost=b.__host;const title=isHost?`User #${b.user_id}`:`Host #${b.host_id}`;let buttons='';
@@ -193,7 +195,7 @@ async function submitRecharge(){try{const utr=$('utr').value.trim(),file=$('paym
 async function withdraw(){try{const amount=Number($('withdrawAmount').value);if(amount<700)throw new Error('Minimum withdrawal ₹700 है');await api('/api/withdraw?user_id='+me.user_id+'&amount='+encodeURIComponent(amount),{method:'POST'});toast('✅ Withdrawal request भेज दी गई');await refreshUser();renderWallet()}catch(e){toast('❌ '+e.message)}}
 
 function renderProfile(){
-  if(!me)return;const h=me.host;const photoUrl=me.photo_url||('/api/profile/photo/'+encodeURIComponent(String(me.user_id))+'?v='+Date.now());$('profileBox').innerHTML=`<div class="card"><div class="host">${photo(photoUrl,me.name,me.user_id)}<div class="host-info"><div class="host-name">${esc(me.name||'User')}</div><div class="host-user">Telegram ID: <b>${Number(me.user_id)}</b></div><div class="small muted">Country: 🇮🇳 India</div></div></div><div class="actions"><button class="btn secondary" onclick="uploadPhoto()">📷 Change Photo</button><button class="btn" onclick="go('wallet')">🪙 ${Number(me.tokens||0)} Coins</button></div></div>`+ (h?`<div class="card"><div class="between"><b>🎙️ Host Status</b><span class="pill">${esc(h.status||'pending')}</span></div>${h.status==='approved'?`<div class="safe-note">✓ VYNORA VERIFIED HOST · आपका Host dashboard यहाँ है<br><span class="small">Telegram ID: <b>${Number(h.user_id||me.user_id)}</b></span></div><p class="small muted">${h.online?'🟢 Online':'⚫ Offline'} · Booking requests और call schedule यहाँ manage करें.</p><div class="actions"><button class="btn ${h.online?'red':'green'}" onclick="toggleHostOnline()">${h.online?'GO OFFLINE':'GO ONLINE'}</button><button class="btn secondary" onclick="hostFilters()">🎨 Filter</button></div>`:'<p class="small muted">Host application status: '+esc(h.status||'pending')+'</p>'}</div>`:'');renderAdmin()}
+  if(!me)return;const h=me.host;const photoUrl=me.photo_url||('/api/profile/photo/'+encodeURIComponent(String(me.user_id))+'?v='+Date.now());$('profileBox').innerHTML=`<div class="card"><div class="host">${photo(photoUrl,me.name,me.user_id)}<div class="host-info"><div class="host-name">${esc(me.name||'User')}</div><div class="host-user">Vynora Live User</div><div class="small muted">Country: 🇮🇳 India</div></div></div><div class="actions"><button class="btn secondary" onclick="uploadPhoto()">📷 Change Photo</button><button class="btn" onclick="go('wallet')">🪙 ${Number(me.tokens||0)} Coins</button></div></div>`+ (h?`<div class="card"><div class="between"><b>🎙️ Host Status</b><span class="pill">${esc(h.status||'pending')}</span></div>${h.status==='approved'?`<div class="safe-note">✓ VYNORA VERIFIED HOST · आपका Host dashboard यहाँ है<br><span class="small">Vynora Verified Host</span></div><p class="small muted">${h.online?'🟢 Online':'⚫ Offline'} · Booking requests और call schedule यहाँ manage करें.</p><div class="actions"><button class="btn ${h.online?'red':'green'}" onclick="toggleHostOnline()">${h.online?'GO OFFLINE':'GO ONLINE'}</button><button class="btn secondary" onclick="hostFilters()">🎨 Filter</button></div>`:'<p class="small muted">Host application status: '+esc(h.status||'pending')+'</p>'}</div>`:'');renderAdmin()}
 function uploadPhoto(){openModal(`<h2 style="margin-top:0">📷 Profile Photo</h2><div class="field"><input id="profileFile" type="file" accept="image/*"></div><button class="btn" onclick="savePhoto()">Upload</button>`)}
 async function savePhoto(){try{const f=$('profileFile').files?.[0];if(!f)throw new Error('Image चुनें');if(!f.type.startsWith('image/'))throw new Error('केवल image file upload करें');if(f.size>900000)throw new Error('Photo 900 KB से कम रखें');const fd=new FormData();fd.append('user_id',String(me.user_id));fd.append('file',f);const d=await api('/api/profile/photo-upload?user_id='+encodeURIComponent(String(me.user_id)),{method:'POST',body:fd});if(!d||d.status!=='success')throw new Error(d?.message||'Photo upload failed');closeModal();await refreshUser();renderProfile();await loadHosts();toast('✅ Photo updated successfully');}catch(e){toast('❌ '+errorText(e.message))}}
 function openHostApply(){if(me?.host?.status==='approved'){go('bookings');return}openModal(`<h2 style="margin-top:0">🎙️ Host Application</h2><div class="field"><label>Name</label><input id="haName" value="${esc(me.name||'')}"></div><div class="field"><label>Telegram ID</label><input value="${Number(me.user_id)}" disabled></div><div class="field"><label>Phone</label><input id="haPhone" placeholder="Phone number"></div><div class="field"><label>Age</label><input id="haAge" type="number" min="18" placeholder="18+"></div><div class="field"><label>Bio</label><textarea id="haBio" placeholder="Short bio"></textarea></div><button class="btn" onclick="submitHostApply()">Submit Application</button>`)}
