@@ -62,6 +62,9 @@
 <script>
 const API='';
 const tg=window.Telegram?.WebApp;
+const urlAuth=new URLSearchParams(location.search).get('vynora_auth')||'';
+function authUserId(){try{if(!urlAuth)return 0;const raw=urlAuth.split('.')[0];const pad=raw+'='.repeat((4-raw.length%4)%4);return Number(JSON.parse(atob(pad.replace(/-/g,'+').replace(/_/g,'/'))).uid||0)}catch(e){return 0}}
+const urlUserId=authUserId();
 try{tg?.ready();tg?.expand();tg?.setHeaderColor?.('#090712');tg?.setBackgroundColor?.('#090712')}catch(e){}
 let initData=tg?.initData||'';
 let me=null,config=null,hosts=[],selectedHost=null,selectedMinutes=1,selectedRecharge=null,selectedBooking=null;
@@ -81,7 +84,7 @@ function toast(msg){$('toast').textContent=msg;$('toast').classList.add('show');
 function fmtTime(ts){if(!ts)return '-';return new Date(Number(ts)*1000).toLocaleString('en-IN',{dateStyle:'medium',timeStyle:'short'})}
 function fmtDur(sec){sec=Math.max(0,Math.floor(sec||0));return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')}
 function errorText(v){if(v==null)return '';if(typeof v==='string')return v;if(Array.isArray(v))return v.map(x=>typeof x==='string'?x:(x?.msg||x?.detail||JSON.stringify(x))).join(', ');if(typeof v==='object')return v.msg||v.message||v.detail||JSON.stringify(v);return String(v)}
-function api(path,opt={}){initData=window.Telegram?.WebApp?.initData||initData||'';const h=new Headers(opt.headers||{});if(initData)h.set('X-Telegram-Init-Data',initData);return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(errorText(d.detail)||errorText(d.message)||`HTTP ${r.status}`);return d})}
+function api(path,opt={}){initData=window.Telegram?.WebApp?.initData||initData||'';const h=new Headers(opt.headers||{});if(initData)h.set('X-Telegram-Init-Data',initData);if(urlAuth)h.set('X-Vynora-Auth-Token',urlAuth);return fetch(API+path,{...opt,headers:h}).then(async r=>{let d={};try{d=await r.json()}catch{}if(!r.ok)throw new Error(errorText(d.detail)||errorText(d.message)||`HTTP ${r.status}`);return d})}
 function jsonApi(path,body){return api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}
 function openModal(html){$('sheet').innerHTML=html;$('modal').classList.add('show')}
 function closeModal(){$('modal').classList.remove('show');$('sheet').innerHTML=''}
@@ -91,20 +94,14 @@ function photo(url,name){const u=url||'';return u?`<img class="avatar" src="${es
 
 async function boot(){
   try{tg?.ready();tg?.expand();tg?.setHeaderColor?.('#090712');tg?.setBackgroundColor?.('#090712')}catch(e){}
-  // Telegram WebApp can expose initData a little after the page is painted.
-  for(let i=0;i<12;i++){
-    try{initData=window.Telegram?.WebApp?.initData||initData||'';if(initData)break;window.Telegram?.WebApp?.ready?.();window.Telegram?.WebApp?.expand?.()}catch(e){}
-    await new Promise(r=>setTimeout(r,250));
-  }
-  if(!initData){
-    toast('⚠️ Telegram session नहीं मिला। Mini App को Bot के /start → Open Vynora Live button से फिर खोलें।');
-    return;
-  }
+  for(let i=0;i<12 && !initData;i++){try{initData=window.Telegram?.WebApp?.initData||initData||'';if(initData)break;window.Telegram?.WebApp?.ready?.();window.Telegram?.WebApp?.expand?.()}catch(e){} if(!initData)await new Promise(r=>setTimeout(r,250))}
+  if(!initData && !urlAuth){toast('⚠️ Telegram login नहीं मिला। Bot के /start → Open Vynora Live से खोलें।');return}
   try{
     config=await api('/api/config');
     $('upiId').textContent=config.upi_id||'vynoralive@slc';$('upiName').textContent=config.upi_name||'Rajnish Kumar';
     const u=tg?.initDataUnsafe?.user||{};
-    const start=await jsonApi('/api/start',{user_id:Number(u.id||0),name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN',initData:initData});
+    const currentUserId=Number(u.id||urlUserId||0);
+    const start=await jsonApi('/api/start',{user_id:currentUserId,name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN',initData:initData});
     me=start.user;
     await refreshUser();
     await loadAnnouncement();
@@ -116,7 +113,7 @@ async function boot(){
     setInterval(pollIncoming,5000);
   }catch(e){toast('❌ '+e.message)}
 }
-async function refreshUser(){const u=tg?.initDataUnsafe?.user||{};const d=await api('/api/user/'+Number(u.id));me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
+async function refreshUser(){const u=tg?.initDataUnsafe?.user||{};const currentUserId=Number(u.id||urlUserId||me?.user_id||0);const d=await api('/api/user/'+currentUserId);me=d.user;me.host=d.host;me.is_admin=d.is_admin;updateBalance()}
 function updateBalance(){$('topTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN');$('walletTokens').textContent=Number(me?.tokens||0).toLocaleString('en-IN')}
 async function loadAnnouncement(){try{const d=await api('/api/announcement');if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}catch(e){}}
 function renderHome(){
