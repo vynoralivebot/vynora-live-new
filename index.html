@@ -89,7 +89,12 @@ function api(path,opt={}){
   syncTelegramSession();
   if(initData)h.set('X-Telegram-Init-Data',initData);
   if(launchToken)h.set('X-Vynora-Launch-Token',launchToken);
-  return fetch(API+path,{...opt,headers:h}).then(async r=>{
+  const controller=new AbortController();
+  const timeoutMs=Number(opt.timeoutMs||4500);
+  const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  const fetchOpt={...opt,headers:h,signal:controller.signal};
+  delete fetchOpt.timeoutMs;
+  return fetch(API+path,fetchOpt).then(async r=>{
     let d={};try{d=await r.json()}catch{}
     if(!r.ok){
       let msg=d?.message||d?.detail||`HTTP ${r.status}`;
@@ -98,7 +103,10 @@ function api(path,opt={}){
       throw new Error(String(msg));
     }
     return d;
-  })
+  }).finally(()=>clearTimeout(timer)).catch(e=>{
+    if(e?.name==='AbortError') throw new Error('Server response timeout');
+    throw e;
+  });
 }
 function jsonApi(path,body){return api(path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})}
 function openModal(html){$('sheet').innerHTML=html;$('modal').classList.add('show')}
@@ -134,17 +142,26 @@ async function boot(){
       user_id:Number(s.user_id),name:'User',username:'',country:'IN'
     }));
 
-    // Only one Mongo-backed user request is needed at startup.
-    const [cfg,start]=await Promise.all([cfgPromise,startPromise]);
-    config=cfg;
-    $('upiId').textContent=config.upi_id||'vynoralive@slc';
-    $('upiName').textContent=config.upi_name||'Rajnish Kumar';
-
-    me=start.user;
-    updateBalance();
-    renderProfile();
-    renderHome();
-    renderWallet();
+    // Keep the first screen fast: give the essential API a short window.
+    // If MongoDB/Render is slow, the app shell still opens and retries in the background.
+    try{
+      const [cfg,start]=await Promise.all([cfgPromise,startPromise]);
+      config=cfg;
+      $('upiId').textContent=config.upi_id||'vynoralive@slc';
+      $('upiName').textContent=config.upi_name||'Rajnish Kumar';
+      me=start.user;
+      updateBalance();
+      renderProfile();
+      renderHome();
+      renderWallet();
+    }catch(e){
+      console.warn('Initial data delayed:',e);
+      renderProfile();
+      renderHome();
+      renderWallet();
+      toast('App खुल गया है — account data background में load हो रहा है।');
+      setTimeout(retryStartupData,1500);
+    }
 
     // Never make hosts/announcement block the first screen.
     if(loader) loader.classList.add('hidden');
@@ -157,6 +174,25 @@ async function boot(){
     toast('❌ '+e.message);
     // Do not leave the user staring at a loader indefinitely.
     if(loader) loader.classList.add('hidden');
+  }
+}
+
+let startupRetryCount=0;
+async function retryStartupData(){
+  if(me?.user_id || startupRetryCount>=5) return;
+  startupRetryCount++;
+  try{
+    const tg=getTG();
+    const u=tg?.initDataUnsafe?.user||{};
+    const id=Number(u.id||0);
+    if(!id) return;
+    const [cfg,start]=await Promise.all([api('/api/config',{timeoutMs:3000}),jsonApi('/api/start',{user_id:id,name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',username:u.username||'',country:'IN'})]);
+    config=cfg; me=start.user;
+    $('upiId').textContent=config.upi_id||'vynoralive@slc';
+    $('upiName').textContent=config.upi_name||'Rajnish Kumar';
+    updateBalance(); renderProfile(); renderHome(); renderWallet();
+  }catch(e){
+    if(startupRetryCount<5) setTimeout(retryStartupData,2500);
   }
 }
 
