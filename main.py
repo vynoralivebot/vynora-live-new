@@ -884,10 +884,26 @@ def schedule(data: ScheduleModel):
         other=col("bookings").find_one({"booking_id":{"$ne":data.booking_id},"host_id":uid(data.host_id),"status":{"$in":["accepted","scheduled","calling"]},"scheduled_start":{"$lt":end},"scheduled_end":{"$gt":start}})
         if other: raise HTTPException(409,"Host is busy at that time")
     col("bookings").update_one({"booking_id":data.booking_id},{"$set":{"scheduled_start":start,"scheduled_end":end,"status":"scheduled","updated_at":now_ts()}})
-    host_name = host_doc(b['host_id']).get('name','Host') if host_doc(b['host_id']) else 'Host'
-    notify_user(b["user_id"],f"📞 <b>Call Scheduled</b>\n\nHost: {host_name}\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par JOIN CALL button milega. Host aapko call karega.")
-    notify_user(b["host_id"],f"📞 <b>Call Scheduled</b>\n\nUser: <code>{b['user_id']}</code>\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par Vynora Live खोलकर JOIN CALL करें.")
-    notify_full(f"🕐 BOOKING SCHEDULED\nBooking: <code>{b['booking_id']}</code>\nHost: {b['host_id']}\nUser: {b['user_id']}\nStart: {iso(start)}\nDuration: {b['minutes']} min")
+
+    # IMPORTANT: never make the Schedule API wait for Telegram/network calls.
+    # The booking is already saved above, so return success immediately.
+    # Telegram notifications run in the background and cannot cause a false
+    # "Server response timeout" in the Mini App.
+    host_doc_data = host_doc(b['host_id'])
+    host_name = host_doc_data.get('name','Host') if host_doc_data else 'Host'
+    user_msg = f"📞 <b>Call Scheduled</b>\n\nHost: {host_name}\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par JOIN CALL button milega. Host aapko call karega."
+    host_msg = f"📞 <b>Call Scheduled</b>\n\nUser: <code>{b['user_id']}</code>\nTime: {iso(start)}\nDuration: {b['minutes']} min\n\nScheduled time par Vynora Live खोलकर JOIN CALL करें."
+    admin_msg = f"🕐 BOOKING SCHEDULED\nBooking: <code>{b['booking_id']}</code>\nHost: {b['host_id']}\nUser: {b['user_id']}\nStart: {iso(start)}\nDuration: {b['minutes']} min"
+
+    def _schedule_notifications():
+        try: notify_user(b["user_id"], user_msg)
+        except Exception: log.exception("Schedule user notification failed")
+        try: notify_user(b["host_id"], host_msg)
+        except Exception: log.exception("Schedule host notification failed")
+        try: notify_full(admin_msg)
+        except Exception: log.exception("Schedule admin notification failed")
+
+    threading.Thread(target=_schedule_notifications, daemon=True).start()
     return {"status":"success","scheduled_start":start,"scheduled_end":end}
 
 @app.post("/api/call/join")
