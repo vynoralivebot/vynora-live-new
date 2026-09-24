@@ -464,7 +464,31 @@ async function loadWalletHistory(){try{const d=await api('/api/user/wallet-histo
 
 function copyUPI(){navigator.clipboard?.writeText(config?.upi_id||'vynoralive@slc');toast('UPI ID copied')}
 function openRecharge(rupees,tokens){selectedRecharge={rupees,tokens};openModal(`<div class="between"><h2 style="margin:0">💳 Recharge</h2><button class="pill" onclick="closeModal()">✕</button></div><div class="notice"><b>₹${rupees}</b> → <b>${tokens} Coins</b><br><br>UPI ID: <b>${esc(config.upi_id)}</b><br>Name: <b>${esc(config.upi_name)}</b></div><div style="text-align:center;background:#fff;border-radius:16px;padding:14px;margin:12px 0"><img id="upiQr" src="/api/upi-qr?amount=${encodeURIComponent(rupees)}&v=${Date.now()}" alt="UPI QR" style="width:min(260px,75vw);height:auto;display:block;margin:auto" onerror="this.style.display='none';document.getElementById('qrError').textContent='QR अभी load नहीं हुआ, UPI ID से payment करें.'"><div id="qrError" class="small" style="color:#555;margin-top:7px"></div></div><div class="notice"><b>⚠️ जरूरी सूचना:</b><br>Payment करने के बाद <b>Screenshot जरूर upload करें</b> और UTR / Transaction ID भी भरें। Screenshot के बिना recharge request complete नहीं होगी।</div><div class="field"><label>UTR / Transaction ID</label><input id="utr" maxlength="100" placeholder="UTR / Transaction ID डालें"></div><div class="field"><label>Payment Screenshot — जरूरी है</label><input id="paymentScreenshot" type="file" accept="image/*"></div><div id="preview" class="small muted"></div><button class="btn" onclick="submitRecharge()">Submit Recharge Request</button>`);$('paymentScreenshot').addEventListener('change',e=>{$('preview').textContent=e.target.files?.[0]?`Screenshot selected: ${e.target.files[0].name}`:'Screenshot जरूर upload करें'});}
-async function submitRecharge(){try{const utr=$('utr').value.trim(),file=$('paymentScreenshot').files?.[0];if(!utr)throw new Error('UTR / Transaction ID डालें');if(!file)throw new Error('Payment screenshot चुनें');if(file.size>1200000)throw new Error('Screenshot 1.2 MB से कम रखें');const fd=new FormData();fd.append('user_id',me.user_id);fd.append('rupees',selectedRecharge.rupees);fd.append('tokens',selectedRecharge.tokens);fd.append('utr',utr);fd.append('screenshot',file);const d=await api('/api/recharge/submit',{method:'POST',body:fd});closeModal();toast('✅ Recharge request submitted. Admin approval का wait करें.');}catch(e){toast('❌ '+e.message)}}
+let rechargeSubmitting=false;
+async function submitRecharge(){
+  if(rechargeSubmitting)return;
+  rechargeSubmitting=true;
+  const btn=[...document.querySelectorAll('#sheet .btn')].find(b=>(b.textContent||'').includes('Submit Recharge Request'));
+  if(btn){btn.disabled=true;btn.textContent='Submitting...';}
+  try{
+    const utr=$('utr').value.trim(),file=$('paymentScreenshot').files?.[0];
+    if(!utr)throw new Error('UTR / Transaction ID डालें');
+    if(!file)throw new Error('Payment screenshot चुनें');
+    if(file.size>1200000)throw new Error('Screenshot 1.2 MB से कम रखें');
+    const fd=new FormData();
+    fd.append('user_id',me.user_id);
+    fd.append('rupees',selectedRecharge.rupees);
+    fd.append('tokens',selectedRecharge.tokens);
+    fd.append('utr',utr);
+    fd.append('screenshot',file);
+    const d=await api('/api/recharge/submit',{method:'POST',body:fd,timeoutMs:12000});
+    closeModal();
+    openModal(`<div style="text-align:center;padding:12px 4px"><div style="font-size:58px">✅</div><h2 style="margin:8px 0">Recharge Request Submitted</h2><p class="muted">आपकी recharge request successfully submit हो गई है।</p><div class="notice" style="text-align:left"><b>₹${selectedRecharge.rupees} → ${selectedRecharge.tokens} Coins</b><br>UTR: <b>${esc(utr)}</b><br><span class="small muted">Admin approval के बाद Coins आपके wallet में add हो जाएंगे.</span></div><button class="btn" onclick="closeModal();go('wallet')">Done</button></div>`);
+  }catch(e){
+    toast('❌ '+e.message);
+    if(btn){btn.disabled=false;btn.textContent='Submit Recharge Request';}
+  }finally{rechargeSubmitting=false;}
+}
 async function withdraw(){try{const amount=Number($('withdrawAmount').value);if(amount<700)throw new Error('Minimum withdrawal ₹700 है');await api('/api/withdraw?user_id='+me.user_id+'&amount='+encodeURIComponent(amount),{method:'POST'});toast('✅ Withdrawal request भेज दी गई');await refreshUser();renderWallet()}catch(e){toast('❌ '+e.message)}}
 
 function renderProfile(){
