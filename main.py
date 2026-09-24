@@ -586,10 +586,12 @@ def start(data: StartModel):
     if created:
         # Registration notification must not hold the HTTP response hostage.
         threading.Thread(target=notify_new_user, args=(u,), daemon=True, name="vynora-new-user").start()
-    # Do not read hosts here. Host/profile data is already fetched by the
-    # frontend in its normal background refresh. Keeping /api/start to one
-    # MongoDB operation makes Render startup much less sensitive to latency.
-    user_payload={"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u), "demo_used": bool(u.get("demo_used", False)), "host": None, "is_admin": int(data.user_id) in ADMIN_IDS}
+    # Include the host record in the initial account response.
+    # Without this, an already-approved host opened the Mini App as a normal
+    # user until a later /api/user refresh, so the Host Dashboard / Host Status
+    # section did not appear even though bookings could still be received.
+    h = host_doc(data.user_id)
+    user_payload={"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u), "demo_used": bool(u.get("demo_used", False)), "host": private_host_view(h), "is_admin": int(data.user_id) in ADMIN_IDS}
     return {"status": "success", "new_user": created, "user": user_payload}
 
 @app.get("/api/user/{user_id}")
