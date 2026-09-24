@@ -61,16 +61,19 @@
 const API='';
 let telegramSdkPromise=null;
 function getTG(){return window.Telegram?.WebApp||null}
-function loadTelegramSdk(){
+function loadTelegramSdk(maxWaitMs=1500){
   if(getTG()) return Promise.resolve(getTG());
   if(telegramSdkPromise) return telegramSdkPromise;
   telegramSdkPromise=new Promise((resolve)=>{
+    let done=false;
+    const finish=()=>{if(done)return;done=true;resolve(getTG())};
     const s=document.createElement('script');
     s.src='https://telegram.org/js/telegram-web-app.js';
     s.async=true;
-    s.onload=()=>resolve(getTG());
-    s.onerror=()=>resolve(null);
+    s.onload=finish;
+    s.onerror=finish;
     document.head.appendChild(s);
+    setTimeout(finish,maxWaitMs);
   });
   return telegramSdkPromise;
 }
@@ -130,59 +133,81 @@ function photo(url,name){return url?`<img class="avatar" src="${esc(url)}" onerr
 
 async function boot(){
   const loader=$('bootLoading');
-  // DIRECT-FIRST STARTUP: never wait for Telegram SDK before showing the app.
-  // Public/config data starts immediately; authenticated user data follows when
-  // Telegram SDK becomes available. This keeps the direct web page responsive.
+  // Paint the complete app shell first. Telegram's SDK is loaded after the
+  // first frame so a slow telegram.org connection cannot block the UI.
   if(loader) loader.classList.add('hidden');
-
-  // Render all static UI immediately, including recharge options/navigation.
-  renderWallet();
-
-  // Public endpoints do not require Telegram identity. Start them immediately.
-  Promise.allSettled([
-    api('/api/config',{timeoutMs:2500}).then(cfg=>{
-      config=cfg||{};
-      $('upiId').textContent=config.upi_id||'vynoralive@slc';
-      $('upiName').textContent=config.upi_name||'Rajnish Kumar';
-      renderWallet();
-    }),
-    loadAnnouncement(),
-    loadHosts()
-  ]);
-
-  // Load Telegram SDK completely in the background. It must never block the UI.
-  loadTelegramSdk().then(async()=>{
+  try{
     syncTelegramSession();
-    const tg=getTG();
-    const u=tg?.initDataUnsafe?.user||{};
-    const userId=Number(u.id||0);
-    if(!userId && !launchToken){
-      // Direct browser opening: UI remains usable for public/read-only sections.
+
+    // A launch-token URL already carries a verified session. Do NOT wait for
+    // telegram.org/js to identify the user; this is what makes direct links
+    // open immediately even when Telegram's SDK CDN is slow.
+    let tg=getTG();
+    let u=tg?.initDataUnsafe?.user||{};
+    let userId=Number(u.id||0);
+
+    if(!userId && launchToken){
+      const session=await api('/api/session',{timeoutMs:2500});
+      userId=Number(session.user_id||0);
+    } else if(!userId){
+      await loadTelegramSdk(1500);
+      syncTelegramSession();
+      tg=getTG();
+      u=tg?.initDataUnsafe?.user||{};
+      userId=Number(u.id||0);
+    }
+
+    if(!initData && !launchToken){
+      toast('❌ Telegram session अभी उपलब्ध नहीं है.');
       return;
     }
+    if(!userId) throw new Error('Telegram user session could not be identified');
+
+    // Keep the first request small and parallel. Host/announcement data is
+    // deliberately loaded after the account shell is ready.
+    const cfgPromise=api('/api/config',{timeoutMs:2500});
+    const startPromise=jsonApi('/api/start',{
+      user_id:userId,
+      name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',
+      username:u.username||'',
+      country:'IN'
+    });
+
+    // IMPORTANT: never keep the user behind a long loading screen.
+    // Open the complete app shell almost immediately; account data continues in background.
     try{
-      const start=await jsonApi('/api/start',{
-        user_id:userId,
-        name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',
-        username:u.username||'',
-        country:'IN'
-      });
-      me=start.user;
-      config=config||await api('/api/config',{timeoutMs:2500});
+      const [cfg,start]=await Promise.all([cfgPromise,startPromise]);
+      config=cfg;
       $('upiId').textContent=config.upi_id||'vynoralive@slc';
       $('upiName').textContent=config.upi_name||'Rajnish Kumar';
-      updateBalance(); renderProfile(); renderHome(); renderWallet();
-      // Refresh public data after identity is known.
-      loadHosts(); loadAnnouncement();
+      me=start.user;
+      updateBalance();
+      renderProfile();
+      renderHome();
+      renderWallet();
+      if(loader) loader.classList.add('hidden');
     }catch(e){
-      console.warn('Authenticated startup delayed:',e);
-      setTimeout(retryStartupData,1200);
+      console.warn('Initial data delayed:',e);
+      // Do not remove or replace any app options; only hide the loading cover.
+      renderProfile();
+      renderHome();
+      renderWallet();
+      if(loader) loader.classList.add('hidden');
+      setTimeout(retryStartupData,800);
     }
-  }).catch(e=>console.warn('Telegram SDK delayed:',e));
 
-  // Poll incoming calls only after an authenticated user exists.
-  clearInterval(window.__incomingPoll);
-  window.__incomingPoll=setInterval(()=>{if(me)pollIncoming()},5000);
+    // Never make hosts/announcement block the first screen.
+    if(loader) loader.classList.add('hidden');
+    Promise.allSettled([api('/api/announcement',{timeoutMs:3500}).then(d=>{if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}).catch(()=>{}), loadHosts()]);
+
+    pollIncoming();
+    clearInterval(window.__incomingPoll);
+    window.__incomingPoll=setInterval(pollIncoming,5000);
+  }catch(e){
+    toast('❌ '+e.message);
+    // Do not leave the user staring at a loader indefinitely.
+    if(loader) loader.classList.add('hidden');
+  }
 }
 
 let startupRetryCount=0;
@@ -240,7 +265,13 @@ function renderHome(){
 }
 
 async function loadHosts(){
-  try{hosts=await api('/api/hosts');renderHosts()}catch(e){$('hostList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}
+  try{
+    // Hosts are never allowed to block the main screen for minutes.
+    hosts=await api('/api/hosts',{timeoutMs:5000});
+    renderHosts();
+  }catch(e){
+    $('hostList').innerHTML=`<div class="empty">⚠️ Hosts अभी background में load हो रहे हैं. ↻ Refresh करें.</div>`;
+  }
 }
 function renderHosts(){
   const real=hosts.filter(h=>String(h.country||'IN').toUpperCase()==='IN'&&!h.demo),foreign=hosts.filter(h=>String(h.country||'').toUpperCase()!=='IN'||h.demo);
