@@ -1163,17 +1163,24 @@ async def recharge_submit(
         {"text":"✅ Approve", "callback_data":f"approve_recharge:{rid}"},
         {"text":"❌ Reject", "callback_data":f"reject_recharge:{rid}"}
     ]]
-    # Group 1 gets the actual payment screenshot with the approve/reject buttons on the same message.
-    sent_photo = tg_send_photo(GROUP_1_ID, photo_bytes, screenshot.filename or "payment.jpg", text, buttons)
-    if sent_photo and sent_photo.get("message_id"):
-        col("recharges").update_one({"recharge_id": rid}, {"$set": {"telegram_screenshot_message_id": sent_photo["message_id"]}})
-    else:
-        # Keep an action-only fallback if Telegram could not attach the buttons to the photo.
-        fallback = tg_send(GROUP_1_ID, f"🧾 <b>Recharge Action</b>\nID: <code>{rid}</code>\n₹{rupees} → {tokens} Coins", buttons) or {}
-        if fallback.get("ok") and fallback.get("result", {}).get("message_id"):
-            col("recharges").update_one({"recharge_id": rid}, {"$set": {"telegram_action_message_id": fallback["result"]["message_id"]}})
-    notify_full(f"RECHARGE REQUEST\nUser: {uid(user_id)}\n₹{rupees} → {tokens} Coins\nUTR: {utr}\nID: {rid}")
-    return {"status":"success", "recharge_id":rid}
+    # Telegram can take several seconds (especially when uploading the screenshot).
+    # Do NOT make the Mini App wait for Telegram. Save the recharge first, return success,
+    # then send the admin notification in a background thread.
+    def _notify_recharge():
+        try:
+            sent_photo = tg_send_photo(GROUP_1_ID, photo_bytes, screenshot.filename or "payment.jpg", text, buttons)
+            if sent_photo and sent_photo.get("message_id"):
+                col("recharges").update_one({"recharge_id": rid}, {"$set": {"telegram_screenshot_message_id": sent_photo["message_id"]}})
+            else:
+                fallback = tg_send(GROUP_1_ID, f"🧾 <b>Recharge Action</b>\nID: <code>{rid}</code>\n₹{rupees} → {tokens} Coins", buttons) or {}
+                if fallback.get("ok") and fallback.get("result", {}).get("message_id"):
+                    col("recharges").update_one({"recharge_id": rid}, {"$set": {"telegram_action_message_id": fallback["result"]["message_id"]}})
+            notify_full(f"RECHARGE REQUEST\nUser: {uid(user_id)}\n₹{rupees} → {tokens} Coins\nUTR: {utr}\nID: {rid}")
+        except Exception:
+            log.exception("Background recharge notification failed for %s", rid)
+
+    threading.Thread(target=_notify_recharge, name=f"recharge-notify-{rid}", daemon=True).start()
+    return {"status":"success", "recharge_id":rid, "message":"Recharge request submitted successfully"}
 
 @app.get("/api/recharge/screenshot/{recharge_id}")
 def get_recharge_screenshot(recharge_id: str):
