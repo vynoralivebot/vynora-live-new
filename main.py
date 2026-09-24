@@ -218,22 +218,50 @@ def user_doc(user_id):
 
 
 def ensure_user(user_id, name="", username="", country="IN"):
+    """Single MongoDB round-trip for normal user startup.
+
+    The old flow did find_one -> insert/update -> find_one. On a slow
+    MongoDB connection that multiplied the startup delay. This version uses
+    one atomic find_one_and_update(upsert=True) call and returns the document
+    MongoDB already has.
+    """
     user_id = uid(user_id)
-    existing = col("users").find_one({"user_id": user_id})
-    if not existing:
-        d = {"user_id": user_id, "name": name or "User", "username": username or "", "tokens": 0, "blocked": False, "country": (country or "IN").upper()[:2],
-            "demo_used": False, "demo_used_at": None, "demo_booking_id": None,
-            "created_at": now_ts(), "updated_at": now_ts()}
-        col("users").insert_one(d)
-        return d, True
-    updates = {"updated_at": now_ts()}
-    if "demo_used" not in existing: updates["demo_used"] = False
-    if "demo_used_at" not in existing: updates["demo_used_at"] = None
-    if "demo_booking_id" not in existing: updates["demo_booking_id"] = None
-    if name: updates["name"] = name
-    if username is not None: updates["username"] = username
-    col("users").update_one({"user_id": user_id}, {"$set": updates})
-    return col("users").find_one({"user_id": user_id}), False
+    now = now_ts()
+    set_fields = {
+        "updated_at": now,
+        "name": name or "User",
+        "username": username if username is not None else "",
+        "country": (country or "IN").upper()[:2],
+    }
+    marker = uuid.uuid4().hex
+    set_on_insert = {
+        "user_id": user_id,
+        "_created_marker": marker,
+        "tokens": 0,
+        "blocked": False,
+        "demo_used": False,
+        "demo_used_at": None,
+        "demo_booking_id": None,
+        "created_at": now,
+    }
+    doc = col("users").find_one_and_update(
+        {"user_id": user_id},
+        {"$set": set_fields, "$setOnInsert": set_on_insert},
+        upsert=True,
+        return_document=ReturnDocument.AFTER,
+        projection={
+            "_id": 0, "user_id": 1, "name": 1, "username": 1,
+            "tokens": 1, "blocked": 1, "country": 1,
+            "demo_used": 1, "demo_used_at": 1, "demo_booking_id": 1,
+            "created_at": 1, "updated_at": 1, "photo_url": 1, "_created_marker": 1,
+        },
+    )
+    if doc is None:
+        raise HTTPException(503, "User database read failed")
+    # A missing document is only possible if MongoDB returned an unexpected
+    # result; do not issue another query just to recover it.
+    created = doc.get("_created_marker") == marker
+    return doc, created
 
 
 def is_admin(user_id):
@@ -556,9 +584,12 @@ def start(data: StartModel):
         raise HTTPException(401,"Telegram identity verification failed")
     u, created = ensure_user(data.user_id, data.name, data.username, data.country)
     if created:
-        notify_new_user(u)
-    h=col("hosts").find_one({"user_id": int(data.user_id)})
-    user_payload={"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u), "demo_used": bool(u.get("demo_used", False)), "host": public_host_view(h) if h else None, "is_admin": int(data.user_id) in ADMIN_IDS}
+        # Registration notification must not hold the HTTP response hostage.
+        threading.Thread(target=notify_new_user, args=(u,), daemon=True, name="vynora-new-user").start()
+    # Do not read hosts here. Host/profile data is already fetched by the
+    # frontend in its normal background refresh. Keeping /api/start to one
+    # MongoDB operation makes Render startup much less sensitive to latency.
+    user_payload={"user_id": u["user_id"], "name": u.get("name"), "username": u.get("username"), "tokens": u.get("tokens", 0), "blocked": u.get("blocked", False), "country": u.get("country", "IN"), "photo_url": public_photo_url(data.user_id, u), "demo_used": bool(u.get("demo_used", False)), "host": None, "is_admin": int(data.user_id) in ADMIN_IDS}
     return {"status": "success", "new_user": created, "user": user_payload}
 
 @app.get("/api/user/{user_id}")
