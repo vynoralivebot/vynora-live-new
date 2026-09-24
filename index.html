@@ -130,71 +130,59 @@ function photo(url,name){return url?`<img class="avatar" src="${esc(url)}" onerr
 
 async function boot(){
   const loader=$('bootLoading');
-  // Paint the complete app shell first. Telegram's SDK is loaded after the
-  // first frame so a slow telegram.org connection cannot block the UI.
+  // DIRECT-FIRST STARTUP: never wait for Telegram SDK before showing the app.
+  // Public/config data starts immediately; authenticated user data follows when
+  // Telegram SDK becomes available. This keeps the direct web page responsive.
   if(loader) loader.classList.add('hidden');
-  try{
-    syncTelegramSession();
-    await loadTelegramSdk();
-    syncTelegramSession();
-    if(!initData && !launchToken){
-      toast('❌ Telegram session अभी उपलब्ध नहीं है.');
-      return;
-    }
 
-    // Telegram already gives us the verified user ID in initDataUnsafe.
-    // Avoid an extra /api/session round-trip during startup.
+  // Render all static UI immediately, including recharge options/navigation.
+  renderWallet();
+
+  // Public endpoints do not require Telegram identity. Start them immediately.
+  Promise.allSettled([
+    api('/api/config',{timeoutMs:2500}).then(cfg=>{
+      config=cfg||{};
+      $('upiId').textContent=config.upi_id||'vynoralive@slc';
+      $('upiName').textContent=config.upi_name||'Rajnish Kumar';
+      renderWallet();
+    }),
+    loadAnnouncement(),
+    loadHosts()
+  ]);
+
+  // Load Telegram SDK completely in the background. It must never block the UI.
+  loadTelegramSdk().then(async()=>{
+    syncTelegramSession();
     const tg=getTG();
     const u=tg?.initDataUnsafe?.user||{};
     const userId=Number(u.id||0);
-
-    if(!userId && !launchToken) throw new Error('Telegram user session could not be identified');
-
-    const cfgPromise=api('/api/config');
-    const startPromise=userId ? jsonApi('/api/start',{
-      user_id:userId,
-      name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',
-      username:u.username||'',
-      country:'IN'
-    }) : api('/api/session').then(s=>jsonApi('/api/start',{
-      user_id:Number(s.user_id),name:'User',username:'',country:'IN'
-    }));
-
-    // IMPORTANT: never keep the user behind a long loading screen.
-    // Open the complete app shell almost immediately; account data continues in background.
+    if(!userId && !launchToken){
+      // Direct browser opening: UI remains usable for public/read-only sections.
+      return;
+    }
     try{
-      const [cfg,start]=await Promise.all([cfgPromise,startPromise]);
-      config=cfg;
+      const start=await jsonApi('/api/start',{
+        user_id:userId,
+        name:[u.first_name,u.last_name].filter(Boolean).join(' ')||'User',
+        username:u.username||'',
+        country:'IN'
+      });
+      me=start.user;
+      config=config||await api('/api/config',{timeoutMs:2500});
       $('upiId').textContent=config.upi_id||'vynoralive@slc';
       $('upiName').textContent=config.upi_name||'Rajnish Kumar';
-      me=start.user;
-      updateBalance();
-      renderProfile();
-      renderHome();
-      renderWallet();
-      if(loader) loader.classList.add('hidden');
+      updateBalance(); renderProfile(); renderHome(); renderWallet();
+      // Refresh public data after identity is known.
+      loadHosts(); loadAnnouncement();
     }catch(e){
-      console.warn('Initial data delayed:',e);
-      // Do not remove or replace any app options; only hide the loading cover.
-      renderProfile();
-      renderHome();
-      renderWallet();
-      if(loader) loader.classList.add('hidden');
-      setTimeout(retryStartupData,800);
+      console.warn('Authenticated startup delayed:',e);
+      setTimeout(retryStartupData,1200);
     }
+  }).catch(e=>console.warn('Telegram SDK delayed:',e));
 
-    // Never make hosts/announcement block the first screen.
-    if(loader) loader.classList.add('hidden');
-    Promise.allSettled([loadAnnouncement(),loadHosts()]);
-
-    pollIncoming();
-    clearInterval(window.__incomingPoll);
-    window.__incomingPoll=setInterval(pollIncoming,5000);
-  }catch(e){
-    toast('❌ '+e.message);
-    // Do not leave the user staring at a loader indefinitely.
-    if(loader) loader.classList.add('hidden');
-  }
+  // Poll incoming calls only after an authenticated user exists.
+  clearInterval(window.__incomingPoll);
+  window.__incomingPoll=setInterval(()=>{if(me)pollIncoming()},5000);
 }
 
 let startupRetryCount=0;
