@@ -434,11 +434,16 @@ def public_photo_url(user_id, doc=None):
 
 def require_user(user_id):
     verified=_verified_web_user.get()
-    if verified is not None and uid(user_id) != verified:
+    user_id = uid(user_id)
+    if verified is not None and user_id != verified:
         raise HTTPException(403, "Telegram user identity mismatch")
-    if blocked(user_id):
+    # Single Mongo read for authenticated requests. The old path called
+    # blocked() (one read) and then user_doc() again (second read), which
+    # made booking/history actions unnecessarily slow on Render.
+    d = user_doc(user_id)
+    if d and d.get("blocked"):
         raise HTTPException(403, "Your account is blocked")
-    return user_doc(user_id) or ensure_user(user_id)[0]
+    return d or ensure_user(user_id)[0]
 
 
 def overlap(host_id, start_ts, end_ts):
@@ -760,10 +765,23 @@ def set_host_filter(data: HostFilterModel):
 @app.get("/api/bookings")
 def bookings(user_id: int, role: str = "user"):
     require_user(user_id)
-    q = {"user_id":uid(user_id)} if role != "host" else {"host_id":uid(user_id)}
+    user_id = uid(user_id)
+    if role == "host":
+        q = {"host_id": user_id}
+    elif role == "all":
+        q = {"$or": [{"user_id": user_id}, {"host_id": user_id}]}
+    else:
+        q = {"user_id": user_id}
     arr=[]
-    for b in col("bookings").find(q).sort("created_at", -1).limit(50):
-        b["_id"] = str(b["_id"]); arr.append(b)
+    # Projection avoids returning large internal fields (for example stored
+    # media/metadata) to the Mini App and keeps the history response small.
+    projection={"_id":0,"booking_id":1,"user_id":1,"host_id":1,"minutes":1,"tokens":1,
+                "is_demo":1,"requested_start":1,"scheduled_start":1,"scheduled_end":1,
+                "status":1,"created_at":1,"updated_at":1,"call_started_at":1,
+                "call_ended_at":1,"actual_seconds":1,"charged_tokens":1,"refunded_tokens":1,
+                "host_earned":1,"platform_earned":1}
+    for b in col("bookings").find(q, projection).sort("created_at", -1).limit(100):
+        arr.append(clean_json(b))
     return arr
 
 @app.post("/api/demo/book")
@@ -858,17 +876,30 @@ def booking_action(data: BookingAction):
     action=data.action
     if action=="reject":
         if b["status"] not in ("pending",): raise HTTPException(400,"Booking cannot be rejected now")
-        col("bookings").update_one({"booking_id":b["booking_id"]},{"$set":{"status":"rejected","updated_at":now_ts()}})
+        changed=col("bookings").update_one({"booking_id":b["booking_id"],"status":"pending"},{"$set":{"status":"rejected","updated_at":now_ts()}})
+        if changed.modified_count != 1:
+            raise HTTPException(409,"Booking was already processed")
         col("users").update_one({"user_id":b["user_id"]},{"$inc":{"tokens":b["tokens"]}})
-        notify_user(b["user_id"],f"❌ Booking rejected. {b['tokens']} Coins refunded.")
-        notify_full(f"❌ BOOKING REJECTED\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nRefunded: {b['tokens']} Coins")
+        def _reject_notifications():
+            try: notify_user(b["user_id"],f"❌ Booking rejected. {b['tokens']} Coins refunded.")
+            except Exception: log.exception("Reject user notification failed")
+            try: notify_full(f"❌ BOOKING REJECTED\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}\nRefunded: {b['tokens']} Coins")
+            except Exception: log.exception("Reject admin notification failed")
+        threading.Thread(target=_reject_notifications, daemon=True).start()
         return {"status":"success"}
     if action=="accept":
         if b["status"]!="pending": raise HTTPException(400,"Booking already processed")
-        col("bookings").update_one({"booking_id":b["booking_id"]},{"$set":{"status":"accepted","updated_at":now_ts()}})
-        notify_user(b["user_id"],"✅ <b>Host accepted your booking!</b>\n\nAb Host call ka time schedule karega. Schedule hote hi aapko exact time aur JOIN CALL option milega.")
-        notify_user(b["host_id"],"✅ Booking accepted. Ab aap call ka time schedule kar sakte hain.")
-        notify_full(f"✅ BOOKING ACCEPTED\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}")
+        changed=col("bookings").update_one({"booking_id":b["booking_id"],"status":"pending"},{"$set":{"status":"accepted","updated_at":now_ts()}})
+        if changed.modified_count != 1:
+            raise HTTPException(409,"Booking was already processed")
+        def _accept_notifications():
+            try: notify_user(b["user_id"],"✅ <b>Host accepted your booking!</b>\n\nAb Host call ka time schedule karega. Schedule hote hi aapko exact time aur JOIN CALL option milega.")
+            except Exception: log.exception("Accept user notification failed")
+            try: notify_user(b["host_id"],"✅ Booking accepted. Ab aap call ka time schedule kar sakte hain.")
+            except Exception: log.exception("Accept host notification failed")
+            try: notify_full(f"✅ BOOKING ACCEPTED\nBooking: <code>{b['booking_id']}</code>\nUser: {b['user_id']}\nHost: {b['host_id']}")
+            except Exception: log.exception("Accept admin notification failed")
+        threading.Thread(target=_accept_notifications, daemon=True).start()
         return {"status":"success","next":"schedule","booking_id":b["booking_id"]}
     raise HTTPException(400,"Unknown action")
 
@@ -1666,6 +1697,9 @@ def ensure_final_indexes():
         col("withdrawals").create_index([("status",1),("created_at",-1)])
         col("bookings").create_index([("user_id",1),("call_ended_at",-1)])
         col("bookings").create_index([("host_id",1),("call_ended_at",-1)])
+        col("bookings").create_index([("user_id",1),("created_at",-1)])
+        col("bookings").create_index([("host_id",1),("created_at",-1)])
+        col("bookings").create_index([("host_id",1),("status",1),("scheduled_start",1),("scheduled_end",1)])
     except Exception as e: log.warning("index setup: %s",e)
 
 def remove_dummy_hosts():
