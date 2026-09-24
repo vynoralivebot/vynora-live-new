@@ -332,7 +332,44 @@ async function submitBooking(){
   }
 }
 
-async function loadBookings(){try{const role=me?.host?.status==='approved'?'user':'user';const user=await api('/api/bookings?user_id='+me.user_id+'&role=user');let arr=user;if(me?.host?.status==='approved'){const hb=await api('/api/bookings?user_id='+me.user_id+'&role=host');arr=[...arr,...hb.map(x=>({...x,__host:true}))]}renderBookings(arr)}catch(e){$('bookingList').innerHTML=`<div class="empty">❌ ${esc(e.message)}</div>`}}
+let __bookingsLoading=false;
+async function loadBookings(){
+  if(__bookingsLoading)return;
+  __bookingsLoading=true;
+  const box=$('bookingList');
+  if(box && !box.dataset.hasContent) box.innerHTML='<div class="empty">⏳ Loading bookings…</div>';
+  try{
+    const d=await api('/api/bookings?user_id='+me.user_id+'&role=all',{timeoutMs:8000});
+    const mine=[];
+    const seen=new Set();
+    for(const b of (Array.isArray(d)?d:[])){
+      if(seen.has(b.booking_id))continue;
+      seen.add(b.booking_id);
+      const isHost=Number(b.host_id)===Number(me.user_id);
+      // A host should see incoming bookings as host cards; a user sees their own booking.
+      if(isHost) mine.push({...b,__host:true});
+      else if(Number(b.user_id)===Number(me.user_id)) mine.push(b);
+    }
+    renderBookings(mine);
+    if(box) box.dataset.hasContent='1';
+  }catch(e){
+    // One short retry handles Render/Mongo cold-starts without showing a false
+    // timeout to the user immediately.
+    try{
+      await new Promise(r=>setTimeout(r,700));
+      const d=await api('/api/bookings?user_id='+me.user_id+'&role=all',{timeoutMs:8000});
+      const mine=[]; const seen=new Set();
+      for(const b of (Array.isArray(d)?d:[])){
+        if(seen.has(b.booking_id))continue; seen.add(b.booking_id);
+        const isHost=Number(b.host_id)===Number(me.user_id);
+        if(isHost) mine.push({...b,__host:true}); else if(Number(b.user_id)===Number(me.user_id)) mine.push(b);
+      }
+      renderBookings(mine); if(box) box.dataset.hasContent='1';
+    }catch(e2){
+      if(box) box.innerHTML='<div class="empty">⚠️ Bookings अभी load नहीं हो सकीं. <button class="pill" onclick="loadBookings()">↻ Retry</button></div>';
+    }
+  }finally{__bookingsLoading=false}
+}
 function renderBookings(arr){
   if(!arr.length){$('bookingList').innerHTML='<div class="empty">अभी कोई booking नहीं है.</div>';return}
   $('bookingList').innerHTML=arr.map(b=>{const isHost=b.__host;const title=isHost?`User #${b.user_id}`:`Host #${b.host_id}`;let buttons='';
@@ -342,9 +379,25 @@ function renderBookings(arr){
     if(b.status==='calling')buttons=`<div class="actions"><button class="btn green" onclick="joinBooking('${b.booking_id}')">📹 OPEN CALL</button></div>`;
     return `<div class="card"><div class="between"><b>${title}</b><span class="status ${esc(b.status)}">${esc(b.status).toUpperCase()}</span></div><p class="small muted">${b.minutes} min · ${b.tokens} Coins<br>Requested: ${fmtTime(b.requested_start)}${b.scheduled_start?'<br>Scheduled: '+fmtTime(b.scheduled_start):''}</p>${b.actual_seconds!=null?`<div class="small">Actual: ${fmtDur(b.actual_seconds)} · Used: ${b.charged_tokens||0} Coins · Refund: ${b.refunded_tokens||0}</div>`:''}${buttons}</div>`}).join('')
 }
-async function bookingAction(id,action){try{await jsonApi('/api/booking/action',{booking_id:id,host_id:me.user_id,action});toast(action==='accept'?'✅ Booking accepted':'❌ Booking rejected');await loadBookings();}catch(e){toast('❌ '+e.message)}}
+async function bookingAction(id,action){try{await jsonApi('/api/booking/action',{booking_id:id,host_id:me.user_id,action});toast(action==='accept'?'✅ Booking accepted':'❌ Booking rejected');loadBookings();}catch(e){toast('❌ '+e.message)}}
 function scheduleBooking(id,minutes){const min=new Date(Date.now()+60*1000);min.setSeconds(0,0);const local=new Date(min.getTime()-min.getTimezoneOffset()*60000).toISOString().slice(0,16);openModal(`<h2 style="margin-top:0">📅 Schedule Call</h2><p class="muted">${minutes} minute call</p><div class="field"><label>Call Start</label><input id="scheduleTime" type="datetime-local" min="${local}" value="${local}"></div><button class="btn" onclick="submitSchedule('${id}')">Save Schedule</button><button class="btn secondary" style="margin-top:8px" onclick="closeModal()">Cancel</button>`)}
-async function submitSchedule(id){const btn=document.querySelector('#sheet .btn:not(.secondary)');try{if(btn){btn.disabled=true;btn.textContent='Saving…'}const value=$('scheduleTime')?.value;if(!value)throw new Error('Please select call time');const ts=Math.floor(new Date(value).getTime()/1000);if(!Number.isFinite(ts))throw new Error('Invalid call time');await jsonApi('/api/booking/schedule',{booking_id:id,host_id:me.user_id,scheduled_start:ts});closeModal();toast('✅ Call scheduled');await loadBookings()}catch(e){if(btn){btn.disabled=false;btn.textContent='Save Schedule'}toast('❌ '+e.message)}}
+let __scheduleSubmitting=false;
+async function submitSchedule(id){
+  if(__scheduleSubmitting)return;
+  __scheduleSubmitting=true;
+  const btn=document.querySelector('#sheet .btn:not(.secondary)');
+  try{
+    if(btn){btn.disabled=true;btn.textContent='Saving…'}
+    const value=$('scheduleTime')?.value;if(!value)throw new Error('Please select call time');
+    const ts=Math.floor(new Date(value).getTime()/1000);if(!Number.isFinite(ts))throw new Error('Invalid call time');
+    await jsonApi('/api/booking/schedule',{booking_id:id,host_id:me.user_id,scheduled_start:ts});
+    closeModal();toast('✅ Call scheduled');
+    loadBookings();
+  }catch(e){
+    if(btn){btn.disabled=false;btn.textContent='Save Schedule'}
+    toast('❌ '+e.message);
+  }finally{__scheduleSubmitting=false}
+}
 
 async function joinBooking(id){try{const d=await jsonApi('/api/call/join',{booking_id:id,user_id:me.user_id});const b=d.booking;await startPrivateCall(id,b)}catch(e){toast('❌ '+e.message)}}
 async function startPrivateCall(id,b){
