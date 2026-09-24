@@ -680,21 +680,38 @@ def get_profile_photo(user_id: int):
 
 @app.get("/api/hosts")
 def hosts():
-    rows = []
-    # Real approved India hosts only. Offline hosts remain visible so the
-    # customer can see that the host exists; booking is enabled only online.
-    docs = list(col("hosts").find({
-        "status":"approved",
-        "demo":{"$ne":True}
-    }).sort("updated_at", -1))
+    # Fast path: fetch approved hosts in one query, then fetch all matching
+    # user documents in one query. The old implementation performed one
+    # MongoDB user lookup per host (N+1), which became very slow as hosts grew.
+    docs = list(col("hosts").find(
+        {"status":"approved", "demo":{"$ne":True}},
+        {
+            "_id": 0, "user_id": 1, "name": 1, "bio": 1, "country": 1,
+            "country_name": 1, "online": 1, "available_slots": 1,
+            "photo_data": 1, "photo_url": 1, "photo_updated_at": 1,
+            "status": 1, "updated_at": 1
+        }
+    ).sort("updated_at", -1).limit(200))
+
+    ids=[int(h["user_id"]) for h in docs if h.get("user_id") is not None]
+    users={}
+    if ids:
+        users={int(u["user_id"]):u for u in col("users").find(
+            {"user_id":{"$in":ids}},
+            {"_id":0,"user_id":1,"name":1,"country":1,"photo_data":1,
+             "photo_url":1,"photo_updated_at":1}
+        )}
+
+    rows=[]
     for h in docs:
-        u = user_doc(h["user_id"]) or {}
-        country = str(h.get("country") or u.get("country") or "IN").strip().upper()
-        if country in {"INDIA", "🇮🇳"}: country = "IN"
-        if country != "IN":
-            continue
-        rows.append(public_host_view(h, u))
-    rows.sort(key=lambda x: (not bool(x.get("online")), -int(x.get("user_id",0))))
+        uid_value=int(h["user_id"])
+        u=users.get(uid_value,{})
+        country=str(h.get("country") or u.get("country") or "IN").strip().upper()
+        if country in {"INDIA","🇮🇳"}: country="IN"
+        if country!="IN": continue
+        rows.append(public_host_view(h,u))
+
+    rows.sort(key=lambda x:(not bool(x.get("online")),-int(x.get("user_id",0))))
     return rows
 
 @app.get("/api/host/{host_id}")
@@ -1795,6 +1812,8 @@ def background_db_init():
         try:
             col("users").create_index("user_id", unique=True)
             col("hosts").create_index("user_id", unique=True)
+            col("hosts").create_index([("status",1),("demo",1),("updated_at",-1)])
+            col("users").create_index("user_id", unique=True)
             col("bookings").create_index("booking_id", unique=True)
             col("recharges").create_index("recharge_id", unique=True)
             col("direct_calls").create_index("call_id", unique=True)
