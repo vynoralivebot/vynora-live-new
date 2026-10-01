@@ -45,14 +45,16 @@
 
   <section id="home" class="page active">
     <div id="announcement" class="notice announcement hidden"></div>
-    <div class="hero"><h1>Private 1-to-1 Video Call</h1><p>India-based Real Host चुनें, slot book करें और secure private video call करें.</p><div class="actions"><button class="btn" onclick="go('hosts')">🎥 Find Host</button><button class="btn secondary" onclick="go('wallet')">🪙 Recharge</button></div></div>
-    <div id="demoHome" class="card hidden"></div><div class="title">Quick Access</div>
-    <div class="grid">
-      <button class="card" onclick="go('hosts')">🎥<br><b>Hosts</b><br><span class="small muted">Online hosts</span></button>
-      <button class="card" onclick="go('bookings')">📅<br><b>Bookings</b><br><span class="small muted">Your calls</span></button>
-      <button class="card" onclick="go('wallet')">💳<br><b>Wallet</b><br><span class="small muted">Recharge</span></button>
-      <button class="card" onclick="go('profile')">👤<br><b>Profile</b><br><span class="small muted">Account</span></button>
+    <div id="demoHome" class="card hidden"></div>
+    <div class="between"><div class="title" style="margin-bottom:8px">Find a Host</div><button class="pill" onclick="loadHosts()">↻ Refresh</button></div>
+    <div class="host-toolbar" id="homeHostFilters">
+      <button class="host-filter active" data-filter="all" onclick="setHostFilter('all')">▦ All Hosts</button>
+      <button class="host-filter" data-filter="online" onclick="setHostFilter('online')">🟢 Online</button>
+      <button class="host-filter" data-filter="popular" onclick="setHostFilter('popular')">🔥 Popular</button>
+      <button class="host-filter" data-filter="new" onclick="setHostFilter('new')">⭐ New</button>
     </div>
+    <div id="homeHostList"><div class="empty">Hosts load हो रहे हैं…</div></div>
+    <div class="card" style="margin-top:14px"><div class="between"><b>🪙 Recharge</b><button class="pill" onclick="go('wallet')">Open Wallet</button></div><p class="small muted" style="margin-bottom:0">Recharge करके अपने Coins से private video call book करें.</p></div>
     <div id="hostHome" class="card hidden"></div>
     <div id="adminHome" class="card hidden"></div>
   </section>
@@ -294,7 +296,7 @@ async function refreshUser(userId=null){
 }
 async function loadAnnouncement(){try{const d=await api('/api/announcement');if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}catch(e){}}
 function renderHome(){
-  if(me?.demo_used){$('demoHome').classList.add('hidden')}else{$('demoHome').classList.remove('hidden');$('demoHome').innerHTML='<div class="between"><b>🎁 First-Use Free Demo</b><span class="pill">20 Seconds · FREE</span></div><p class="small muted">🎉 पहली बार आपके लिए 20 सेकंड का <b>Free Demo Call</b> उपलब्ध है। Demo paid booking से अलग है और कोई Coin नहीं कटेगा.</p><p class="small muted">⏳ App जल्दी खुलेगा; बाकी data background में load होगा.</p><button class="btn green" onclick="openDemoHostPicker()">🎁 Start Free Demo</button>'}
+  if(me?.demo_used){$('demoHome').classList.add('hidden')}else{$('demoHome').classList.remove('hidden');$('demoHome').innerHTML='<div class="between"><b>🎁 First-Use Free Demo</b><span class="pill">10 Seconds · FREE</span></div><p class="small muted">🎉 पहली बार आपके लिए 10 सेकंड का <b>Free Demo Call</b> उपलब्ध है। Demo paid booking से अलग है और कोई Coin नहीं कटेगा.</p><p class="small muted">⏳ App जल्दी खुलेगा; बाकी data background में load होगा.</p><button class="btn green" onclick="openDemoHostPicker()">🎁 Start Free Demo</button>'}
   if(me?.host?.status==='approved'){$('hostHome').classList.remove('hidden');$('hostHome').innerHTML=`<div class="between"><b>🎙️ Host Dashboard</b><span class="pill ${me.host.online?'online':'offline'}">${me.host.online?'🟢 ONLINE':'⚫ OFFLINE'}</span></div><p class="small muted">Earnings: ₹${Number(me.host.available_earnings||0).toFixed(2)} · Calls: ${Number(me.host.total_tokens||0)}</p><div class="actions"><button class="btn ${me.host.online?'red':'green'}" onclick="toggleHostOnline()">${me.host.online?'GO OFFLINE':'GO ONLINE'}</button><button class="btn secondary" onclick="go('bookings')">Bookings</button></div>`}
   if(me?.is_admin){$('adminHome').classList.remove('hidden');$('adminHome').innerHTML='<b>👑 VYNORA LIVE — VERIFIED SUPER ADMIN</b><p class="small muted">Admin dashboard Profile में उपलब्ध है.</p><button class="btn" onclick="go(\'profile\');renderAdmin()">Open Admin</button>'}
 }
@@ -311,22 +313,28 @@ async function loadHosts(){
 let hostFilter='all';
 function setHostFilter(filter){
   hostFilter=filter||'all';
-  document.querySelectorAll('#hostFilters .host-filter').forEach(b=>b.classList.toggle('active',b.dataset.filter===hostFilter));
+  document.querySelectorAll('#hostFilters .host-filter,#homeHostFilters .host-filter').forEach(b=>b.classList.toggle('active',b.dataset.filter===hostFilter));
   renderHosts();
 }
-function renderHosts(){
+function filteredHostList(){
   const real=hosts.filter(h=>String(h.country||'IN').toUpperCase()==='IN'&&!h.demo);
   let list=[...real];
   if(hostFilter==='online') list=list.filter(h=>!!h.online);
   else if(hostFilter==='popular') list=list.filter(h=>!!h.online);
   else if(hostFilter==='new') list=list.slice().sort((a,b)=>Number(b.host_id||0)-Number(a.host_id||0));
   list.sort((a,b)=>(Number(b.online)-Number(a.online)));
-  if(!list.length){
-    $('hostList').innerHTML=`<div class="empty">${hostFilter==='online'?'अभी कोई Host online नहीं है.':'अभी कोई approved Host उपलब्ध नहीं है.'}</div>`;
-    return;
-  }
-  $('hostList').innerHTML=`<div class="host-section-title"><b>${hostFilter==='online'?'🟢 Online Hosts':'Available Hosts'}</b><span class="host-count">${list.length} Hosts</span></div><div class="host-grid">${list.map(hostCard).join('')}</div>`;
+  return list;
 }
+function hostListMarkup(list){
+  if(!list.length) return `<div class="empty">${hostFilter==='online'?'अभी कोई Host online नहीं है.':'अभी कोई approved Host उपलब्ध नहीं है.'}</div>`;
+  return `<div class="host-section-title"><b>${hostFilter==='online'?'🟢 Online Hosts':'Available Hosts'}</b><span class="host-count">${list.length} Hosts</span></div><div class="host-grid">${list.map(hostCard).join('')}</div>`;
+}
+function renderHosts(){
+  const list=filteredHostList();
+  if($('hostList')) $('hostList').innerHTML=hostListMarkup(list);
+  if($('homeHostList')) $('homeHostList').innerHTML=hostListMarkup(list);
+}
+
 function hostCard(h){
   const id=Number(h.host_id||h.user_id);
   const allowed=String(h.country||'IN').toUpperCase()==='IN'&&!h.demo;
