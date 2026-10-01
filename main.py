@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from bson import ObjectId
 
 try:
@@ -44,12 +45,13 @@ UPI_NAME = os.getenv("UPI_NAME", "Rajnish Kumar")
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://t.me/VynoraSupport")
 TELEGRAM_USER_MESSAGE_AUTO_DELETE_SECONDS = int(os.getenv("TELEGRAM_USER_MESSAGE_AUTO_DELETE_SECONDS", "90"))
 
+# Paid booking pricing: only the 5 customer-facing durations are offered.
+# 1 min = 50 Coins, 2 min = 100 Coins, 5 min = 250 Coins,
+# 10 min = 500 Coins, 30 min = 1500 Coins.
+BOOKING_PRICES = {1: 50, 2: 100, 5: 250, 10: 500, 30: 1500}
 BOOKING_PLANS = [
-    {"minutes": 1, "tokens": 50, "name": "1 Minute", "demo": False},
-    {"minutes": 2, "tokens": 150, "name": "2 Minutes", "demo": False},
-    {"minutes": 5, "tokens": 300, "name": "5 Minutes", "demo": False},
-    {"minutes": 10, "tokens": 600, "name": "10 Minutes", "demo": False},
-    {"minutes": 30, "tokens": 1500, "name": "30 Minutes", "demo": False},
+    {"minutes": m, "tokens": BOOKING_PRICES[m], "name": f"{m} Minute" if m == 1 else f"{m} Minutes", "demo": False}
+    for m in (1, 2, 5, 10, 30)
 ]
 
 def get_booking_plans():
@@ -470,6 +472,7 @@ class BookingModel(BaseModel):
     host_id: int
     minutes: int
     requested_start: int
+    request_id: Optional[str] = None
 
 class BookingAction(BaseModel):
     host_id: int
@@ -573,7 +576,7 @@ def health():
 
 @app.get("/api/config")
 def config():
-    return {"booking_plans": get_booking_plans(), "recharge_plans": RECHARGE_PLANS, "demo_seconds": 20, "host_share": HOST_SHARE, "withdrawal_min": 700, "upi_id": UPI_ID, "upi_name": UPI_NAME, "support_url": SUPPORT_URL}
+    return {"booking_plans": get_booking_plans(), "recharge_plans": RECHARGE_PLANS, "demo_seconds": 10, "host_share": HOST_SHARE, "withdrawal_min": 700, "upi_id": UPI_ID, "upi_name": UPI_NAME, "support_url": SUPPORT_URL}
 
 @app.get("/api/session")
 def session_info():
@@ -799,15 +802,32 @@ def demo_book(data: BookingModel):
     if start < now_ts()-60: raise HTTPException(400,"Please choose a future time")
     bid=str(uuid.uuid4())
     now=now_ts()
-    doc={"booking_id":bid,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":1,"duration_seconds":20,"tokens":0,"is_demo":True,"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":False,"created_at":now,"updated_at":now,"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False}
+    request_id=(data.request_id or "").strip()[:120]
+    if request_id:
+        existing=col("bookings").find_one({"request_id":request_id},{"_id":0})
+        if existing:
+            if int(existing.get("user_id",0)) != uid(data.user_id):
+                raise HTTPException(409,"Invalid demo request")
+            return {"status":"success","booking_id":existing["booking_id"],"demo":True,"duplicate":True}
+    doc={"booking_id":bid,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":1,"duration_seconds":10,"tokens":0,"is_demo":True,"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":False,"created_at":now,"updated_at":now,"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False,"request_id":request_id or None}
     col("bookings").insert_one(doc)
-    notify_user(data.host_id, f"🎁 <b>FREE DEMO REQUEST</b>\nUser: <code>{data.user_id}</code>\n20 seconds\nPlease accept and schedule the demo call.", [[{"text":"✅ Accept Demo","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
-    notify_full(f"🎁 DEMO BOOKING REQUEST\nBooking: <code>{bid}</code>\nUser: {data.user_id}\nHost: {data.host_id}\nDuration: 20 sec")
+    notify_user(data.host_id, f"🎁 <b>FREE DEMO REQUEST</b>\nUser: <code>{data.user_id}</code>\n10 seconds\nPlease accept and schedule the demo call.", [[{"text":"✅ Accept Demo","callback_data":f"accept_booking:{bid}"},{"text":"❌ Reject","callback_data":f"reject_booking:{bid}"}]])
+    notify_full(f"🎁 DEMO BOOKING REQUEST\nBooking: <code>{bid}</code>\nUser: {data.user_id}\nHost: {data.host_id}\nDuration: 10 sec")
     return {"status":"success","booking_id":bid,"demo":True}
 
 @app.post("/api/book-slot")
 def book_slot(data: BookingModel):
-    require_user(data.user_id); h=host_or_404(data.host_id)
+    require_user(data.user_id)
+    # Idempotency guard: Telegram/Mini App/network retries must never create
+    # a second booking or charge the user twice for the same submission.
+    request_id=(data.request_id or "").strip()[:120]
+    if request_id:
+        existing=col("bookings").find_one({"request_id":request_id},{"_id":0})
+        if existing:
+            if int(existing.get("user_id",0)) != uid(data.user_id):
+                raise HTTPException(409,"Invalid booking request")
+            return {"status":"success","booking_id":existing["booking_id"],"busy":bool(existing.get("busy_at_request",False)),"message":"Booking already submitted","duplicate":True}
+    h=host_or_404(data.host_id)
     plan=next((p for p in get_booking_plans() if p["minutes"]==int(data.minutes)),None)
     if not plan: raise HTTPException(400,"Invalid duration")
     plan_minutes=int(plan["minutes"])
@@ -848,7 +868,17 @@ def book_slot(data: BookingModel):
     busy=overlap(data.host_id,start,end)
     bid=str(uuid.uuid4())
     doc={"booking_id":bid,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":plan_minutes,"tokens":plan_tokens,"is_demo":is_demo,"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":busy,"created_at":now_ts(),"updated_at":now_ts(),"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False}
-    col("bookings").insert_one(doc)
+    try:
+        col("bookings").insert_one(doc)
+    except DuplicateKeyError:
+        # Another identical request won the race between the initial lookup
+        # and insert. Return that booking without charging the user again.
+        existing=col("bookings").find_one({"request_id":request_id},{"_id":0}) if request_id else None
+        if existing:
+            col("users").update_one({"user_id":uid(data.user_id)},{"$inc":{"tokens":plan_tokens}})
+            return {"status":"success","booking_id":existing["booking_id"],"busy":bool(existing.get("busy_at_request",False)),"message":"Booking already submitted","duplicate":True}
+        col("users").update_one({"user_id":uid(data.user_id)},{"$inc":{"tokens":plan_tokens}})
+        raise HTTPException(409,"Duplicate booking request")
     if is_demo:
         col("users").update_one({"user_id":uid(data.user_id)},{"$set":{"demo_booking_id":bid,"updated_at":now_ts()}})
     # IMPORTANT: never make the booking API wait for Telegram Bot API calls.
@@ -1490,7 +1520,7 @@ def admin_command(chat_id, from_id, text):
             tg_send(chat_id,f"✅ Withdrawal {'paid' if ok else 'rejected'}: <code>{wid}</code>")
         elif cmd=="/setplan" and len(args)>=2:
             minutes=int(args[0]); tokens=int(args[1])
-            if minutes not in (1,5,10,15,20,25,30) or tokens<1: raise ValueError("Use: /setplan MINUTES TOKENS")
+            if minutes not in range(1,31) or tokens<1: raise ValueError("Use: /setplan 1-30 MINUTES TOKENS")
             plans=get_booking_plans(); found=False
             for x in plans:
                 if int(x["minutes"])==minutes: x["tokens"]=tokens; found=True
@@ -1707,6 +1737,7 @@ def ensure_final_indexes():
         col("bookings").create_index([("user_id",1),("created_at",-1)])
         col("bookings").create_index([("host_id",1),("created_at",-1)])
         col("bookings").create_index([("host_id",1),("status",1),("scheduled_start",1),("scheduled_end",1)])
+        col("bookings").create_index("request_id", unique=True, sparse=True, name="booking_request_id_unique")
     except Exception as e: log.warning("index setup: %s",e)
 
 def remove_dummy_hosts():
