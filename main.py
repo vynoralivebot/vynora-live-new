@@ -105,8 +105,8 @@ def public_host_view(h, u=None):
         "online": bool(h.get("online")), "country": country,
         "country_name": h.get("country_name") or ("India" if country == "IN" else country),
         "demo": False, "status": h.get("status"),
-        "verified": h.get("status") == "approved",
-        "verification_label": "Vynora Verified Host" if h.get("status") == "approved" else ""
+        "verified": str(h.get("status", "")).strip().lower() == "approved" or h.get("approved") is True,
+        "verification_label": "Vynora Verified Host" if (str(h.get("status", "")).strip().lower() == "approved" or h.get("approved") is True) else ""
     }
 
 def _launch_secret():
@@ -279,19 +279,34 @@ def blocked(user_id):
 
 
 def host_doc(host_id):
-    """Return the host record for an existing Telegram user.
+    """Find an existing Host using the Telegram user ID without changing data.
 
-    Some older approved-host records used ``telegram_id`` while newer
-    records use ``user_id``.  Read both forms without changing or migrating
-    the stored record, so previously approved hosts keep their dashboard.
+    Vynora has had several MongoDB host-record shapes over time.  Existing
+    approved hosts may identify the same Telegram account as ``user_id``,
+    ``telegram_id``, ``host_id`` or ``id`` and some old records may store the
+    numeric ID as a string.  The dashboard must recognize all of these forms
+    without migrating or rewriting the user's existing record.
     """
-    hid = uid(host_id)
-    return col("hosts").find_one({"$or": [{"user_id": hid}, {"telegram_id": hid}]})
+    target = uid(host_id)
+    return col("hosts").find_one({
+        "$or": [
+            {"user_id": target}, {"user_id": str(target)},
+            {"telegram_id": target}, {"telegram_id": str(target)},
+            {"host_id": target}, {"host_id": str(target)},
+            {"id": target}, {"id": str(target)},
+        ]
+    })
 
 
 def host_or_404(host_id):
     h = host_doc(host_id)
-    if not h or h.get("status") != "approved":
+    if not h:
+        raise HTTPException(404, "Host not available")
+    status = str(h.get("status", "")).strip().lower()
+    # Keep compatibility with older records that used approved=True.
+    if status != "approved" and h.get("approved") is not True:
+        raise HTTPException(404, "Host not available")
+    if bool(h.get("demo", False)):
         raise HTTPException(404, "Host not available")
     if blocked(host_id):
         raise HTTPException(403, "Host is blocked")
@@ -700,7 +715,7 @@ def hosts():
     # user documents in one query. The old implementation performed one
     # MongoDB user lookup per host (N+1), which became very slow as hosts grew.
     docs = list(col("hosts").find(
-        {"status":"approved", "demo":{"$ne":True}},
+        {"$or":[{"status":{"$regex":"^approved$","$options":"i"}},{"approved":True}], "demo":{"$ne":True}},
         {
             "_id": 0, "user_id": 1, "telegram_id": 1, "name": 1, "bio": 1, "country": 1,
             "country_name": 1, "online": 1, "available_slots": 1,
@@ -1375,7 +1390,7 @@ def get_announcement():
 def host_online(user_id:int):
     require_user(user_id)
     h = host_or_404(user_id)
-    col("hosts").update_one({"user_id":uid(user_id)},{"$set":{"online":True,"updated_at":now_ts()}})
+    col("hosts").update_one({"_id":h["_id"]},{"$set":{"online":True,"updated_at":now_ts()}})
     # Tell users who were waiting because this host was busy.
     pending = col("bookings").find({"host_id":uid(user_id),"status":"pending","busy_at_request":True})
     for b in pending:
@@ -1390,7 +1405,7 @@ def host_online(user_id:int):
 @app.post("/api/host/offline")
 def host_offline(user_id:int):
     require_user(user_id)
-    host_or_404(user_id); col("hosts").update_one({"user_id":uid(user_id)},{"$set":{"online":False,"updated_at":now_ts()}}); return {"status":"success","online":False}
+    h=host_or_404(user_id); col("hosts").update_one({"_id":h["_id"]},{"$set":{"online":False,"updated_at":now_ts()}}); return {"status":"success","online":False}
 
 @app.get("/api/host/{host_id}/stats")
 def host_stats(host_id:int):
@@ -1436,7 +1451,7 @@ def update_host_upi(user_id:int, upi_id:str):
     if h.get("status") != "approved": raise HTTPException(403,"Approved host access required")
     upi=upi_id.strip()
     if len(upi)<5 or len(upi)>120 or "@" not in upi: raise HTTPException(400,"Enter a valid UPI ID")
-    col("hosts").update_one({"user_id":uid(user_id)},{"$set":{"upi_id":upi,"updated_at":now_ts()}})
+    col("hosts").update_one({"_id":h["_id"]},{"$set":{"upi_id":upi,"updated_at":now_ts()}})
     return {"status":"success","upi_id":upi}
 
 @app.get("/api/host/withdrawal-info/{host_id}")
@@ -1455,12 +1470,12 @@ def withdraw(user_id:int, amount:float, upi_id:str=""):
     if len(selected_upi)<5 or "@" not in selected_upi: raise HTTPException(400,"Add your UPI ID before withdrawal")
     wid=str(uuid.uuid4()); now=now_ts()
     # Reserve the balance atomically so double-clicks/race conditions cannot overdraw.
-    changed=col("hosts").update_one({"user_id":uid(user_id),"available_earnings":{"$gte":amount}},{"$inc":{"available_earnings":-amount},"$set":{"upi_id":selected_upi,"updated_at":now}})
+    changed=col("hosts").update_one({"_id":h["_id"],"available_earnings":{"$gte":amount}},{"$inc":{"available_earnings":-amount},"$set":{"upi_id":selected_upi,"updated_at":now}})
     if changed.modified_count != 1: raise HTTPException(400,"Insufficient available earnings")
     try:
         col("withdrawals").insert_one({"withdrawal_id":wid,"user_id":uid(user_id),"amount":amount,"upi_id":selected_upi,"status":"pending","transaction_ref":"","created_at":now,"approved_at":None,"paid_at":None,"processed_by":None})
     except Exception:
-        col("hosts").update_one({"user_id":uid(user_id)},{"$inc":{"available_earnings":amount}})
+        col("hosts").update_one({"_id":h["_id"]},{"$inc":{"available_earnings":amount}})
         raise HTTPException(500,"Withdrawal could not be created")
     text=f"💸 <b>WITHDRAWAL REQUEST</b>\nHost: <code>{user_id}</code>\nAmount: ₹{amount:.2f}\nUPI: <code>{selected_upi}</code>\nID: <code>{wid}</code>\nTime: {iso(now)}"
     notify_full(text, [[{"text":"✅ Approve","callback_data":f"approve_withdraw:{wid}"},{"text":"❌ Reject","callback_data":f"reject_withdraw:{wid}"}]])
