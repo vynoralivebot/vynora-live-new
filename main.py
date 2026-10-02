@@ -13,6 +13,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
+from pymongo.errors import DuplicateKeyError
 from bson import ObjectId
 
 try:
@@ -470,6 +471,7 @@ class BookingModel(BaseModel):
     host_id: int
     minutes: int
     requested_start: int
+    request_key: str = ""
 
 class BookingAction(BaseModel):
     host_id: int
@@ -830,13 +832,16 @@ def book_slot(data: BookingModel):
         message = f"⚠️ <b>यह Host book नहीं किया जा सकता</b>\n\nयह Host <b>{h.get('country_name', host_country)}</b> से है। अभी केवल <b>India-based Hosts</b> की booking उपलब्ध है।\n\nकृपया India Host चुनें।"
         notify_user(data.user_id, message)
         raise HTTPException(403, "You cannot book a Host from another country")
+    # Stable request key prevents repeated taps/network retries from creating a second booking.
+    request_key = hashlib.sha256(f"{uid(data.user_id)}|{uid(data.host_id)}|{plan_minutes}|{start}".encode()).hexdigest()
+    existing=col("bookings").find_one({"request_key":request_key,"status":{"$in":["pending","accepted","scheduled","calling"]}})
+    if existing:
+        return {"status":"success","booking_id":existing["booking_id"],"busy":bool(existing.get("busy_at_request")),"duplicate":True,"message":"Existing booking returned; Coins were not deducted again."}
     if int(u.get("tokens",0)) < plan_tokens: raise HTTPException(400,"Insufficient tokens")
-    # Reserve money immediately; refund on reject/cancel.
+    # Reserve money atomically. If another identical request wins the unique index, refund this reservation.
     reserved=col("users").update_one({"user_id":uid(data.user_id),"tokens":{"$gte":plan_tokens}}, {"$inc":{"tokens":-plan_tokens}})
     if reserved.modified_count != 1:
         raise HTTPException(400,"Insufficient tokens")
-    # Demo is permanently consumed at the first successful demo booking.
-    # The Telegram user_id is the permanent identity used for this check.
     if is_demo:
         marked=col("users").update_one(
             {"user_id":uid(data.user_id),"demo_used":{"$ne":True}},
@@ -847,8 +852,16 @@ def book_slot(data: BookingModel):
             raise HTTPException(409,"Demo already used. Demo offer is available only once per Telegram User ID.")
     busy=overlap(data.host_id,start,end)
     bid=str(uuid.uuid4())
-    doc={"booking_id":bid,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":plan_minutes,"tokens":plan_tokens,"is_demo":is_demo,"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":busy,"created_at":now_ts(),"updated_at":now_ts(),"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False}
-    col("bookings").insert_one(doc)
+    now=now_ts()
+    doc={"booking_id":bid,"request_key":request_key,"user_id":uid(data.user_id),"host_id":uid(data.host_id),"minutes":plan_minutes,"tokens":plan_tokens,"is_demo":is_demo,"requested_start":start,"scheduled_start":None,"scheduled_end":None,"status":"pending","busy_at_request":busy,"created_at":now,"updated_at":now,"call_started_at":None,"call_ended_at":None,"user_joined_at":None,"host_joined_at":None,"earnings_credited":False}
+    try:
+        col("bookings").insert_one(doc)
+    except DuplicateKeyError:
+        col("users").update_one({"user_id":uid(data.user_id)},{"$inc":{"tokens":plan_tokens}})
+        existing=col("bookings").find_one({"request_key":request_key,"status":{"$in":["pending","accepted","scheduled","calling"]}})
+        if existing:
+            return {"status":"success","booking_id":existing["booking_id"],"busy":bool(existing.get("busy_at_request")),"duplicate":True,"message":"Existing booking returned; Coins were not deducted again."}
+        raise HTTPException(409,"Duplicate booking request. Please try again.")
     if is_demo:
         col("users").update_one({"user_id":uid(data.user_id)},{"$set":{"demo_booking_id":bid,"updated_at":now_ts()}})
     # IMPORTANT: never make the booking API wait for Telegram Bot API calls.
@@ -1112,13 +1125,26 @@ def upi_qr(amount: float = Query(..., gt=0)):
     out = io.BytesIO(); img.save(out, format="PNG")
     return Response(content=out.getvalue(), media_type="image/png", headers={"Cache-Control":"no-store"})
 
+def recharge_request_key(user_id:int, rupees:int, tokens:int, utr:str) -> str:
+    # Same user + plan + UTR is one logical recharge request.
+    return hashlib.sha256(f"{uid(user_id)}|{int(rupees)}|{int(tokens)}|{(utr or '').strip().lower()}".encode()).hexdigest()
+
 @app.post("/api/recharge")
 def recharge(data: RechargeModel):
     require_user(data.user_id)
     plan=next((p for p in RECHARGE_PLANS if p["rupees"]==data.rupees and p["tokens"]==data.tokens),None)
     if not plan: raise HTTPException(400,"Invalid recharge plan")
+    request_key=recharge_request_key(data.user_id,data.rupees,data.tokens,data.utr)
+    existing=col("recharges").find_one({"request_key":request_key,"status":"pending"})
+    if existing:
+        return {"status":"success","recharge_id":existing["recharge_id"],"duplicate":True,"message":"Existing recharge request returned; it was not submitted again."}
     rid=str(uuid.uuid4())
-    col("recharges").insert_one({"recharge_id":rid,"user_id":uid(data.user_id),"rupees":data.rupees,"tokens":data.tokens,"utr":data.utr,"screenshot_url":data.screenshot_url,"status":"pending","created_at":now_ts()})
+    try:
+        col("recharges").insert_one({"recharge_id":rid,"request_key":request_key,"user_id":uid(data.user_id),"rupees":data.rupees,"tokens":data.tokens,"utr":data.utr,"screenshot_url":data.screenshot_url,"status":"pending","created_at":now_ts()})
+    except DuplicateKeyError:
+        existing=col("recharges").find_one({"request_key":request_key,"status":"pending"})
+        if existing:return {"status":"success","recharge_id":existing["recharge_id"],"duplicate":True,"message":"Existing recharge request returned; it was not submitted again."}
+        raise HTTPException(409,"Duplicate recharge request. Please try again.")
     text=f"💳 <b>RECHARGE REQUEST</b>\nID: <code>{rid}</code>\nUser: <code>{data.user_id}</code>\n₹{data.rupees} → {data.tokens} Coins\nUTR: {data.utr or '-'}"
     notify_request(text,[[{"text":"✅ Approve","callback_data":f"approve_recharge:{rid}"},{"text":"❌ Reject","callback_data":f"reject_recharge:{rid}"}]])
     notify_full(text)
@@ -1147,15 +1173,24 @@ async def recharge_submit(
     if len(photo_bytes) > 1200000:
         raise HTTPException(400, "Payment screenshot is too large. Please use an image below 1.2 MB.")
 
+    request_key=recharge_request_key(user_id,rupees,tokens,utr)
+    existing=col("recharges").find_one({"request_key":request_key,"status":"pending"})
+    if existing:
+        return {"status":"success","recharge_id":existing["recharge_id"],"duplicate":True,"message":"Existing recharge request returned; it was not submitted again."}
     rid = "RCH-" + uuid.uuid4().hex[:10].upper()
     mime = screenshot.content_type or "image/jpeg"
     data_uri = f"data:{mime};base64," + base64.b64encode(photo_bytes).decode("ascii")
-    col("recharges").insert_one({
-        "recharge_id": rid, "user_id": uid(user_id), "rupees": rupees, "tokens": tokens,
-        "utr": utr, "screenshot_data": data_uri,
-        "screenshot_filename": screenshot.filename or "payment.jpg",
-        "screenshot_content_type": mime, "status": "pending", "created_at": now_ts()
-    })
+    try:
+        col("recharges").insert_one({
+            "recharge_id": rid, "request_key":request_key, "user_id": uid(user_id), "rupees": rupees, "tokens": tokens,
+            "utr": utr, "screenshot_data": data_uri,
+            "screenshot_filename": screenshot.filename or "payment.jpg",
+            "screenshot_content_type": mime, "status": "pending", "created_at": now_ts()
+        })
+    except DuplicateKeyError:
+        existing=col("recharges").find_one({"request_key":request_key,"status":"pending"})
+        if existing:return {"status":"success","recharge_id":existing["recharge_id"],"duplicate":True,"message":"Existing recharge request returned; it was not submitted again."}
+        raise HTTPException(409,"Duplicate recharge request. Please try again.")
     text = (f"💳 <b>RECHARGE REQUEST</b>\nID: <code>{rid}</code>\n"
             f"User: <code>{uid(user_id)}</code>\n₹{rupees} → {tokens} Coins\n"
             f"UTR: <code>{esc_html(utr)}</code>")
@@ -1883,7 +1918,9 @@ def background_db_init():
             col("hosts").create_index([("status",1),("demo",1),("updated_at",-1)])
             col("users").create_index("user_id", unique=True)
             col("bookings").create_index("booking_id", unique=True)
+            col("bookings").create_index("request_key", unique=True, sparse=True, partialFilterExpression={"status":{"$in":["pending","accepted","scheduled","calling"]}})
             col("recharges").create_index("recharge_id", unique=True)
+            col("recharges").create_index("request_key", unique=True, sparse=True, partialFilterExpression={"status":"pending"})
             col("direct_calls").create_index("call_id", unique=True)
             col("notifications").create_index([("user_id",1),("created_at",-1)])
         except Exception as e:
