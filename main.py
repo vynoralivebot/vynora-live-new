@@ -13,7 +13,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel, Field
 from pymongo import MongoClient, ReturnDocument
-from pymongo.errors import DuplicateKeyError
 from bson import ObjectId
 
 try:
@@ -1148,49 +1147,15 @@ async def recharge_submit(
     if len(photo_bytes) > 1200000:
         raise HTTPException(400, "Payment screenshot is too large. Please use an image below 1.2 MB.")
 
-    # SERVER-SIDE IDEMPOTENCY:
-    # The Mini App can retry a request when the network is slow/timeout, even
-    # after MongoDB has already saved the recharge. UTR is the payment
-    # transaction identifier, so the same user's UTR must never create a
-    # second recharge request.
-    recharge_col = col("recharges")
-    existing = recharge_col.find_one({
-        "user_id": uid(user_id),
-        "utr": utr,
-        "status": {"$in": ["pending", "approved"]}
-    })
-    if existing:
-        return {
-            "status": "already_submitted",
-            "recharge_id": existing.get("recharge_id"),
-            "message": "This UTR recharge request has already been submitted."
-        }
-
     rid = "RCH-" + uuid.uuid4().hex[:10].upper()
     mime = screenshot.content_type or "image/jpeg"
     data_uri = f"data:{mime};base64," + base64.b64encode(photo_bytes).decode("ascii")
-    try:
-        recharge_col.insert_one({
-            "recharge_id": rid, "user_id": uid(user_id), "rupees": rupees, "tokens": tokens,
-            "utr": utr, "screenshot_data": data_uri,
-            "screenshot_filename": screenshot.filename or "payment.jpg",
-            "screenshot_content_type": mime, "status": "pending", "created_at": now_ts()
-        })
-    except DuplicateKeyError:
-        # A concurrent/retried request won the insert race. Return the
-        # existing request instead of creating another Telegram notification.
-        existing = recharge_col.find_one({
-            "user_id": uid(user_id),
-            "utr": utr,
-            "status": {"$in": ["pending", "approved"]}
-        })
-        if existing:
-            return {
-                "status": "already_submitted",
-                "recharge_id": existing.get("recharge_id"),
-                "message": "This UTR recharge request has already been submitted."
-            }
-        raise
+    col("recharges").insert_one({
+        "recharge_id": rid, "user_id": uid(user_id), "rupees": rupees, "tokens": tokens,
+        "utr": utr, "screenshot_data": data_uri,
+        "screenshot_filename": screenshot.filename or "payment.jpg",
+        "screenshot_content_type": mime, "status": "pending", "created_at": now_ts()
+    })
     text = (f"💳 <b>RECHARGE REQUEST</b>\nID: <code>{rid}</code>\n"
             f"User: <code>{uid(user_id)}</code>\n₹{rupees} → {tokens} Coins\n"
             f"UTR: <code>{esc_html(utr)}</code>")
@@ -1919,16 +1884,6 @@ def background_db_init():
             col("users").create_index("user_id", unique=True)
             col("bookings").create_index("booking_id", unique=True)
             col("recharges").create_index("recharge_id", unique=True)
-            # One payment UTR can create only one active recharge request per user.
-            # This protects against double taps, browser retries and concurrent requests.
-            try:
-                col("recharges").create_index(
-                    [("user_id", 1), ("utr", 1)],
-                    unique=True,
-                    partialFilterExpression={"utr": {"$type": "string", "$gt": ""}}
-                )
-            except Exception as e:
-                log.warning("recharge UTR unique index setup: %s", e)
             col("direct_calls").create_index("call_id", unique=True)
             col("notifications").create_index([("user_id",1),("created_at",-1)])
         except Exception as e:
