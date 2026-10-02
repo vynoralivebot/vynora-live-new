@@ -279,7 +279,14 @@ def blocked(user_id):
 
 
 def host_doc(host_id):
-    return col("hosts").find_one({"user_id": uid(host_id)})
+    """Return the host record for an existing Telegram user.
+
+    Some older approved-host records used ``telegram_id`` while newer
+    records use ``user_id``.  Read both forms without changing or migrating
+    the stored record, so previously approved hosts keep their dashboard.
+    """
+    hid = uid(host_id)
+    return col("hosts").find_one({"$or": [{"user_id": hid}, {"telegram_id": hid}]})
 
 
 def host_or_404(host_id):
@@ -695,14 +702,14 @@ def hosts():
     docs = list(col("hosts").find(
         {"status":"approved", "demo":{"$ne":True}},
         {
-            "_id": 0, "user_id": 1, "name": 1, "bio": 1, "country": 1,
+            "_id": 0, "user_id": 1, "telegram_id": 1, "name": 1, "bio": 1, "country": 1,
             "country_name": 1, "online": 1, "available_slots": 1,
             "photo_data": 1, "photo_url": 1, "photo_updated_at": 1,
             "status": 1, "updated_at": 1
         }
     ).sort("updated_at", -1).limit(200))
 
-    ids=[int(h["user_id"]) for h in docs if h.get("user_id") is not None]
+    ids=[int(h.get("user_id") or h.get("telegram_id")) for h in docs if h.get("user_id") is not None or h.get("telegram_id") is not None]
     users={}
     if ids:
         users={int(u["user_id"]):u for u in col("users").find(
@@ -713,8 +720,12 @@ def hosts():
 
     rows=[]
     for h in docs:
-        uid_value=int(h["user_id"])
+        uid_value=int(h.get("user_id") or h.get("telegram_id"))
         u=users.get(uid_value,{})
+        # Keep the public host identifier stable for legacy records without
+        # rewriting their MongoDB document.
+        if h.get("user_id") is None:
+            h = {**h, "user_id": uid_value}
         country=str(h.get("country") or u.get("country") or "IN").strip().upper()
         if country in {"INDIA","🇮🇳"}: country="IN"
         if country!="IN": continue
