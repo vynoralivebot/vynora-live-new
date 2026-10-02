@@ -10,32 +10,6 @@
 :root{--bg:#090712;--card:#151126;--card2:#1c1634;--text:#f7f4ff;--muted:#a9a2bd;--primary:#8b5cf6;--primary2:#ec4899;--green:#35d07f;--red:#ff5c75;--line:#2b2344;--gold:#f5c451;--shadow:0 16px 40px rgba(0,0,0,.28)}
 *{box-sizing:border-box}html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}body{min-height:100vh;padding-bottom:82px}button,input,select,textarea{font:inherit}button{border:0;cursor:pointer}button.card,button.recharge-plan,button.duration{color:#f7f4ff !important}button.card b,button.recharge-plan b{color:#fff !important}button.card .muted{color:#c7c1d6 !important}.app{max-width:720px;margin:auto;padding:14px}.top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}.brand{font-weight:900;font-size:22px;letter-spacing:.2px}.brand span{color:#c084fc}.balance{background:linear-gradient(135deg,#211745,#30205a);border:1px solid #4c3678;border-radius:16px;padding:8px 12px;font-weight:800}.card{background:linear-gradient(180deg,var(--card),#110d20);border:1px solid var(--line);border-radius:20px;padding:15px;margin:12px 0;box-shadow:var(--shadow)}.hero{background:linear-gradient(135deg,#27124f,#17203f 55%,#311335);border:1px solid #49316b;padding:20px;border-radius:24px}.hero h1{margin:0 0 7px;font-size:25px}.hero p{margin:0;color:#c9c1db;line-height:1.5}.row{display:flex;gap:10px;align-items:center}.between{display:flex;align-items:center;justify-content:space-between;gap:10px}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}.muted{color:var(--muted)}.small{font-size:12px}.title{font-size:17px;font-weight:900;margin:18px 0 10px}.btn{background:linear-gradient(135deg,var(--primary),var(--primary2));color:white;padding:12px 15px;border-radius:14px;font-weight:800;width:100%}.btn.secondary{background:#211a37;border:1px solid #3a2e59}.btn.green{background:linear-gradient(135deg,#1fa968,#2ddf91)}.btn.red{background:linear-gradient(135deg,#dc3757,#ff6a7e)}.btn.gold{background:linear-gradient(135deg,#c58b1b,#f4ca55);color:#1c1404}.btn:disabled{opacity:.45}.pill{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900;background:#241b3d;color:#d7cced;border:1px solid #3a2d59}.online{color:#62f19c}.offline{color:#9690a3}.host{display:flex;gap:12px;align-items:center}.avatar{width:58px;height:58px;border-radius:17px;object-fit:cover;background:#282039;display:grid;place-items:center;font-size:24px;flex:0 0 auto}.host-info{min-width:0;flex:1}.host-name{font-weight:900;font-size:16px}.host-user{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.actions{display:flex;gap:8px;margin-top:11px}.actions .btn{flex:1}.notice{background:#1b1430;border:1px solid #4a356d;padding:12px;border-radius:15px;margin:10px 0;line-height:1.45}.empty{text-align:center;padding:25px;color:var(--muted)}.nav{position:fixed;z-index:20;left:0;right:0;bottom:0;background:rgba(12,9,22,.95);backdrop-filter:blur(15px);border-top:1px solid var(--line);padding:8px max(8px,env(safe-area-inset-left)) calc(8px + env(safe-area-inset-bottom));display:flex;justify-content:center}.navin{max-width:720px;width:100%;display:grid;grid-template-columns:repeat(5,1fr);gap:4px}.nav button{background:transparent;color:#8e879f;padding:7px 3px;border-radius:12px;font-size:11px;font-weight:800}.nav button.active{background:#21183b;color:white}.nav b{display:block;font-size:19px;margin-bottom:2px}.page{display:none}.page.active{display:block}.modal{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:50;display:none;align-items:flex-end}.modal.show{display:flex}.sheet{width:100%;max-width:720px;margin:auto;background:#110d20;border:1px solid #33284c;border-radius:25px 25px 0 0;padding:17px;max-height:90vh;overflow:auto}.field{margin:10px 0}.field label{display:block;font-size:12px;color:#aaa2bc;margin-bottom:6px}.field input,.field select,.field textarea{width:100%;background:#19142b;color:white;border:1px solid #3b3055;border-radius:13px;padding:12px;outline:none}.field textarea{min-height:90px;resize:vertical}.duration{padding:11px;border-radius:13px;background:#19142b;border:1px solid #34294e;color:#ddd;text-align:center;font-weight:800}.duration.sel{border-color:#a855f7;background:#2a1a4d;color:white}.toast{position:fixed;z-index:100;left:50%;bottom:92px;transform:translateX(-50%) translateY(20px);opacity:0;background:#211a32;border:1px solid #493967;padding:12px 15px;border-radius:14px;max-width:90%;transition:.2s;pointer-events:none}.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}.call{position:fixed;inset:0;background:#050408;z-index:80;display:none}.call.show{display:block}.remote{position:absolute;inset:0}.remote>div{width:100%;height:100%}.local{position:absolute;right:14px;top:52px;width:118px;height:165px;border-radius:16px;overflow:hidden;background:#17121f;border:1px solid #514463;z-index:3}.local>div{width:100%;height:100%}.calltop{position:absolute;z-index:4;left:15px;right:15px;top:15px;display:flex;justify-content:space-between;align-items:center}.callbadge{background:rgba(0,0,0,.45);backdrop-filter:blur(8px);padding:8px 11px;border-radius:12px}.callbottom{position:absolute;z-index:4;left:15px;right:15px;bottom:calc(20px + env(safe-area-inset-bottom));display:flex;justify-content:center;gap:12px}.circle{width:55px;height:55px;border-radius:50%;display:grid;place-items:center;background:#2a2434;color:white;font-size:21px}.circle.end{background:#e33d58}.timer{font-size:18px;font-weight:900}.hidden{display:none!important}.stat{padding:13px;border-radius:15px;background:#18132a;border:1px solid #2e2644}.stat strong{font-size:20px;display:block}.recharge-plan{padding:13px;border-radius:15px;background:#19142b;border:1px solid #34294e;text-align:center}.recharge-plan.sel{border-color:#9b5cff;background:#2a1b4a}.history{padding:12px;border-bottom:1px solid #2a2340}.history:last-child{border-bottom:0}.status{font-size:11px;font-weight:900}.status.completed,.status.accepted,.status.scheduled,.status.calling{color:#61e998}.status.rejected,.status.cancelled{color:#ff7086}.status.pending{color:#f5c451}.announcement{border-color:#6943a0;background:linear-gradient(135deg,#24153f,#1b1530)}.boot-loading{position:fixed;inset:0;z-index:200;background:#090712;display:flex;align-items:center;justify-content:center;padding:24px;text-align:center}.boot-loading.hidden{display:none!important}.boot-loading-box{width:min(92vw,420px);background:#151126;border:1px solid #3a2d59;border-radius:20px;padding:22px;box-shadow:0 16px 40px rgba(0,0,0,.35)}.boot-loading-logo{width:64px;height:64px;border-radius:18px;margin-bottom:12px;display:grid;place-items:center;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:#fff;font-size:34px;font-weight:950;box-shadow:0 10px 28px rgba(139,92,246,.3)}.v-logo{display:inline-grid;place-items:center;width:34px;height:34px;border-radius:10px;vertical-align:middle;margin-right:7px;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:#fff;font-size:22px;font-weight:950;line-height:1;box-shadow:0 6px 18px rgba(139,92,246,.25)}
 @media(min-width:600px){.grid{grid-template-columns:repeat(3,1fr)}}
-
-/* Vynora Live host discovery UI — limited to host listing presentation. */
-.host-toolbar{display:flex;gap:8px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none}
-.host-toolbar::-webkit-scrollbar{display:none}
-.host-filter{flex:0 0 auto;background:#171229;border:1px solid #342951;color:#cfc7df;border-radius:999px;padding:9px 14px;font-weight:850;font-size:13px}
-.host-filter.active{background:linear-gradient(135deg,#8b5cf6,#ec4899);border-color:transparent;color:#fff}
-.host-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
-.host-card{position:relative;overflow:hidden;padding:0!important;margin:0!important;border-radius:19px;background:#120d21;border:1px solid #302447;box-shadow:0 12px 28px rgba(0,0,0,.25)}
-.host-photo-wrap{position:relative;width:100%;aspect-ratio:1/1;overflow:hidden;background:#201932}
-.host-photo{width:100%;height:100%;object-fit:cover;display:block}
-.host-photo-fallback{width:100%;height:100%;display:grid;place-items:center;font-size:48px;background:linear-gradient(135deg,#251a42,#171126)}
-.host-overlay{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.08) 28%,rgba(0,0,0,.78) 100%)}
-.host-online-badge{position:absolute;left:8px;top:8px;border-radius:999px;padding:5px 8px;background:rgba(5,25,16,.88);border:1px solid #24df78;color:#65f3a0;font-size:11px;font-weight:950;backdrop-filter:blur(5px)}
-.host-offline-badge{position:absolute;left:8px;top:8px;border-radius:999px;padding:5px 8px;background:rgba(20,18,28,.9);border:1px solid #706a7d;color:#c0bacb;font-size:11px;font-weight:900}
-.host-heart{position:absolute;right:8px;top:8px;width:31px;height:31px;border-radius:50%;display:grid;place-items:center;background:rgba(10,8,16,.55);color:#fff;font-size:17px;border:1px solid rgba(255,255,255,.2)}
-.host-card-info{position:absolute;left:10px;right:10px;bottom:9px;z-index:2}
-.host-card-name{font-size:15px;font-weight:950;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;text-shadow:0 2px 8px #000}
-.host-card-rate{font-size:12px;font-weight:850;margin-top:3px;color:#fff}
-.host-verified{color:#38bdf8}
-.host-book-btn{display:block;width:calc(100% - 20px);margin:9px 10px 10px;padding:10px 8px;border-radius:12px;background:linear-gradient(135deg,#8b5cf6,#ec4899);color:#fff;font-weight:950;font-size:13px}
-.host-book-btn:disabled{opacity:.45;background:#302b3d}
-.host-section-title{display:flex;align-items:center;justify-content:space-between;margin:7px 0 10px}
-.host-section-title b{font-size:17px}
-.host-count{font-size:11px;color:#aaa2bc}
-@media(min-width:600px){.host-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}}
-
 </style>
 </head>
 <body>
@@ -45,30 +19,19 @@
 
   <section id="home" class="page active">
     <div id="announcement" class="notice announcement hidden"></div>
-    <div id="demoHome" class="card hidden"></div>
-    <div class="between"><div class="title" style="margin-bottom:8px">Find a Host</div><button class="pill" onclick="loadHosts()">↻ Refresh</button></div>
-    <div class="host-toolbar" id="homeHostFilters">
-      <button class="host-filter active" data-filter="all" onclick="setHostFilter('all')">▦ All Hosts</button>
-      <button class="host-filter" data-filter="online" onclick="setHostFilter('online')">🟢 Online</button>
-      <button class="host-filter" data-filter="popular" onclick="setHostFilter('popular')">🔥 Popular</button>
-      <button class="host-filter" data-filter="new" onclick="setHostFilter('new')">⭐ New</button>
+    <div class="hero"><h1>Private 1-to-1 Video Call</h1><p>India-based Real Host चुनें, slot book करें और secure private video call करें.</p><div class="actions"><button class="btn" onclick="go('hosts')">🎥 Find Host</button><button class="btn secondary" onclick="go('wallet')">🪙 Recharge</button></div></div>
+    <div id="demoHome" class="card hidden"></div><div class="title">Quick Access</div>
+    <div class="grid">
+      <button class="card" onclick="go('hosts')">🎥<br><b>Hosts</b><br><span class="small muted">Online hosts</span></button>
+      <button class="card" onclick="go('bookings')">📅<br><b>Bookings</b><br><span class="small muted">Your calls</span></button>
+      <button class="card" onclick="go('wallet')">💳<br><b>Wallet</b><br><span class="small muted">Recharge</span></button>
+      <button class="card" onclick="go('profile')">👤<br><b>Profile</b><br><span class="small muted">Account</span></button>
     </div>
-    <div id="homeHostList"><div class="empty">Hosts load हो रहे हैं…</div></div>
-    <div class="card" style="margin-top:14px"><div class="between"><b>🪙 Recharge</b><button class="pill" onclick="go('wallet')">Open Wallet</button></div><p class="small muted" style="margin-bottom:0">Recharge करके अपने Coins से private video call book करें.</p></div>
     <div id="hostHome" class="card hidden"></div>
     <div id="adminHome" class="card hidden"></div>
   </section>
 
-  <section id="hosts" class="page">
-  <div class="between"><div class="title" style="margin-bottom:8px">Find a Host</div><button class="pill" onclick="loadHosts()">↻ Refresh</button></div>
-  <div class="host-toolbar" id="hostFilters">
-    <button class="host-filter active" data-filter="all" onclick="setHostFilter('all')">▦ All Hosts</button>
-    <button class="host-filter" data-filter="online" onclick="setHostFilter('online')">🟢 Online</button>
-    <button class="host-filter" data-filter="popular" onclick="setHostFilter('popular')">🔥 Popular</button>
-    <button class="host-filter" data-filter="new" onclick="setHostFilter('new')">⭐ New</button>
-  </div>
-  <div id="hostList"></div>
-</section>
+  <section id="hosts" class="page"><div class="between"><div class="title">Available Hosts</div><button class="pill" onclick="loadHosts()">↻ Refresh</button></div><div id="hostList"></div></section>
 
   <section id="bookings" class="page"><div class="title">My Bookings</div><div id="bookingList"></div></section>
 
@@ -296,7 +259,7 @@ async function refreshUser(userId=null){
 }
 async function loadAnnouncement(){try{const d=await api('/api/announcement');if(d.message){$('announcement').innerHTML='📢 <b>Announcement</b><br>'+esc(d.message);$('announcement').classList.remove('hidden')}}catch(e){}}
 function renderHome(){
-  if(me?.demo_used){$('demoHome').classList.add('hidden')}else{$('demoHome').classList.remove('hidden');$('demoHome').innerHTML='<div class="between"><b>🎁 First-Use Free Demo</b><span class="pill">10 Seconds · FREE</span></div><p class="small muted">🎉 पहली बार आपके लिए 10 सेकंड का <b>Free Demo Call</b> उपलब्ध है। Demo paid booking से अलग है और कोई Coin नहीं कटेगा.</p><p class="small muted">⏳ App जल्दी खुलेगा; बाकी data background में load होगा.</p><button class="btn green" onclick="openDemoHostPicker()">🎁 Start Free Demo</button>'}
+  if(me?.demo_used){$('demoHome').classList.add('hidden')}else{$('demoHome').classList.remove('hidden');$('demoHome').innerHTML='<div class="between"><b>🎁 First-Use Free Demo</b><span class="pill">20 Seconds · FREE</span></div><p class="small muted">🎉 पहली बार आपके लिए 20 सेकंड का <b>Free Demo Call</b> उपलब्ध है। Demo paid booking से अलग है और कोई Coin नहीं कटेगा.</p><p class="small muted">⏳ App जल्दी खुलेगा; बाकी data background में load होगा.</p><button class="btn green" onclick="openDemoHostPicker()">🎁 Start Free Demo</button>'}
   if(me?.host?.status==='approved'){$('hostHome').classList.remove('hidden');$('hostHome').innerHTML=`<div class="between"><b>🎙️ Host Dashboard</b><span class="pill ${me.host.online?'online':'offline'}">${me.host.online?'🟢 ONLINE':'⚫ OFFLINE'}</span></div><p class="small muted">Earnings: ₹${Number(me.host.available_earnings||0).toFixed(2)} · Calls: ${Number(me.host.total_tokens||0)}</p><div class="actions"><button class="btn ${me.host.online?'red':'green'}" onclick="toggleHostOnline()">${me.host.online?'GO OFFLINE':'GO ONLINE'}</button><button class="btn secondary" onclick="go('bookings')">Bookings</button></div>`}
   if(me?.is_admin){$('adminHome').classList.remove('hidden');$('adminHome').innerHTML='<b>👑 VYNORA LIVE — VERIFIED SUPER ADMIN</b><p class="small muted">Admin dashboard Profile में उपलब्ध है.</p><button class="btn" onclick="go(\'profile\');renderAdmin()">Open Admin</button>'}
 }
@@ -310,59 +273,19 @@ async function loadHosts(){
     $('hostList').innerHTML=`<div class="empty">⚠️ Hosts अभी background में load हो रहे हैं. ↻ Refresh करें.</div>`;
   }
 }
-let hostFilter='all';
-function setHostFilter(filter){
-  hostFilter=filter||'all';
-  document.querySelectorAll('#hostFilters .host-filter,#homeHostFilters .host-filter').forEach(b=>b.classList.toggle('active',b.dataset.filter===hostFilter));
-  renderHosts();
-}
-function filteredHostList(){
-  const real=hosts.filter(h=>String(h.country||'IN').toUpperCase()==='IN'&&!h.demo);
-  let list=[...real];
-  if(hostFilter==='online') list=list.filter(h=>!!h.online);
-  else if(hostFilter==='popular') list=list.filter(h=>!!h.online);
-  else if(hostFilter==='new') list=list.slice().sort((a,b)=>Number(b.host_id||0)-Number(a.host_id||0));
-  list.sort((a,b)=>(Number(b.online)-Number(a.online)));
-  return list;
-}
-function hostListMarkup(list){
-  if(!list.length) return `<div class="empty">${hostFilter==='online'?'अभी कोई Host online नहीं है.':'अभी कोई approved Host उपलब्ध नहीं है.'}</div>`;
-  return `<div class="host-section-title"><b>${hostFilter==='online'?'🟢 Online Hosts':'Available Hosts'}</b><span class="host-count">${list.length} Hosts</span></div><div class="host-grid">${list.map(hostCard).join('')}</div>`;
-}
 function renderHosts(){
-  const list=filteredHostList();
-  if($('hostList')) $('hostList').innerHTML=hostListMarkup(list);
-  if($('homeHostList')) $('homeHostList').innerHTML=hostListMarkup(list);
+  const real=hosts.filter(h=>String(h.country||'IN').toUpperCase()==='IN'&&!h.demo),foreign=hosts.filter(h=>String(h.country||'').toUpperCase()!=='IN'||h.demo);
+  let html='';
+  if(real.length)html+='<div class="title">🇮🇳 India Hosts</div>'+real.map(hostCard).join('');
+  if(foreign.length)html+='<div class="title">🌍 Demo / Foreign Hosts</div>'+foreign.map(hostCard).join('');
+  $('hostList').innerHTML=html||'<div class="empty">अभी कोई approved Host उपलब्ध नहीं है.</div>';
 }
-
-function hostCard(h){
-  const id=Number(h.host_id||h.user_id);
-  const allowed=String(h.country||'IN').toUpperCase()==='IN'&&!h.demo;
-  const online=!!h.online;
-  const photoHtml=h.photo_url
-    ? `<img class="host-photo" src="${esc(h.photo_url)}" alt="${esc(h.name||'Host')}" onerror="this.style.display='none';this.nextElementSibling.style.display='grid'">`
-    : '';
-  const fallback=`<div class="host-photo-fallback" ${h.photo_url?'style="display:none"':''}>${esc((h.name||'U').slice(0,1).toUpperCase())}</div>`;
-  return `<div class="host-card">
-    <div class="host-photo-wrap">
-      ${photoHtml}${fallback}
-      <div class="host-overlay"></div>
-      <span class="${online?'host-online-badge':'host-offline-badge'}">${online?'🟢 ONLINE':'⚫ OFFLINE'}</span>
-      <button class="host-heart" onclick="viewHost(${id})" aria-label="View host">♡</button>
-      <div class="host-card-info">
-        <div class="host-card-name">${esc(h.name||'Host')} ${h.verified?'<span class="host-verified">✓</span>':''}</div>
-        <div class="host-card-rate">🪙 ${esc(h.call_rate||'₹50/min starting')}</div>
-      </div>
-    </div>
-    <button class="host-book-btn" ${(!allowed||!online)?'disabled':''} onclick="openBooking(${id})">${!allowed?'Not Available':!online?'Coming Soon':'📹 Book Now'}</button>
-  </div>`;
-}
-
+function hostCard(h){const allowed=String(h.country||'IN').toUpperCase()==='IN'&&!h.demo;return `<div class="card"><div class="host">${photo(h.photo_url,h.name)}<div class="host-info"><div class="host-name">${esc(h.name||'Host')} ${h.online?'<span class=online>●</span>':'<span class=offline>●</span>'}</div><div class="host-user">Vynora Verified Host · ${esc(h.country_name||'India')}</div><div class="small ${h.online?'online':'offline'}">${h.online?'🟢 ONLINE':'⚫ OFFLINE'} · Host ID: ${Number(h.host_id||h.user_id)}</div></div></div><div class="actions"><button class="btn secondary" onclick="viewHost(${Number(h.host_id||h.user_id)})">View</button><button class="btn" ${(!allowed||!h.online)?'disabled':''} onclick="openBooking(${Number(h.host_id||h.user_id)})">${!allowed?'Not Available':!h.online?'Offline':'Book Slot'}</button></div></div>`}
 async function viewHost(id){try{selectedHost=await api('/api/host/'+id);openModal(`<div class="between"><h2 style="margin:0">${esc(selectedHost.name)}</h2><button class="pill" onclick="closeModal()">✕</button></div><div style="text-align:center;margin:15px 0">${photo(selectedHost.photo_url,selectedHost.name)}<p class="muted">Host ID: <b>${Number(selectedHost.host_id||id)}</b></p><span class="pill ${selectedHost.online?'online':'offline'}">${selectedHost.online?'🟢 ONLINE':'⚫ OFFLINE'}</span></div><p class="small muted">${esc(selectedHost.bio||'Verified Vynora Live Host')}<br>India-based private 1-to-1 video calls.</p><button class="btn" ${selectedHost.online?'':'disabled'} onclick="openBooking(${id})">📅 Book Slot</button>`)}catch(e){toast('❌ '+e.message)}}
 
 
-async function openDemoHostPicker(){try{await loadHosts();const online=hosts.filter(h=>h.online&&!h.demo);if(!online.length){toast('अभी कोई online Real Host उपलब्ध नहीं है');return}openModal(`<h2 style="margin-top:0">🎁 First-Use Free Demo</h2><p class="small muted">केवल पहली बार · 10 seconds · FREE</p>${online.map(h=>`<div class="card"><div class="host">${photo(h.photo_url,h.name)}<div class="host-info"><b>${esc(h.name)}</b><br><span class="small muted">🟢 ONLINE · Host ID ${Number(h.host_id||h.user_id)}</span></div></div><button class="btn green" style="margin-top:10px" onclick="selectDemoHost(${Number(h.host_id||h.user_id)})">🎁 Request Demo</button></div>`).join('')}`)}catch(e){toast('❌ '+e.message)}}
-async function selectDemoHost(id){const h=hosts.find(x=>Number(x.host_id||x.user_id)===Number(id));if(!h)return;const minDate=new Date(Date.now()+2*60*1000);minDate.setSeconds(0,0);const local=new Date(minDate.getTime()-minDate.getTimezoneOffset()*60000).toISOString().slice(0,16);openModal(`<h2 style="margin-top:0">🎁 Free Demo</h2><div class="host">${photo(h.photo_url,h.name)}<div><b>${esc(h.name)}</b><br><span class="small online">🟢 ONLINE</span></div></div><div class="field"><label>Date & Time</label><input id="demoTime" type="datetime-local" min="${local}" value="${local}"></div><div class="notice"><b>10 Seconds · FREE</b><br>No Coins will be deducted. Timer starts only when both connect.</div><button class="btn green" onclick="submitDemo(${Number(id)})">Confirm Free Demo</button>`)}
+async function openDemoHostPicker(){try{await loadHosts();const online=hosts.filter(h=>h.online&&!h.demo);if(!online.length){toast('अभी कोई online Real Host उपलब्ध नहीं है');return}openModal(`<h2 style="margin-top:0">🎁 First-Use Free Demo</h2><p class="small muted">केवल पहली बार · 20 seconds · FREE</p>${online.map(h=>`<div class="card"><div class="host">${photo(h.photo_url,h.name)}<div class="host-info"><b>${esc(h.name)}</b><br><span class="small muted">🟢 ONLINE · Host ID ${Number(h.host_id||h.user_id)}</span></div></div><button class="btn green" style="margin-top:10px" onclick="selectDemoHost(${Number(h.host_id||h.user_id)})">🎁 Request Demo</button></div>`).join('')}`)}catch(e){toast('❌ '+e.message)}}
+async function selectDemoHost(id){const h=hosts.find(x=>Number(x.host_id||x.user_id)===Number(id));if(!h)return;const minDate=new Date(Date.now()+2*60*1000);minDate.setSeconds(0,0);const local=new Date(minDate.getTime()-minDate.getTimezoneOffset()*60000).toISOString().slice(0,16);openModal(`<h2 style="margin-top:0">🎁 Free Demo</h2><div class="host">${photo(h.photo_url,h.name)}<div><b>${esc(h.name)}</b><br><span class="small online">🟢 ONLINE</span></div></div><div class="field"><label>Date & Time</label><input id="demoTime" type="datetime-local" min="${local}" value="${local}"></div><div class="notice"><b>20 Seconds · FREE</b><br>No Coins will be deducted. Timer starts only when both connect.</div><button class="btn green" onclick="submitDemo(${Number(id)})">Confirm Free Demo</button>`)}
 async function submitDemo(hostId){try{const ts=Math.floor(new Date($('demoTime').value).getTime()/1000);await jsonApi('/api/demo/book',{user_id:me.user_id,host_id:hostId,minutes:1,requested_start:ts});closeModal();toast('🎁 Free Demo request भेज दिया गया');await refreshUser();go('bookings');await loadBookings()}catch(e){toast('❌ '+e.message)}}
 
 function openBooking(hostId){
@@ -394,12 +317,10 @@ async function submitBooking(){
     const plan=(config.booking_plans||[]).find(p=>Number(p.minutes)===selectedMinutes);
     if(!plan)throw new Error('Invalid duration');
     if(Number(me.tokens)<Number(plan.tokens))throw new Error('Insufficient Coins. पहले recharge करें.');
-    const requestId=(window.__activeBookingRequestId ||= (crypto.randomUUID ? crypto.randomUUID() : ('req_'+Date.now()+'_'+Math.random().toString(16).slice(2))));
-    await jsonApi('/api/book-slot',{user_id:me.user_id,host_id:Number(selectedHost.host_id||selectedHost.user_id),minutes:selectedMinutes,requested_start:ts,request_id:requestId});
+    await jsonApi('/api/book-slot',{user_id:me.user_id,host_id:Number(selectedHost.host_id||selectedHost.user_id),minutes:selectedMinutes,requested_start:ts});
 
     // Server has confirmed the booking. Do not wait for secondary balance/history
     // refreshes, because those requests are not part of the booking itself.
-    window.__activeBookingRequestId=null;
     closeModal();
     toast('✅ Booking request भेज दिया गया');
     go('bookings');
