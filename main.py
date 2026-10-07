@@ -40,7 +40,7 @@ MONGO_URI = os.getenv("MONGO_URI", os.getenv("MONGO_URL", ""))
 MONGO_DB = os.getenv("MONGO_DB", "vynora_live")
 AGORA_APP_ID = (os.getenv("AGORA_APP_ID") or os.getenv("AGORA_APPID") or os.getenv("AGORA_APP_ID_VALUE") or "").strip()
 AGORA_APP_CERTIFICATE = (os.getenv("AGORA_APP_CERTIFICATE") or os.getenv("AGORA_APP_CERT") or os.getenv("AGORA_CERTIFICATE") or os.getenv("AGORA_APP_CERTIFICATE_VALUE") or "").strip()
-UPI_ID = os.getenv("UPI_ID", "vynoralive@slc")
+UPI_ID = "vynoralivemini@slc"  # Updated UPI ID from the latest UPI screenshot
 UPI_NAME = os.getenv("UPI_NAME", "Rajnish Kumar")
 SUPPORT_URL = os.getenv("SUPPORT_URL", "https://t.me/VynoraSupport")
 TELEGRAM_USER_MESSAGE_AUTO_DELETE_SECONDS = int(os.getenv("TELEGRAM_USER_MESSAGE_AUTO_DELETE_SECONDS", "90"))
@@ -858,11 +858,21 @@ def book_slot(data: BookingModel):
         message = f"⚠️ <b>यह Host book नहीं किया जा सकता</b>\n\nयह Host <b>{h.get('country_name', host_country)}</b> से है। अभी केवल <b>India-based Hosts</b> की booking उपलब्ध है।\n\nकृपया India Host चुनें।"
         notify_user(data.user_id, message)
         raise HTTPException(403, "You cannot book a Host from another country")
-    # Stable request key prevents repeated taps/network retries from creating a second booking.
-    request_key = hashlib.sha256(f"{uid(data.user_id)}|{uid(data.host_id)}|{plan_minutes}|{start}".encode()).hexdigest()
-    existing=col("bookings").find_one({"request_key":request_key,"status":{"$in":["pending","accepted","scheduled","calling"]}})
+    # ONE PENDING BOOKING PER USER + HOST.
+    # Do not allow a second request until the current request is accepted/rejected.
+    # The pending lookup handles normal retries; the unique request_key index below
+    # also protects against two requests arriving at exactly the same time.
+    existing=col("bookings").find_one({
+        "user_id":uid(data.user_id),
+        "host_id":uid(data.host_id),
+        "status":"pending"
+    })
     if existing:
-        return {"status":"success","booking_id":existing["booking_id"],"busy":bool(existing.get("busy_at_request")),"duplicate":True,"message":"Existing booking returned; Coins were not deducted again."}
+        return {"status":"success","booking_id":existing["booking_id"],"busy":bool(existing.get("busy_at_request")),"duplicate":True,"message":"A pending booking request already exists. No second request was created and Coins were not deducted again."}
+
+    # IMPORTANT: the key intentionally does NOT contain duration/time.
+    # This makes every pending request for the same User + Host one logical request.
+    request_key = hashlib.sha256(f"{uid(data.user_id)}|{uid(data.host_id)}".encode()).hexdigest()
     if int(u.get("tokens",0)) < plan_tokens: raise HTTPException(400,"Insufficient tokens")
     # Reserve money atomically. If another identical request wins the unique index, refund this reservation.
     reserved=col("users").update_one({"user_id":uid(data.user_id),"tokens":{"$gte":plan_tokens}}, {"$inc":{"tokens":-plan_tokens}})
@@ -884,9 +894,13 @@ def book_slot(data: BookingModel):
         col("bookings").insert_one(doc)
     except DuplicateKeyError:
         col("users").update_one({"user_id":uid(data.user_id)},{"$inc":{"tokens":plan_tokens}})
-        existing=col("bookings").find_one({"request_key":request_key,"status":{"$in":["pending","accepted","scheduled","calling"]}})
+        existing=col("bookings").find_one({
+            "user_id":uid(data.user_id),
+            "host_id":uid(data.host_id),
+            "status":"pending"
+        })
         if existing:
-            return {"status":"success","booking_id":existing["booking_id"],"busy":bool(existing.get("busy_at_request")),"duplicate":True,"message":"Existing booking returned; Coins were not deducted again."}
+            return {"status":"success","booking_id":existing["booking_id"],"busy":bool(existing.get("busy_at_request")),"duplicate":True,"message":"A pending booking request already exists. No second request was created and Coins were not deducted again."}
         raise HTTPException(409,"Duplicate booking request. Please try again.")
     if is_demo:
         col("users").update_one({"user_id":uid(data.user_id)},{"$set":{"demo_booking_id":bid,"updated_at":now_ts()}})
@@ -1944,7 +1958,14 @@ def background_db_init():
             col("hosts").create_index([("status",1),("demo",1),("updated_at",-1)])
             col("users").create_index("user_id", unique=True)
             col("bookings").create_index("booking_id", unique=True)
-            col("bookings").create_index("request_key", unique=True, sparse=True, partialFilterExpression={"status":{"$in":["pending","accepted","scheduled","calling"]}})
+            # Only pending bookings need the duplicate-request lock.
+            # Once the Host accepts/rejects, the unique slot is released and the
+            # User may submit another booking request.
+            try:
+                col("bookings").drop_index("request_key_1")
+            except Exception:
+                pass
+            col("bookings").create_index("request_key", unique=True, sparse=True, partialFilterExpression={"status":"pending"})
             col("recharges").create_index("recharge_id", unique=True)
             col("recharges").create_index("request_key", unique=True, sparse=True, partialFilterExpression={"status":"pending"})
             col("direct_calls").create_index("call_id", unique=True)
